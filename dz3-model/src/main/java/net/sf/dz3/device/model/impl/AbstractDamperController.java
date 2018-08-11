@@ -130,7 +130,10 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
         ts2damper.remove(ts);
     }
 
-    public synchronized void stateChanged(Thermostat source, ThermostatSignal signal) {
+    /**
+     * {@inheritDoc}
+     */
+    public synchronized Future<TransitionStatus> stateChanged(Thermostat source, ThermostatSignal signal) {
 
         ThreadContext.push("signalChanged");
 
@@ -146,12 +149,11 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
             logger.info("Demand: " + source.getName() + "=" + signal.demand.sample);
             logger.info("ts2signal.size()=" + ts2signal.size());
             
-            sync();
+            return sync();
 
         } finally {
             ThreadContext.pop();
         }
-
     }
 
     public synchronized void consume(DataSample<UnitSignal> signal) {
@@ -206,7 +208,7 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
         }
     }
     
-    private void park(boolean async) {
+    private Future<TransitionStatus> park(boolean async) {
 
         ThreadContext.push("park");
         
@@ -224,9 +226,11 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
                 damperMap.put(d, d.getParkPosition());
             }
 
-            shuffle(damperMap, async);
+            Future<TransitionStatus> done = shuffle(damperMap, async);
 
             logger.info("parked");
+
+            return done;
 
         } finally {
             ThreadContext.pop();
@@ -310,7 +314,7 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
     /**
      * Recalculate the damper state according to [possibly] changed internal state.
      */
-    protected final void sync() {
+    protected final Future<TransitionStatus> sync() {
         
         // VT: NOTE: This assumes compute() is stateless, ideally, it should stay that way.
         // If there is ever a need to make it stateful, compute() should be called outside
@@ -318,11 +322,11 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
         
         if (this.hvacSignal != null && this.hvacSignal.sample.running) {
         
-            shuffle(compute(), true);
+            return shuffle(compute(), true);
             
         } else {
             
-            park(true);
+            return park(true);
         }
     }
 
