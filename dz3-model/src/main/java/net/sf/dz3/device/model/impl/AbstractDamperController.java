@@ -337,7 +337,7 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
     }
 
     @Override
-    public final synchronized void powerOff() {
+    public final synchronized Future<TransitionStatus> powerOff() {
         
         ThreadContext.push("powerOff");
         
@@ -346,7 +346,7 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
             enabled = false;
             logger.warn("Powering off");
             
-            park(false);
+            return park(false);
             
         } finally {
             ThreadContext.pop();
