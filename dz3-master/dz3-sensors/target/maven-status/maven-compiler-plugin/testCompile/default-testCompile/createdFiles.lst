@@ -1,0 +1,7 @@
+net/sf/dz3/device/sensor/AnalogConverterTMP36Test.class
+net/sf/dz3/device/sensor/impl/ShellSensorTest.class
+net/sf/dz3/device/sensor/AnalogConverterLM34Test.class
+net/sf/dz3/device/sensor/impl/MedianFilterTest.class
+net/sf/dz3/device/sensor/impl/MedianFilterTest$Consumer.class
+net/sf/dz3/device/sensor/impl/MedianFilterTest$1.class
+net/sf/dz3/device/sensor/impl/tcp/server/SensorServerTest.class

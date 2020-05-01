@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SimpleEconomizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">SimpleEconomizer.java</span></div><h1>SimpleEconomizer.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.Economizer;
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Simple {@link Economizer} implementation.
+ *
+ *  This is a proof of concept implementation, not protected from the jitter possible when
+ *  temperature readings fluctuate around triggering point.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class SimpleEconomizer extends AbstractEconomizer {
+
+    public SimpleEconomizer(String name, ThermostatModel thermostat, AnalogSensor outdoorSensor, double threshold) {
+
+<span class="nc" id="L23">        super(name, thermostat, outdoorSensor, threshold);</span>
+<span class="nc" id="L24">    }</span>
+
+    @Override
+    protected void init() {
+
+<span class="nc" id="L29">        thermostat.getSensor().addConsumer(new ThermostatListener());</span>
+<span class="nc" id="L30">        outdoorSensor.addConsumer(new SensorListener());</span>
+<span class="nc" id="L31">    }</span>
+
+    @Override
+    protected double compute() {
+
+<span class="nc" id="L36">        ThreadContext.push(&quot;compute&quot;);</span>
+
+        try {
+
+<span class="nc" id="L40">            logger.debug(&quot;Indoor temperature: &quot; + indoor);</span>
+<span class="nc" id="L41">            logger.debug(&quot;Outdoor temperature: &quot; + outdoor);</span>
+
+<span class="nc bnc" id="L43" title="All 4 branches missed.">            if (indoor == null || outdoor == null) {</span>
+
+                // Must've been an error, or just starting up
+<span class="nc" id="L46">                logger.debug(&quot;data unavailable, ignored&quot;);</span>
+
+<span class="nc" id="L48">                return 0;</span>
+            }
+
+<span class="nc bnc" id="L51" title="All 2 branches missed.">            if (!thermostat.isOn()) {</span>
+
+<span class="nc" id="L53">                logger.debug(&quot;off, ignored&quot;);</span>
+<span class="nc" id="L54">                return 0;</span>
+            }
+
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            if (!thermostat.isVoting()) {</span>
+
+<span class="nc" id="L59">                logger.debug(&quot;not voting, ignored&quot;);</span>
+<span class="nc" id="L60">                return 0;</span>
+            }
+
+<span class="nc" id="L63">            double setpoint = thermostat.getSetpoint();</span>
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            if (isCooling()) {</span>
+
+<span class="nc bnc" id="L67" title="All 2 branches missed.">                if (indoor &lt; setpoint) {</span>
+
+                    // No cooling required
+<span class="nc" id="L70">                    return 0;</span>
+                }
+
+<span class="nc" id="L73">                double signal = indoor - threshold - outdoor;</span>
+
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                return signal &gt; 0 ? signal : 0;</span>
+
+            } else {
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">                if (indoor &gt; setpoint) {</span>
+
+                    // No heating required
+<span class="nc" id="L82">                    return 0;</span>
+                }
+
+<span class="nc" id="L85">                double signal = outdoor - threshold - indoor;</span>
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                return signal &gt; 0 ? signal : 0;</span>
+            }
+
+        } finally {
+<span class="nc" id="L91">            ThreadContext.pop();</span>
+        }
+    }
+
+<span class="nc" id="L95">    class ThermostatListener implements DataSink&lt;Double&gt; {</span>
+
+        @Override
+        public void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L100">            timestamp = signal.timestamp;</span>
+<span class="nc" id="L101">            indoor = signal.sample;</span>
+
+<span class="nc" id="L103">            broadcast(compute());</span>
+<span class="nc" id="L104">        }</span>
+    }
+
+<span class="nc" id="L107">    class SensorListener implements DataSink&lt;Double&gt; {</span>
+
+        @Override
+        public void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L112">            timestamp = signal.timestamp;</span>
+<span class="nc" id="L113">            outdoor = signal.sample;</span>
+
+<span class="nc" id="L115">            broadcast(compute());</span>
+<span class="nc" id="L116">        }</span>
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L122">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Simple Economizer&quot;,
+<span class="nc" id="L125">                Integer.toHexString(hashCode()),</span>
+                &quot;Utilize indoor/outdoor termperature difference to minimize energy consumption&quot;);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

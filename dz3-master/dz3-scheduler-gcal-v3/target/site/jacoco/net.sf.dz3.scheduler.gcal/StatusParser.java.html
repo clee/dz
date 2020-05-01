@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StatusParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Google Calendar v3 API based schedule updater</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.scheduler.gcal</a> &gt; <span class="el_source">StatusParser.java</span></div><h1>StatusParser.java</h1><pre class="source lang-java linenums">package net.sf.dz3.scheduler.gcal;
+
+import java.text.NumberFormat;
+import java.text.ParseException;
+import java.util.NoSuchElementException;
+import java.util.StringTokenizer;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.ZoneStatus;
+import net.sf.dz3.device.model.impl.ZoneStatusImpl;
+
+/**
+ * Utility class to parse the {@link ZoneStatus} out of a period free form text.
+ * 
+ * Eventually, this utility can become very smart in parsing badly formed free form input. However,
+ * this will also cause it to bloat quite a bit and become too heavy. It is possible to offload
+ * parsing on an online component, but whether this is necessary is yet to be seen. 
+ *  
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+<span class="fc" id="L24">public class StatusParser {</span>
+    
+<span class="fc" id="L26">    private final Logger logger = LogManager.getLogger(getClass());</span>
+<span class="fc" id="L27">    private final NumberFormat numberFormat = NumberFormat.getInstance();</span>
+
+    public ZoneStatus parse(String arguments) {
+        
+<span class="fc" id="L31">        ThreadContext.push(&quot;parse&quot;);</span>
+        
+<span class="fc" id="L33">        arguments = arguments.toLowerCase();</span>
+        
+<span class="fc" id="L35">        Double setpoint = null;</span>
+<span class="fc" id="L36">        Boolean enabled = null;</span>
+<span class="fc" id="L37">        Boolean voting = null;</span>
+<span class="fc" id="L38">        Integer dumpPriority = null;</span>
+        
+        try {
+
+<span class="fc bfc" id="L42" title="All 2 branches covered.">            for (StringTokenizer st = new StringTokenizer(arguments.trim(), &quot;,;&quot;); st.hasMoreTokens(); ) {</span>
+
+<span class="fc" id="L44">                String token = st.nextToken().trim();</span>
+
+<span class="fc" id="L46">                logger.info(&quot;Token: '&quot; + token + &quot;'&quot;);</span>
+                
+<span class="fc bfc" id="L48" title="All 4 branches covered.">                if (&quot;on&quot;.equals(token) || &quot;enabled&quot;.equals(token)) {</span>
+                    
+<span class="fc" id="L50">                    enabled = true;</span>
+<span class="fc" id="L51">                    continue;</span>
+                }
+                
+<span class="fc bfc" id="L54" title="All 4 branches covered.">                if (&quot;off&quot;.equals(token) || &quot;disabled&quot;.equals(token)) {</span>
+                    
+<span class="fc" id="L56">                    enabled = false;</span>
+<span class="fc" id="L57">                    continue;</span>
+                }
+                
+<span class="fc bfc" id="L60" title="All 2 branches covered.">                if (&quot;voting&quot;.equals(token)) {</span>
+                    
+<span class="fc" id="L62">                    voting = true;</span>
+<span class="fc" id="L63">                    continue;</span>
+                }
+                
+<span class="fc bfc" id="L66" title="All 4 branches covered.">                if (&quot;non-voting&quot;.equals(token) || &quot;not voting&quot;.equals(token)) {</span>
+                    
+<span class="fc" id="L68">                    voting = false;</span>
+<span class="fc" id="L69">                    continue;</span>
+                }
+                
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">                if (token.startsWith(&quot;setpoint&quot;) || token.startsWith(&quot;temperature&quot;)) {</span>
+                    
+<span class="fc" id="L74">                    StringTokenizer st2 = new StringTokenizer(token, &quot; =:&quot;);</span>
+                    
+                    // Result is not needed
+<span class="fc" id="L77">                    st2.nextToken();</span>
+
+                    try {
+
+<span class="fc" id="L81">                        setpoint = parseSetpoint(st2.nextToken());</span>
+
+<span class="fc" id="L83">                    } catch (NoSuchElementException ex) {</span>
+
+                        // This indicates a problem with setpoint syntax
+<span class="fc" id="L86">                        throw new IllegalArgumentException(&quot;can't parse '&quot; + arguments + &quot;' (malformed setpoint '&quot; + token + &quot;')&quot;, ex);</span>
+<span class="fc" id="L87">                    }</span>
+                }
+                
+<span class="fc bfc" id="L90" title="All 2 branches covered.">                if (token.startsWith(&quot;dump&quot;)) {</span>
+                    
+<span class="fc" id="L92">                    dumpPriority = parseDumpPriority(token);</span>
+                }
+<span class="fc" id="L94">            }</span>
+            
+            // Fill in defaults
+            
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            if (enabled == null) {</span>
+                
+<span class="fc" id="L100">                enabled = true;</span>
+            }
+            
+<span class="fc bfc" id="L103" title="All 2 branches covered.">            if (voting == null) {</span>
+                
+<span class="fc" id="L105">                voting = true;</span>
+            }
+            
+<span class="fc bfc" id="L108" title="All 2 branches covered.">            if (dumpPriority == null) {</span>
+                
+<span class="fc" id="L110">                dumpPriority = 0;</span>
+            }
+            
+            // There is no default for setpoint
+            
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            if (setpoint == null) {</span>
+                
+<span class="fc" id="L117">                throw new IllegalArgumentException(&quot;Could not parse setpoint out of '&quot; + arguments + &quot;'&quot;);</span>
+            }
+
+<span class="fc" id="L120">            return new ZoneStatusImpl(setpoint, dumpPriority, enabled, voting);</span>
+        
+        } finally {
+<span class="fc" id="L123">            ThreadContext.pop();</span>
+        }
+    }
+
+    private Double parseSetpoint(String setpoint) {
+        
+        try {
+        
+<span class="fc" id="L131">            Number n = numberFormat.parse(setpoint);</span>
+
+<span class="fc" id="L133">            Double value = n.doubleValue();</span>
+
+            // Default temperature unit is Celsius, you'll have to explicitly specify
+            // Fahrenheit if you want it
+
+<span class="fc bfc" id="L138" title="All 2 branches covered.">            if (setpoint.indexOf(&quot;f&quot;) &gt;= 0) {</span>
+
+                // Need to convert to Celsius
+<span class="fc" id="L141">                logger.debug(&quot;Temperature unit is Fahhrenheit&quot;);</span>
+<span class="fc" id="L142">                value = ((value - 32) * 5) / 9;</span>
+            }
+
+<span class="fc" id="L145">            return value;</span>
+
+<span class="nc" id="L147">        } catch (ParseException ex) {</span>
+
+<span class="nc" id="L149">            throw new IllegalArgumentException(&quot;Could not parse setpoint out of '&quot; + setpoint + &quot;'&quot;);</span>
+        }
+    }
+
+    private Integer parseDumpPriority(String dumpPriority) {
+        
+        // [&quot;dumpPriority&quot; || &quot;dump priority&quot;] [= : &quot; &quot;] &lt;value&gt;
+        
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">        for (StringTokenizer st = new StringTokenizer(dumpPriority, &quot; =:&quot;); st.hasMoreTokens(); ) {</span>
+
+<span class="fc" id="L159">            String token = st.nextToken();</span>
+            
+            try {
+
+<span class="fc" id="L163">                return numberFormat.parse(token).intValue();</span>
+
+<span class="fc" id="L165">            } catch (ParseException ex) {</span>
+
+                // Well, this didn't work, let's go to next
+<span class="fc" id="L168">                logger.debug(&quot;Couldn't parse '&quot; + token + &quot;' as a number&quot;);</span>
+            }
+<span class="fc" id="L170">        }</span>
+        
+<span class="nc" id="L172">        throw new IllegalArgumentException(&quot;Could not parse dump priority out of '&quot; + dumpPriority + &quot;'&quot;);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

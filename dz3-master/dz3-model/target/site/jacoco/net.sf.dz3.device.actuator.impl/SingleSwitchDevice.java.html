@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SingleSwitchDevice.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">SingleSwitchDevice.java</span></div><h1>SingleSwitchDevice.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.Economizer;
+import net.sf.dz3.device.model.ZoneController;
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+
+/**
+ * Extremely simplified implementation of a consumer for a {@link ZoneController}, {@link Economizer},
+ * and other sources that might have a simple actuator.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class SingleSwitchDevice implements DataSink&lt;Double&gt; {
+
+<span class="nc" id="L27">    private final Logger logger = LogManager.getLogger(getClass());</span>
+
+<span class="nc" id="L29">    private final BlockingQueue&lt;Runnable&gt; commandQueue = new LinkedBlockingQueue&lt;Runnable&gt;();</span>
+    private final ThreadPoolExecutor executor;
+
+    /**
+     * Hardware switch to control.
+     */
+    private final Switch theSwitch;
+
+    /**
+     * Stays {@code true} until {@link #powerOff()} is called, then becomes {@code false}
+     * and causes all subsequent invocations of {@link #consume(DataSample)} to throw
+     * {@link IllegalStateException}.
+     */
+<span class="nc" id="L42">    private boolean enabled = true;</span>
+
+    /**
+     * Current state.
+     *
+     * Used to avoid wasting time on setting hardware to the state it is already at.
+     * {@code null} until first invocation.
+     */
+    private Boolean state;
+
+    /**
+     * Create an instance.
+     *
+     * @param source Data source to use to control {@link #theSwitch}. Non-zero output from the data source (or any other signal
+     * passed to {@link #consume(DataSample)}, for that matter) will cause {@link #theSwitch} to be set to {@code true}.
+     *
+     * @param target Switch to control.
+     */
+<span class="nc" id="L60">    public SingleSwitchDevice(DataSource&lt;Double&gt; source, Switch target) {</span>
+
+<span class="nc" id="L62">        executor = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, commandQueue);</span>
+
+<span class="nc" id="L64">        this.theSwitch = target;</span>
+
+<span class="nc" id="L66">        source.addConsumer(this);</span>
+<span class="nc" id="L67">    }</span>
+
+    @Override
+    public synchronized void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L72">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+<span class="nc" id="L76">            checkEnabled();</span>
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if (signal.isError()) {</span>
+<span class="nc" id="L79">                throw new IllegalStateException(&quot;Not accepting error input&quot;);</span>
+            }
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">            boolean newState = signal.sample &gt; 0 ? true : false;</span>
+
+<span class="nc bnc" id="L84" title="All 4 branches missed.">            if (state != null &amp;&amp; newState == state.booleanValue()) {</span>
+
+<span class="nc" id="L86">                logger.info(&quot;Switch &quot; + theSwitch.getAddress() + &quot;=&quot; + newState + &quot; (unchanged)&quot;);</span>
+<span class="nc" id="L87">                return;</span>
+            }
+
+<span class="nc" id="L90">            logger.info(&quot;Switch &quot; + theSwitch.getAddress() + &quot;=&quot; + newState);</span>
+
+<span class="nc" id="L92">            executor.execute(new Command(newState));</span>
+
+        } finally {
+<span class="nc" id="L95">            ThreadContext.pop();</span>
+        }
+
+<span class="nc" id="L98">    }</span>
+
+    private void checkEnabled() {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if (!enabled) {</span>
+<span class="nc" id="L102">            throw new IllegalStateException(&quot;powerOff() was called already&quot;);</span>
+        }
+<span class="nc" id="L104">    }</span>
+
+    /**
+     * Set {@link #theSwitch} to {@code false}.
+     */
+    public synchronized void powerOff() {
+
+<span class="nc" id="L111">        ThreadContext.push(&quot;powerOff&quot;);</span>
+
+        try {
+
+<span class="nc" id="L115">            logger.warn(&quot;Powering off&quot;);</span>
+
+<span class="nc" id="L117">            executor.execute(new Command(false));</span>
+<span class="nc" id="L118">            enabled = false;</span>
+
+<span class="nc" id="L120">            logger.info(&quot;shut down.&quot;);</span>
+
+        } finally {
+<span class="nc" id="L123">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L125">    }</span>
+
+    private class Command implements Runnable {
+
+        private final boolean state;
+
+<span class="nc" id="L131">        public Command(boolean state) {</span>
+
+<span class="nc" id="L133">            this.state = state;</span>
+<span class="nc" id="L134">        }</span>
+
+        @Override
+        public void run() {
+
+<span class="nc" id="L139">            int retry = 0;</span>
+            while (true) {
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                ThreadContext.push(&quot;run&quot; + (retry &gt; 0 ? &quot;#retry-&quot; + retry : &quot;&quot;));</span>
+
+                try {
+
+<span class="nc" id="L146">                    logger.debug(&quot;Running &quot; + toString());</span>
+
+<span class="nc" id="L148">                    theSwitch.setState(state);</span>
+<span class="nc" id="L149">                    SingleSwitchDevice.this.state = state;</span>
+
+<span class="nc" id="L151">                    logger.debug(&quot;Success&quot;);</span>
+<span class="nc" id="L152">                    return;</span>
+
+<span class="nc" id="L154">                } catch (Throwable t) {</span>
+
+<span class="nc" id="L156">                    logger.fatal(&quot;Failed to execute &quot; + getClass().getSimpleName(), t);</span>
+
+                    // We're going to retry this till the end of time, because
+                    // hardware operations are critical
+
+<span class="nc" id="L161">                    retry++;</span>
+
+                    try {
+
+<span class="nc" id="L165">                        Thread.sleep(1000);</span>
+
+<span class="nc" id="L167">                    } catch (InterruptedException ex) {</span>
+
+<span class="nc" id="L169">                        logger.error(&quot;Interrupted, ignored&quot;, ex);</span>
+<span class="nc" id="L170">                    }</span>
+
+                } finally {
+<span class="nc" id="L173">                    ThreadContext.pop();</span>
+<span class="nc" id="L174">                    ThreadContext.clearStack();</span>
+<span class="nc" id="L175">                }</span>
+            }
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

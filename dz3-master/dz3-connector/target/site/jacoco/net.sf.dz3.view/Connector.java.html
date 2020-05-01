@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Connector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Unified Connector Framework</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view</a> &gt; <span class="el_source">Connector.java</span></div><h1>Connector.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.jukebox.jmx.JmxAware;
+
+/**
+ * Base class for implementing the V in MVC.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public abstract class Connector&lt;T&gt; implements JmxAware {
+
+<span class="fc" id="L24">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    /**
+     * Component factory map.
+     *
+     * The key is the class of the object to be taken from the {@link #initSet},
+     * the value is the component factory instance to take care of its creation.
+     */
+<span class="fc" id="L32">    private final Map&lt;Class&lt;?&gt;, ConnectorFactory&lt;T&gt;&gt; factoryMap = new HashMap&lt;&gt;();</span>
+
+    /**
+     * Copy of the initial set of objects passed via constructor.
+     */
+<span class="fc" id="L37">    private final Set&lt;Object&gt; initSet = new HashSet&lt;&gt;();</span>
+
+    /**
+     * Mapping from the object in {@link #initSet} to the component that represents it.
+     */
+<span class="fc" id="L42">    private final Map&lt;Object, T&gt; componentMap = new HashMap&lt;&gt;();</span>
+
+    public Connector(Set&lt;Object&gt; initSet) {
+
+<span class="fc" id="L46">        this(initSet, null);</span>
+<span class="fc" id="L47">    }</span>
+
+<span class="fc" id="L49">    public Connector(Set&lt;Object&gt; initSet, Set&lt;ConnectorFactory&lt;T&gt;&gt; factorySet) {</span>
+
+<span class="fc" id="L51">        ThreadContext.push(&quot;Connector()&quot;);</span>
+
+        try {
+
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">            if (initSet != null) {</span>
+
+<span class="nc" id="L57">                this.initSet.addAll(initSet);</span>
+            }
+
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">            if (factorySet == null) {</span>
+
+<span class="fc" id="L62">                return;</span>
+            }
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            for (Iterator&lt;ConnectorFactory&lt;T&gt;&gt; i = factorySet.iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L67">                ConnectorFactory&lt;T&gt; factory = i.next();</span>
+
+<span class="nc" id="L69">                logger.info(&quot;Using custom factory {} for {}&quot;,</span>
+<span class="nc" id="L70">                        factory.getClass().getName(),</span>
+<span class="nc" id="L71">                        factory.getSourceClass().getName());</span>
+
+<span class="nc" id="L73">                register(factory.getSourceClass(), factory);</span>
+<span class="nc" id="L74">            }</span>
+
+        } finally {
+<span class="fc" id="L77">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L79">    }</span>
+
+    public final void register(Class&lt;?&gt; componentClass, ConnectorFactory&lt;T&gt; connector) {
+
+<span class="nc" id="L83">        factoryMap.put(componentClass, connector);</span>
+<span class="nc" id="L84">    }</span>
+
+    /**
+     * Keep invoking factories from {@link #factoryMap} on objects from {@link #initSet}
+     * until they're all accounted for, and put them into {@link #componentMap}.
+     */
+    private void createComponentMap(Map&lt;String, Object&gt; context) {
+
+<span class="nc" id="L92">        ThreadContext.push(&quot;createComponentMap&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">            for (Iterator&lt;Object&gt; i = initSet.iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L98">                Object initObject = i.next();</span>
+<span class="nc" id="L99">                Class&lt;?&gt; initClass = initObject.getClass();</span>
+<span class="nc" id="L100">                ConnectorFactory&lt;T&gt; factory = factoryMap.get(initClass);</span>
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                if (factory == null) {</span>
+
+<span class="nc" id="L104">                    logger.info(&quot;No direct mapping for {}, searching parents&quot;, initClass.getName());</span>
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">                    for (Iterator&lt;Class&lt;?&gt;&gt; i2 = factoryMap.keySet().iterator(); i2.hasNext(); ) {</span>
+
+<span class="nc" id="L108">                        Class&lt;?&gt; c = i2.next();</span>
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">                        if (c.isAssignableFrom(initClass)) {</span>
+
+<span class="nc" id="L112">                            factory = factoryMap.get(c);</span>
+
+<span class="nc" id="L114">                            logger.info(&quot;Subsitute: {} isA {}&quot;, initClass.getName(), c.getName());</span>
+                        }
+<span class="nc" id="L116">                    }</span>
+                }
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                if (factory == null) {</span>
+
+<span class="nc" id="L121">                    logger.error(&quot;Don't know how to handle {}: {}&quot;, initClass.getName(), initObject);</span>
+<span class="nc" id="L122">                    continue;</span>
+
+                }
+
+                try {
+
+<span class="nc" id="L128">                    T c = factory.createComponent(initObject,context);</span>
+
+<span class="nc" id="L130">                    logger.info(&quot;Created {}  for {}&quot;, c, initObject);</span>
+<span class="nc" id="L131">                    componentMap.put(initObject, c);</span>
+
+<span class="nc" id="L133">                } catch (Throwable t) {</span>
+                    // Not a fatal condition, there are other components
+<span class="nc" id="L135">                    logger.error(&quot;Failed to create a component for &quot; + initObject + &quot;, moving on&quot;, t);</span>
+<span class="nc" id="L136">                }</span>
+<span class="nc" id="L137">            }</span>
+
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            if (componentMap.isEmpty()) {</span>
+
+                // Not fatal either
+<span class="nc" id="L142">                logger.warn(&quot;componentMap is empty, did you specify any arguments in the constructor?&quot;);</span>
+            }
+
+        } finally {
+<span class="nc" id="L146">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L148">    }</span>
+
+    /**
+     * Create the context.
+     *
+     * This object will be used by {@link #createComponentMap(TreeMap)} and discarded. Don't bother keeping
+     * the reference, it won't be called often, most probably once.
+     *
+     * @return The context.
+     */
+    protected abstract Map&lt;String, Object&gt; createContext();
+
+    protected Set&lt;Object&gt; getInitSet() {
+
+<span class="nc" id="L162">        return Collections.unmodifiableSet(initSet);</span>
+    }
+
+    /**
+     * @deprecated Need to replace by a lookup method.
+     */
+    @Deprecated
+    protected final Map&lt;Object, T&gt; getComponentMap() {
+
+<span class="nc" id="L171">        return Collections.unmodifiableMap(componentMap);</span>
+    }
+
+    /**
+     * Activate the connector.
+     */
+    public final synchronized void activate() {
+
+<span class="nc" id="L179">        ThreadContext.push(&quot;activate&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            if (!componentMap.isEmpty()) {</span>
+
+                // Last deactivate() wasn't clean, this is a problem
+<span class="nc" id="L186">                throw new IllegalStateException(&quot;componentMap is not empty: &quot; + componentMap);</span>
+            }
+
+<span class="nc" id="L189">            createComponentMap(createContext());</span>
+
+<span class="nc" id="L191">            activate2();</span>
+
+        } finally {
+<span class="nc" id="L194">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L196">    }</span>
+
+    /**
+     * Deactivate the connector.
+     */
+    public final synchronized void deactivate() {
+
+<span class="nc" id="L203">        ThreadContext.push(&quot;deactivate&quot;);</span>
+
+        try {
+
+<span class="nc" id="L207">            deactivate2();</span>
+
+<span class="nc" id="L209">            componentMap.clear();</span>
+
+        } finally {
+<span class="nc" id="L212">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L214">    }</span>
+
+    /**
+     * Give subclasses a chance to do what they need.
+     */
+    protected abstract void activate2();
+
+    /**
+     * Give subclasses a chance to do what they need.
+     */
+    protected abstract void deactivate2();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

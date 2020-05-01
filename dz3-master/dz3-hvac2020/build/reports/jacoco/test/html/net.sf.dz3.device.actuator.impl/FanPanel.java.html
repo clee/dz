@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FanPanel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dz3-hvac2020</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">FanPanel.java</span></div><h1>FanPanel.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.util.SortedMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.model.ZoneController;
+import net.sf.dz3.device.sensor.Switch;
+import com.homeclimatecontrol.jukebox.jmx.JmxDescriptor;
+
+public class FanPanel extends AbstractHvacUnit2020 {
+
+    private SortedMap&lt;Double, Switch&gt; demandMap;
+
+    /**
+     * Create a multi switch instance.
+     *
+     * @param name Fan panel name.
+     * @param mode Mode reported by this instance, for compatibility. An attempt to {@link #setMode(HvacMode)}
+     * to a mode different than this (other than {@link HvacMode#OFF} will cause an {@link IllegalArgumentException}.
+     *
+     * @param demandMap The values are demand levels to turn the particular switch on and off at, keys are switches to activate.
+     * The caller is supposed to take care of the hysteresis to avoid the switch jitter.
+     * Demand values will be normalized to fit into {@code 0..1} range.
+     */
+    public FanPanel(String name, HvacMode mode, SortedMap&lt;Double, Switch&gt; demandMap) {
+
+<span class="fc" id="L31">        super(name, mode);</span>
+
+<span class="fc" id="L33">        this.demandMap = normalize(demandMap);</span>
+<span class="fc" id="L34">    }</span>
+
+    /**
+     * Create a single switch instance.
+     *
+     * @param s The only switch to control the hardware. An entry of
+     * {@code (theSwitch, 0)} will be put into {@link #demandMap}.
+     */
+    public FanPanel(String name, HvacMode mode, Switch s) {
+<span class="fc" id="L43">        this(name, mode, normalize(map(s)));</span>
+<span class="fc" id="L44">    }</span>
+
+    public FanPanel(String name, String mode, SortedMap&lt;Double, Switch&gt; demandMap) {
+<span class="fc" id="L47">        this(name, HvacMode.valueOf(mode), demandMap);</span>
+<span class="fc" id="L48">    }</span>
+
+    public FanPanel(String name, String mode, Switch s) {
+<span class="fc" id="L51">        this(name, mode, normalize(map(s)));</span>
+<span class="fc" id="L52">    }</span>
+
+    public FanPanel(String name, String mode, SortedMap&lt;Double, Switch&gt; demandMap, ZoneController zc) {
+
+<span class="fc" id="L56">        this(name, HvacMode.valueOf(mode), demandMap);</span>
+
+<span class="fc" id="L58">        zc.addConsumer(this);</span>
+<span class="fc" id="L59">    }</span>
+
+    public FanPanel(String name, String mode, Switch s, ZoneController zc) {
+<span class="fc" id="L62">        this(name, mode, normalize(map(s)), zc);</span>
+<span class="fc" id="L63">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="fc" id="L68">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="fc" id="L70">                &quot;Fan Panel: &quot; + getName(),</span>
+<span class="fc" id="L71">                Integer.toHexString(hashCode()),</span>
+                &quot;Controls fan panel&quot;);
+    }
+
+    @Override
+    public String toString() {
+
+        // The only essential parts (for now) are the name and the demand map,
+        // everything else is secondary
+
+        // VT: NOTE: It might be a good idea to package this as JSON
+<span class="fc" id="L82">        return getClass().getSimpleName() + &quot;: {name:&quot; + getName() + &quot;, demandMap:&quot; + demandMap + &quot;}&quot;;</span>
+    }
+
+    @Override
+    protected Future&lt;Status&gt; set(HvacMode mode, double demand, double speed) {
+
+<span class="fc" id="L88">        Callable&lt;Status&gt; c = new Callable&lt;Status&gt;() {</span>
+
+            @Override
+            public Status call() throws Exception {
+<span class="fc" id="L92">                ThreadContext.push(&quot;set&quot;);</span>
+                try {
+
+<span class="fc" id="L95">                    double signal = map(demand, speed);</span>
+
+<span class="fc" id="L97">                    logger.debug(&quot;signal: ({}, {}) =&gt; {}&quot;, demand, speed, signal);</span>
+
+<span class="fc" id="L99">                    execute(signal, demandMap);</span>
+
+<span class="fc" id="L101">                    Status statusActual = new Status(mode, demand, speed);</span>
+
+<span class="fc" id="L103">                    setStatusActual(statusActual);</span>
+
+<span class="fc" id="L105">                    return statusActual;</span>
+
+                } finally {
+<span class="fc" id="L108">                    ThreadContext.pop();</span>
+                }
+            }
+        };
+
+<span class="fc" id="L113">        return executor.submit(c);</span>
+    }
+
+    @Override
+    protected void verifyModeChange(HvacMode mode) {
+
+<span class="fc bfc" id="L119" title="All 8 branches covered.">        if ((this.mode == HvacMode.COOLING &amp;&amp; mode == HvacMode.HEATING)</span>
+         || (this.mode == HvacMode.HEATING &amp;&amp; mode == HvacMode.COOLING)) {
+
+<span class="fc" id="L122">                   throw new UnsupportedOperationException(&quot;Mode change is not supported by this device&quot;);</span>
+               }
+<span class="fc" id="L124">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

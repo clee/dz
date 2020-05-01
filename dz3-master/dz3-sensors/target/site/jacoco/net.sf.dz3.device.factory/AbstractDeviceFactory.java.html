@@ -1,0 +1,379 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractDeviceFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.factory</a> &gt; <span class="el_source">AbstractDeviceFactory.java</span></div><h1>AbstractDeviceFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.factory;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.dz3.device.sensor.DeviceContainer;
+import net.sf.dz3.device.sensor.DeviceFactory;
+import net.sf.dz3.device.sensor.PrototypeContainer;
+import net.sf.dz3.device.sensor.SensorType;
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.dz3.device.sensor.impl.AbstractAnalogSensor;
+import net.sf.dz3.device.sensor.impl.AbstractDeviceContainer;
+import net.sf.dz3.device.sensor.impl.ContainerMap;
+import net.sf.dz3.device.sensor.impl.StringChannelAddress;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.service.ActiveService;
+
+/**
+ * An entity capable of resolving a device by address.
+ *
+ * Loosely based on {@code net.sf.dz.daemon.onewire.owapi.OneWireServer}.
+ *
+ * This class behaves like a singleton, but is not built like one - the intent is to instantiate
+ * it with Spring Framework, which will take care of creating as few instances as needed.
+ *
+ * @param &lt;T&gt; Implementation class of the hardware dependent switch container.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko 2001-2020
+ */
+public abstract class AbstractDeviceFactory&lt;T&gt; extends ActiveService implements DeviceFactory {
+
+    /**
+     * Read/write lock controlling the exclusive access to hardware devices.
+     *
+     * Note that the lock is constructed with an argument, otherwise fairness is not supported.
+     */
+<span class="nc" id="L48">    protected ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);</span>
+
+    /**
+     * Device map. The key is the address, the value is the device container.
+     */
+<span class="nc" id="L53">    protected final ContainerMap address2dcGlobal = new ContainerMap();</span>
+
+<span class="nc" id="L55">    protected Map&lt;String, SwitchChannelSplitter&gt; address2proxy = new TreeMap&lt;&gt;();</span>
+
+    /**
+     * Data map.
+     */
+<span class="nc" id="L60">    protected DataMap dataMap = new DataMap();</span>
+
+    public AbstractDeviceFactory() {
+<span class="nc" id="L63">        super();</span>
+<span class="nc" id="L64">    }</span>
+
+    public AbstractDeviceFactory(ThreadGroup tg, ThreadFactory tf) {
+<span class="nc" id="L67">        super(tg, tf);</span>
+<span class="nc" id="L68">    }</span>
+
+    public AbstractDeviceFactory(ThreadFactory tf) {
+<span class="nc" id="L71">        super(tf);</span>
+<span class="nc" id="L72">    }</span>
+
+    /**
+     * Get a server lock.
+     *
+     * @return The server lock.
+     */
+    public final ReentrantReadWriteLock getLock() {
+<span class="nc" id="L80">        return lock;</span>
+    }
+
+    /**
+     * Get an instance of a temperature sensor.
+     *
+     * @param address Hardware address.
+     *
+     * @return An instance of a temperature sensor, unconditionally. In case when
+     * the device with a given address is not present on a bus, the instance returned will keep
+     * producing {@link DataSample error samples} over and over, with &quot;Not Present&quot; being the error.
+     */
+    @Override
+    public final synchronized AnalogSensor getTemperatureSensor(String address) {
+
+<span class="nc" id="L95">        ThreadContext.push(&quot;getTemperatureSensor&quot;);</span>
+
+        try {
+
+<span class="nc" id="L99">            return getSensor(address, SensorType.TEMPERATURE);</span>
+
+        } finally {
+<span class="nc" id="L102">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Get an instance of a humidity sensor.
+     *
+     * @param address Hardware address.
+     *
+     * @return An instance of a humidity sensor, unconditionally. In case when
+     * the device with a given address is not present on a bus, the instance returned will keep
+     * producing {@link DataSample error samples} over and over, with &quot;Not Present&quot; being the error.
+     */
+    @Override
+    public final synchronized AnalogSensor getHumiditySensor(String address) {
+
+<span class="nc" id="L118">        ThreadContext.push(&quot;getHumiditySensor&quot;);</span>
+
+        try {
+
+<span class="nc" id="L122">            return getSensor(address, SensorType.HUMIDITY);</span>
+
+        } finally {
+<span class="nc" id="L125">            ThreadContext.pop();</span>
+        }
+    }
+
+    protected abstract AnalogSensor createSensorProxy(String address, SensorType type);
+
+    protected AnalogSensor getSensor(String address, SensorType type) {
+
+<span class="nc" id="L133">        ThreadContext.push(&quot;getSensor&quot;);</span>
+
+        try {
+
+<span class="nc" id="L137">            logger.debug(&quot;Looking for &quot; + address + &quot; (type &quot; + type + &quot;)&quot;);</span>
+
+<span class="nc" id="L139">            Set&lt;DeviceContainer&gt; devices = address2dcGlobal.get(address);</span>
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">            if (devices == null) {</span>
+
+                // Tough luck. The sensor hasn't been discovered yet - this is a normal situation at startup.
+<span class="nc" id="L144">                return createSensorProxy(address, type);</span>
+            }
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            for (Iterator&lt;DeviceContainer&gt; i = devices.iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L149">                DeviceContainer dc = i.next();</span>
+<span class="nc" id="L150">                logger.info(&quot;Found: &quot; + dc + &quot;, &quot; + dc.getType());</span>
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                if (type.equals(dc.getType())) {</span>
+
+                    // Voila, we already have it
+<span class="nc" id="L155">                    return (AnalogSensor) dc;</span>
+                }
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                if (dc.getType().equals(SensorType.PROTOTYPE)) {</span>
+
+<span class="nc" id="L160">                    return ((PrototypeContainer) dc).getSensor(address, type);</span>
+                }
+<span class="nc" id="L162">            }</span>
+
+<span class="nc" id="L164">            logger.warn(&quot;Address &quot; + address + &quot; present, but no &quot; + type.description + &quot; sensors were found at this address, likely configuration error. Creating proxy container anyway&quot;);</span>
+<span class="nc" id="L165">            return createSensorProxy(address, type);</span>
+
+        } finally {
+<span class="nc" id="L168">            ThreadContext.pop();</span>
+        }
+    }
+    /**
+     * @return Size of {@link #address2path} map.
+     * @deprecated This method is intended to help finding a memory leak and has no other reason to exist.
+     */
+    @Deprecated
+    @JmxAttribute(description = &quot;address2dcGlobal size&quot;)
+    public synchronized int getAddress2dcGlobalSize() {
+<span class="nc" id="L178">        return address2dcGlobal.size();</span>
+    }
+
+    /**
+     * Instrumentation method for obtaining all device addresses that are currently present
+     * on the bus.
+     *
+     * @return List of device addresses as string.
+     */
+    @JmxAttribute(description = &quot;All hardware addresses on the bus&quot;)
+    public synchronized String[] getAddresses() {
+
+<span class="nc" id="L190">        String[] result = new String[address2dcGlobal.size()];</span>
+
+<span class="nc" id="L192">        int offset = 0;</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">        for (Iterator&lt;String&gt; i = address2dcGlobal.iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L195">            result[offset++] = i.next();</span>
+        }
+
+<span class="nc" id="L198">        return result;</span>
+    }
+
+<span class="nc" id="L201">    public final class SwitchChannelSplitter {</span>
+
+        /**
+         * Single channel switch map.
+         */
+<span class="nc" id="L206">        private Map&lt;StringChannelAddress, Switch&gt; address2switch = new TreeMap&lt;&gt;();</span>
+
+        public synchronized Switch getSwitch(StringChannelAddress switchAddress) {
+
+<span class="nc" id="L210">            Switch singleChannelSwitch = address2switch.get(switchAddress);</span>
+
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            if (singleChannelSwitch == null) {</span>
+
+<span class="nc" id="L214">                singleChannelSwitch = createSingleSwitchProxy(address2dcGlobal, switchAddress);</span>
+<span class="nc" id="L215">                address2switch.put(switchAddress, singleChannelSwitch);</span>
+            }
+
+<span class="nc" id="L218">            return singleChannelSwitch;</span>
+        }
+    }
+
+    protected abstract Switch createSingleSwitchProxy(ContainerMap address2dcGlobal, StringChannelAddress switchAddress);
+
+    protected abstract class SensorProxy extends AbstractAnalogSensor implements DataSink&lt;Double&gt; {
+
+        /**
+         * Sensor type.
+         */
+        protected final SensorType type;
+
+        /**
+         * Container to proxy when it becomes available.
+         *
+         * VT: FIXME: May need to change visibility back to private
+         * and add a method to check and reset the state from subclasses.
+         */
+<span class="nc" id="L237">        protected AbstractDeviceContainer container = null;</span>
+
+<span class="nc" id="L239">        public SensorProxy(String address, int pollIntervalMillis, SensorType type) {</span>
+
+<span class="nc" id="L241">            super(address, pollIntervalMillis);</span>
+
+<span class="nc bnc" id="L243" title="All 4 branches missed.">            if (!SensorType.TEMPERATURE.equals(type) &amp;&amp; !SensorType.HUMIDITY.equals(type)) {</span>
+
+<span class="nc" id="L245">                throw new IllegalArgumentException(&quot;Don't know how to handle type '&quot; + type + &quot;'&quot;);</span>
+            }
+
+<span class="nc" id="L248">            this.type = type;</span>
+<span class="nc" id="L249">        }</span>
+
+        @SuppressWarnings(&quot;unchecked&quot;)
+        @Override
+        public final synchronized DataSample&lt;Double&gt; getSensorSignal() throws IOException {
+
+<span class="nc" id="L255">            ThreadContext.push(&quot;getSensorSignal@&quot; + Integer.toHexString(hashCode()));</span>
+
+            try {
+
+<span class="nc bnc" id="L259" title="All 2 branches missed.">                if (container != null) {</span>
+
+<span class="nc" id="L261">                    throw new IllegalStateException(&quot;This shouldn't have happened&quot;);</span>
+                }
+
+<span class="nc" id="L264">                Set&lt;DeviceContainer&gt; devices = address2dcGlobal.get(getAddress());</span>
+
+<span class="nc bnc" id="L266" title="All 2 branches missed.">                if (devices == null) {</span>
+
+                    // Tough luck. The sensor hasn't been discovered yet - this is a normal situation at startup.
+<span class="nc" id="L269">                    return new DataSample&lt;Double&gt;(</span>
+<span class="nc" id="L270">                            System.currentTimeMillis(), type + getAddress(), type + getAddress(),</span>
+                            null, new IllegalStateException(&quot;Not Present&quot;));
+                }
+
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                for (Iterator&lt;DeviceContainer&gt; i = devices.iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L276">                    DeviceContainer dc = i.next();</span>
+<span class="nc" id="L277">                    logger.info(&quot;Found: &quot; + dc + &quot;, &quot; + dc.getType() + &quot;, #&quot; + Integer.toHexString(dc.hashCode()));</span>
+
+<span class="nc bnc" id="L279" title="All 2 branches missed.">                    if (type.equals(dc.getType())) {</span>
+
+                        // Yes!!!
+<span class="nc" id="L282">                        logger.info(type + getAddress() + &quot; arrived, starting proxying&quot;);</span>
+<span class="nc" id="L283">                        this.container = (AbstractDeviceContainer) dc;</span>
+
+<span class="nc" id="L285">                        ((DataSource&lt;Double&gt;)dc).addConsumer(this);</span>
+
+<span class="nc" id="L287">                        return new DataSample&lt;Double&gt;(</span>
+<span class="nc" id="L288">                                System.currentTimeMillis(), type + getAddress(), type + getAddress(),</span>
+                                null, new IllegalStateException(&quot;Found, next reading will be good&quot;));
+                    }
+
+<span class="nc bnc" id="L292" title="All 2 branches missed.">                    if (dc.getType().equals(SensorType.PROTOTYPE)) {</span>
+
+<span class="nc" id="L294">                        logger.info(type + getAddress() + &quot;: found prototype&quot;);</span>
+<span class="nc" id="L295">                        this.container = (AbstractDeviceContainer) ((PrototypeContainer) dc).getSensor(getAddress(), type);</span>
+
+<span class="nc" id="L297">                        ((DataSource&lt;Double&gt;) this.container).addConsumer(this);</span>
+
+<span class="nc" id="L299">                        return new DataSample&lt;Double&gt;(</span>
+<span class="nc" id="L300">                                System.currentTimeMillis(), type + getAddress(), type + getAddress(),</span>
+                                null, new IllegalStateException(&quot;Found, next reading will be good&quot;));
+                    }
+<span class="nc" id="L303">                }</span>
+
+<span class="nc" id="L305">                return new DataSample&lt;&gt;(</span>
+<span class="nc" id="L306">                        System.currentTimeMillis(), type + getAddress(), type + getAddress(),</span>
+                        null, new IllegalStateException(&quot;Address is present, but no &quot; + type.description + &quot; sensors found - check configuration&quot;));
+
+            } finally {
+<span class="nc" id="L310">                ThreadContext.pop();</span>
+            }
+
+        }
+
+        @Override
+        protected void shutdown() throws Throwable {
+<span class="nc" id="L317">        }</span>
+
+        @Override
+        protected void startup() throws Throwable {
+<span class="nc" id="L321">        }</span>
+
+        @Override
+        protected final void execute() {
+
+<span class="nc bnc" id="L326" title="All 2 branches missed.">            if (getPollInterval() &lt; 0) {</span>
+
+<span class="nc" id="L328">                throw new IllegalStateException(&quot;Negative poll interval (&quot; + getPollInterval() + &quot;)???&quot;);</span>
+            }
+
+<span class="nc" id="L331">            ThreadContext.push(&quot;execute@&quot; + Integer.toHexString(hashCode()) + &quot;@&quot; + getAddress());</span>
+
+            try {
+
+<span class="nc bnc" id="L335" title="All 2 branches missed.">                while (isEnabled()) {</span>
+
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                    if (container != null) {</span>
+
+                        // No need to do anything, data will be automatically rebroadcast
+                    } else {
+
+                        // Kick the logic to check if the actual device is already available
+<span class="nc" id="L343">                        getSensorSignal();</span>
+                    }
+
+                    //logger.debug(&quot;Current signal: &quot; + currentSignal);
+
+<span class="nc" id="L348">                    Thread.sleep(getPollInterval());</span>
+                }
+
+<span class="nc" id="L351">            } catch (Throwable t) {</span>
+<span class="nc" id="L352">                logger.fatal(&quot;Unexpected problem, shutting down:&quot;, t);</span>
+<span class="nc" id="L353">            }</span>
+<span class="nc" id="L354">        }</span>
+
+        @Override
+        public final synchronized void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L359">            ThreadContext.push(&quot;consume@&quot; + Integer.toHexString(hashCode()));</span>
+
+            try {
+
+<span class="nc bnc" id="L363" title="All 2 branches missed.">                if (container == null) {</span>
+<span class="nc" id="L364">                    throw new IllegalStateException(&quot;How did we end up here?&quot;);</span>
+                }
+
+<span class="nc" id="L367">                logger.trace(signal);</span>
+<span class="nc" id="L368">                logger.trace(&quot;Container: #&quot; + Integer.toHexString(container.hashCode()));</span>
+
+<span class="nc" id="L370">                currentSignal = signal;</span>
+<span class="nc" id="L371">                broadcast(signal);</span>
+
+            } finally {
+<span class="nc" id="L374">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L376">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ImmediateExchanger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.common</a> &gt; <span class="el_source">ImmediateExchanger.java</span></div><h1>ImmediateExchanger.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.common;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.concurrent.BlockingQueue;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.view.http.v1.HttpConnector;
+
+/**
+ * Keeps sending data that appears in {@link HttpConnector#upstreamQueue} to the server
+ * right away, and accepting whatever they have to say.
+ *
+ * @param &lt;DataBlock&gt; Data type to send out to the server.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public abstract class ImmediateExchanger&lt;DataBlock&gt; extends AbstractExchanger&lt;DataBlock&gt; {
+
+    public ImmediateExchanger(URL serverContextRoot, String username, String password, BlockingQueue&lt;DataBlock&gt; upstreamQueue) {
+
+<span class="nc" id="L23">        super(serverContextRoot, username, password, upstreamQueue);</span>
+<span class="nc" id="L24">    }</span>
+
+    /**
+     * Keep sending data that appears in {@link HttpConnector#upstreamQueue} to the server
+     * right away, and accepting whatever they have to say.
+     */
+    @Override
+    protected void execute() throws Throwable {
+        
+<span class="nc" id="L33">        ThreadContext.push(&quot;execute&quot;);</span>
+        
+        try {
+
+<span class="nc bnc" id="L37" title="All 2 branches missed.">            while (isEnabled()) {</span>
+                
+                try {
+                    
+<span class="nc" id="L41">                    exchange(upstreamQueue.take());</span>
+
+<span class="nc" id="L43">                } catch (Throwable t) {</span>
+                    
+                    // Can't afford to bail out, this may be a transient condition
+<span class="nc" id="L46">                    logger.error(&quot;Unexpected exception&quot;, t);</span>
+<span class="nc" id="L47">                }    </span>
+            }
+            
+        } finally {
+<span class="nc" id="L51">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L53">    }</span>
+    
+    /**
+     * Exchange information with the server.
+     * 
+     * Information received from the server will be processed asynchronously.
+     * 
+     * @param dataBlock Block to send.
+     * 
+     * @throws IOException if things go sour.
+     */
+    protected final void exchange(DataBlock dataBlock) throws IOException {
+        
+<span class="nc" id="L66">        ThreadContext.push(&quot;exchange&quot;);</span>
+        
+        try {
+            
+<span class="nc" id="L70">            send(dataBlock);</span>
+            
+            // VT: FIXME: Process the response
+            
+        } finally {
+<span class="nc" id="L75">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L77">    }</span>
+
+    protected abstract void send(DataBlock dataBlock) throws IOException;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

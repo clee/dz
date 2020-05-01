@@ -1,0 +1,273 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Period.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Scheduler</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.scheduler</a> &gt; <span class="el_source">Period.java</span></div><h1>Period.java</h1><pre class="source lang-java linenums">package net.sf.dz3.scheduler;
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
+
+import net.sf.dz3.device.model.ZoneStatus;
+
+import org.apache.logging.log4j.ThreadContext;
+import org.joda.time.DateTime;
+
+/**
+ * Defines a time period when a given {@link ZoneStatus} is to be activated.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class Period implements Comparable&lt;Period&gt; {
+    
+<span class="fc" id="L21">    private static final String[] dateFormats = {</span>
+        
+        // Formats are hungry, hence most complicated formats have to be at the beginning,
+        // or simpler ones will kick in (for example, &quot;2:15 PM&quot; will be picked up by &quot;HH:mm&quot;).
+        
+        &quot;yy-MM-dd'T'hh:mm&quot;,
+        &quot;KK:mm aa&quot;,
+        &quot;hh:mm aa&quot;,
+        &quot;HH:mm&quot;,
+        &quot;HHmm&quot;,
+    };
+    
+<span class="fc" id="L33">    private String daysOfWeek = &quot;MTWTFSS&quot;;</span>
+    
+    /**
+     * Period name.
+     * 
+     * Has no significance other than for display and {@link #toString()}.
+     */
+    public final String name;
+
+    /**
+     * Start time offset against midnight, in milliseconds.
+     */
+    public final long start;
+    
+    /**
+     * End time offset against midnight, in milliseconds.
+     */
+    public final long end;
+    
+    /**
+     * Days when this period is scheduled to be active, as a bitmask.
+     * 
+     * 0x01 is Monday, 0x02 is Tuesday, and son on.
+     */
+    public final byte days;
+
+    /**
+     * Create an instance from human readable arguments.
+     * 
+     * @param name Period name.
+     * @param startTime Start time in any reasonable format.
+     * @param endTime End time in any reasonable format.
+     * @param days String consisting of seven characters, any non-space character is treated as a bit set,
+     * space is treated as a bit cleared. Recommended characters would be corresponding day names, Monday
+     * in the first position (at offset 0).
+     */
+<span class="fc" id="L69">    public Period(String name, String startTime, String endTime, String days) {</span>
+        
+<span class="fc bfc" id="L71" title="All 4 branches covered.">        if (name == null || &quot;&quot;.equals(name)) {</span>
+<span class="fc" id="L72">            throw new IllegalArgumentException(&quot;name can't be null or empty&quot;);</span>
+        }
+        
+<span class="fc" id="L75">        this.name = name;</span>
+        
+<span class="fc" id="L77">        this.start = parseTime(startTime);</span>
+<span class="fc" id="L78">        this.end = parseTime(endTime);</span>
+        
+<span class="fc" id="L80">        this.days = parseDays(days);</span>
+<span class="fc" id="L81">    }</span>
+    
+    /**
+     * Create a date object out of time offset against midnight.
+     * 
+     * This is necessary to dodge a time zone calculation that would be missing if a
+     * {@code new Date(millis)} constructor was used.
+     * 
+     * @param offset Time offset against midnight, in milliseconds.
+     * 
+     * @return TOday's date with proper hours and minutes set.
+     */
+    private Date parseOffset(long offset) {
+        
+<span class="fc" id="L95">        Calendar cal = new GregorianCalendar();</span>
+        
+<span class="fc" id="L97">        cal.set(Calendar.HOUR_OF_DAY, (int) (offset / 1000 / 60 / 60));</span>
+<span class="fc" id="L98">        cal.set(Calendar.MINUTE, (int)((offset % (1000 * 60 * 60)) / 1000 / 60));</span>
+<span class="fc" id="L99">        cal.set(Calendar.SECOND, 0);</span>
+<span class="fc" id="L100">        cal.set(Calendar.MILLISECOND, 0);</span>
+        
+<span class="fc" id="L102">        return cal.getTime();</span>
+    }
+
+    @SuppressWarnings(&quot;deprecation&quot;)
+    private long parseTime(String time) {
+        
+<span class="fc" id="L108">        ThreadContext.push(&quot;parse(&quot; + time + &quot;)&quot;);</span>
+        
+        try {
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (int offset = 0; offset &lt; dateFormats.length; offset++) {</span>
+
+                // This is happening rarely enough so we can afford do go the long way,
+                // in interest of better debugging
+<span class="fc" id="L116">                String format = dateFormats[offset];</span>
+<span class="fc" id="L117">                DateFormat df = new SimpleDateFormat(format);</span>
+
+                try {
+
+<span class="fc" id="L121">                    Date d = df.parse(time);</span>
+
+<span class="fc" id="L123">                    return d.getHours() * 1000 * 60 * 60 + d.getMinutes() * 1000 * 60;</span>
+
+<span class="fc" id="L125">                } catch (Throwable t) {</span>
+
+                    // VT: NOTE: Only uncomment this if you're having problems.
+                    // This message may repeat over a hundred thousand times a day.
+                    
+                    // logger.debug(&quot;Failed to parse '&quot; + time + &quot;' as '&quot; + format + &quot;'&quot;);
+                }
+            }
+
+            // This is bad, none of available formats worked
+
+<span class="fc" id="L136">            StringBuilder sb = new StringBuilder();</span>
+
+<span class="fc" id="L138">            sb.append(&quot;Tried all available formats (&quot;);</span>
+
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            for (int offset = 0; offset &lt; dateFormats.length; offset++) {</span>
+
+<span class="fc" id="L142">                sb.append('\'').append(dateFormats[offset]).append('\'');</span>
+
+<span class="fc bfc" id="L144" title="All 2 branches covered.">                if (offset &lt; dateFormats.length -1) {</span>
+<span class="fc" id="L145">                    sb.append(&quot;, &quot;);</span>
+                }
+            }
+
+<span class="fc" id="L149">            sb.append(&quot;) to parse '&quot;).append(time).append(&quot;'and failed, giving up&quot;);</span>
+
+<span class="fc" id="L151">            throw new IllegalArgumentException(sb.toString());</span>
+
+        } finally {
+<span class="fc" id="L154">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Convert the string given to the constructor into a bit mask.
+     * 
+     * @param days String to convert.
+     * 
+     * @return Bit mask to use as {@link #days}.
+     */
+    private byte parseDays(String days) {
+        
+<span class="fc bfc" id="L167" title="All 4 branches covered.">        if (days == null || days.length() != 7) {</span>
+            
+<span class="fc" id="L169">            throw new IllegalArgumentException(&quot;days argument malformed, see source code for instructions&quot;);</span>
+        }
+        
+<span class="fc" id="L172">        byte result = 0x00;</span>
+        
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        for (int offset = 0; offset &lt; 7; offset++) {</span>
+            
+<span class="fc" id="L176">            byte mask = (byte)(0x01 &lt;&lt; offset); </span>
+<span class="fc" id="L177">            char c = days.charAt(offset);</span>
+            
+<span class="fc bfc" id="L179" title="All 2 branches covered.">            if (c != ' ') {</span>
+                
+<span class="fc" id="L181">                result = (byte)(result | mask);</span>
+            }
+        }
+
+<span class="fc" id="L185">        return result;</span>
+    }
+    
+    /**
+     * Check if the given time is within this period.
+     * 
+     * @param d Date (or, rather, time) to check for inclusion.
+     * 
+     * @return {@code true} if this period includes the time.
+     */
+    public boolean includes(DateTime d) {
+        
+<span class="fc" id="L197">        long offset = d.getHourOfDay() * 1000 * 60 * 60 + d.getMinuteOfHour() * 1000 * 60;</span>
+        
+<span class="fc" id="L199">        return includes(offset);</span>
+    }
+
+    /**
+     * Check if the given offset belongs to this period.
+     * 
+     * @param offset Offset to check, in milliseconds.
+     * 
+     * @return {@code true} if the offset is within this period.
+     */
+    public boolean includes(long offset) {
+        
+<span class="fc bfc" id="L211" title="All 4 branches covered.">        return start &lt;= offset &amp;&amp; offset &lt;= end;</span>
+    }
+
+    /**
+     * Check if this period is active on the day of week of the given date.
+     * 
+     * @param d Date to check for inclusion.
+     * 
+     * @return {@code true} if this period includes is active for the date's day of week..
+     */
+    public boolean includesDay(DateTime d) {
+        
+        // Sunday based
+<span class="fc" id="L224">        int day = d.getDayOfWeek();</span>
+        
+        // Monday based
+<span class="fc" id="L227">        day = (day + 6) % 7;</span>
+        
+<span class="fc bfc" id="L229" title="All 2 branches covered.">        return (days &amp; (0x01 &lt;&lt; day)) != 0;</span>
+    }
+    
+    @Override
+    public int compareTo(Period o) {
+        
+<span class="fc" id="L235">        int diff = (int)(start - o.start);</span>
+        
+<span class="fc bfc" id="L237" title="All 2 branches covered.">        if (diff != 0) {</span>
+            
+<span class="fc" id="L239">            return diff;</span>
+        }
+        
+        // If two events start at the same time, the one that ends later is considered &quot;less&quot;,
+        // to allow easy overrides
+        
+<span class="fc" id="L245">        return (int)(o.end - end); </span>
+    }
+    
+    @Override
+    public String toString() {
+     
+<span class="fc" id="L251">        final DateFormat df = new SimpleDateFormat(&quot;HH:mm&quot;); </span>
+<span class="fc" id="L252">        StringBuilder sb = new StringBuilder();</span>
+        
+<span class="fc" id="L254">        sb.append(name).append(&quot; (&quot;);</span>
+<span class="fc" id="L255">        sb.append(df.format(parseOffset(start)));</span>
+<span class="fc" id="L256">        sb.append(&quot; to &quot;);</span>
+<span class="fc" id="L257">        sb.append(df.format(parseOffset(end)));</span>
+<span class="fc" id="L258">        sb.append(&quot; on &quot;);</span>
+        
+<span class="fc bfc" id="L260" title="All 2 branches covered.">        for (int offset = 0; offset &lt; 7; offset++) {</span>
+            
+<span class="fc" id="L262">            int mask = 0x01 &lt;&lt; offset;</span>
+<span class="fc" id="L263">            int set = days &amp; mask;</span>
+            
+<span class="fc bfc" id="L265" title="All 2 branches covered.">            sb.append(set != 0 ? daysOfWeek.charAt(offset) : &quot;.&quot;);</span>
+        }
+        
+<span class="fc" id="L268">        sb.append(&quot;)&quot;);</span>
+        
+<span class="fc" id="L270">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

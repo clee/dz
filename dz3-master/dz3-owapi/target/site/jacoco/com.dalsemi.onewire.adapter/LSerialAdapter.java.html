@@ -1,0 +1,1150 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LSerialAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">LSerialAdapter.java</span></div><h1>LSerialAdapter.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 2001 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+// imports
+import java.io.IOException;
+import java.util.Enumeration;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.utils.CRC8;
+
+/**
+ * The LSerialAdapter class implememts the DSPortAdapter interface for a legacy
+ * 1-Wire serial interface adapters such as the DS9097.
+ * &lt;p&gt;
+ * Instances of valid LSerialdapter's are retrieved from methods in
+ * {@link com.dalsemi.onewire.OneWireAccessProvider OneWireAccessProvider}.
+ * &lt;P&gt;
+ * The DSPortAdapter methods can be organized into the following categories:
+ * &lt;/P&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Information &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getAdapterName() getAdapterName}
+ * &lt;LI&gt; {@link #getPortTypeDescription() getPortTypeDescription}
+ * &lt;LI&gt; {@link #getClassVersion() getClassVersion}
+ * &lt;LI&gt; {@link #adapterDetected() adapterDetected}
+ * &lt;LI&gt; {@link #getAdapterVersion() getAdapterVersion}
+ * &lt;LI&gt; {@link #getAdapterAddress() getAdapterAddress}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Port Selection &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getPortNames() getPortNames}
+ * &lt;LI&gt; {@link #selectPort(String) selectPort}
+ * &lt;LI&gt; {@link #getPortName() getPortName}
+ * &lt;LI&gt; {@link #freePort() freePort}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Adapter Capabilities &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #canOverdrive() canOverdrive}
+ * &lt;LI&gt; {@link #canHyperdrive() canHyperdrive}
+ * &lt;LI&gt; {@link #canFlex() canFlex}
+ * &lt;LI&gt; {@link #canProgram() canProgram}
+ * &lt;LI&gt; {@link #canDeliverPower() canDeliverPower}
+ * &lt;LI&gt; {@link #canDeliverSmartPower() canDeliverSmartPower}
+ * &lt;LI&gt; {@link #canBreak() canBreak}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Network Semaphore &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #beginExclusive(boolean) beginExclusive}
+ * &lt;LI&gt; {@link #endExclusive() endExclusive}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Device Discovery &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; Selective Search Options
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #targetAllFamilies() targetAllFamilies}
+ * &lt;LI&gt; {@link #targetFamily(int) targetFamily(int)}
+ * &lt;LI&gt; {@link #targetFamily(byte[]) targetFamily(byte[])}
+ * &lt;LI&gt; {@link #excludeFamily(int) excludeFamily(int)}
+ * &lt;LI&gt; {@link #excludeFamily(byte[]) excludeFamily(byte[])}
+ * &lt;LI&gt; {@link #setSearchOnlyAlarmingDevices() setSearchOnlyAlarmingDevices}
+ * &lt;LI&gt; {@link #setNoResetSearch() setNoResetSearch}
+ * &lt;LI&gt; {@link #setSearchAllDevices() setSearchAllDevices}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Search With Automatic 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getAllDeviceContainers() getAllDeviceContainers}
+ * &lt;LI&gt; {@link #getFirstDeviceContainer() getFirstDeviceContainer}
+ * &lt;LI&gt; {@link #getNextDeviceContainer() getNextDeviceContainer}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Search With NO 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #findFirstDevice() findFirstDevice}
+ * &lt;LI&gt; {@link #findNextDevice() findNextDevice}
+ * &lt;LI&gt; {@link #getAddress(byte[]) getAddress(byte[])}
+ * &lt;LI&gt; {@link #getAddressAsLong() getAddressAsLong}
+ * &lt;LI&gt; {@link #getAddressAsString() getAddressAsString}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Manual 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getDeviceContainer(byte[]) getDeviceContainer(byte[])}
+ * &lt;LI&gt; {@link #getDeviceContainer(long) getDeviceContainer(long)}
+ * &lt;LI&gt; {@link #getDeviceContainer(String) getDeviceContainer(String)}
+ * &lt;LI&gt; {@link #getDeviceContainer() getDeviceContainer()}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Network low level access (usually not called directly) &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; Device Selection and Presence Detect
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #isPresent(byte[]) isPresent(byte[])}
+ * &lt;LI&gt; {@link #isPresent(long) isPresent(long)}
+ * &lt;LI&gt; {@link #isPresent(String) isPresent(String)}
+ * &lt;LI&gt; {@link #isAlarming(byte[]) isAlarming(byte[])}
+ * &lt;LI&gt; {@link #isAlarming(long) isAlarming(long)}
+ * &lt;LI&gt; {@link #isAlarming(String) isAlarming(String)}
+ * &lt;LI&gt; {@link #select(byte[]) select(byte[])}
+ * &lt;LI&gt; {@link #select(long) select(long)}
+ * &lt;LI&gt; {@link #select(String) select(String)}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Raw 1-Wire IO
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #reset() reset}
+ * &lt;LI&gt; {@link #putBit(boolean) putBit}
+ * &lt;LI&gt; {@link #getBit() getBit}
+ * &lt;LI&gt; {@link #putByte(int) putByte}
+ * &lt;LI&gt; {@link #getByte() getByte}
+ * &lt;LI&gt; {@link #getBlock(int) getBlock(int)}
+ * &lt;LI&gt; {@link #getBlock(byte[], int) getBlock(byte[], int)}
+ * &lt;LI&gt; {@link #getBlock(byte[], int, int) getBlock(byte[], int, int)}
+ * &lt;LI&gt; {@link #dataBlock(byte[], int, int) dataBlock(byte[], int, int)}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; 1-Wire Speed and Power Selection
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #setPowerDuration(int) setPowerDuration}
+ * &lt;LI&gt; {@link #startPowerDelivery(int) startPowerDelivery}
+ * &lt;LI&gt; {@link #setProgramPulseDuration(int) setProgramPulseDuration}
+ * &lt;LI&gt; {@link #startProgramPulse(int) startProgramPulse}
+ * &lt;LI&gt; {@link #startBreak() startBreak}
+ * &lt;LI&gt; {@link #setPowerNormal() setPowerNormal}
+ * &lt;LI&gt; {@link #setSpeed(int) setSpeed}
+ * &lt;LI&gt; {@link #getSpeed() getSpeed}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Advanced &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt;
+ * {@link #registerOneWireContainerClass(int, Class) registerOneWireContainerClass}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ * 8/11/2003 - shughes - modified to support RXTX instead of javax.comm
+ *
+ * @see com.dalsemi.onewire.OneWireAccessProvider
+ * @see com.dalsemi.onewire.container.OneWireContainer
+ * @version 0.00, 4 Dec 2001
+ * @author DS
+ */
+public class LSerialAdapter extends DSPortAdapter {
+
+    // --------
+    // -------- Finals
+    // --------
+
+    /** Normal Search, all devices participate */
+    private static final int NORMAL_SEARCH_CMD = 0xF0;
+
+    /** Conditional Search, only 'alarming' devices participate */
+    private static final int ALARM_SEARCH_CMD = 0xEC;
+
+    // --------
+    // -------- Static Variables
+    // --------
+
+    /** Version string for this adapter class */
+<span class="nc" id="L181">    private static String classVersion = &quot;0.00&quot;;</span>
+
+    /** Hashtable to contain SerialService instances */
+    // private static Hashtable serialServiceHash = new Hashtable(4);
+    // --------
+    // -------- Variables
+    // --------
+    /** Reference to the current SerialService */
+    private SerialService serial;
+
+    /** String name of the current opened port */
+    private boolean adapterPresent;
+
+    /** flag to indicate the last discrepancy */
+    private int LastDiscrepancy;
+
+    /** true if device found is the last device */
+    private boolean LastDevice;
+
+    /** current device */
+<span class="nc" id="L201">    final private byte[] CurrentDevice = new byte[8];</span>
+
+    /**
+     * Whether we are searching only alarming iButtons. This is currently
+     * ignored.
+     */
+    boolean searchOnlyAlarmingButtons;
+
+    /** Flag to indicate next search will not be preceeded by a 1-Wire reset */
+<span class="nc" id="L210">    private boolean skipResetOnSearch = false;</span>
+
+    /** Flag to indicate next search will be a 'first' */
+<span class="nc" id="L213">    private boolean resetSearch = true;</span>
+
+    /**
+     * Constructs a legacy serial adapter class.
+     */
+<span class="nc" id="L218">    public LSerialAdapter() {</span>
+
+<span class="nc" id="L220">        serial = null;</span>
+<span class="nc" id="L221">        adapterPresent = false;</span>
+<span class="nc" id="L222">    }</span>
+
+    /**
+     * Retrieve the name of the port adapter as a string. The 'Adapter' is a
+     * device that connects to a 'port' that allows one to communicate with an
+     * iButton or other 1-Wire device. As example of this is 'DS9097E'.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; representation of the port adapter.
+     */
+    @Override
+    public String getAdapterName() {
+
+<span class="nc" id="L234">        return &quot;DS9097&quot;;</span>
+    }
+
+    /**
+     * Retrieve a description of the port required by this port adapter. An
+     * example of a 'Port' would 'serial communication port'.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; description of the port type required.
+     */
+    @Override
+    public String getPortTypeDescription() {
+
+<span class="nc" id="L246">        return &quot;serial communication port&quot;;</span>
+    }
+
+    /**
+     * Retrieve a version string for this class.
+     *
+     * @return version string
+     */
+    @Override
+    public String getClassVersion() {
+
+<span class="nc" id="L257">        return classVersion;</span>
+    }
+
+    // --------
+    // -------- Port Selection
+    // --------
+
+    /**
+     * Retrieve a list of the platform appropriate port names for this adapter.
+     * A port must be selected with the method 'selectPort' before any other
+     * communication methods can be used. Using a communcation method before
+     * 'selectPort' will result in a &lt;code&gt;OneWireException&lt;/code&gt; exception.
+     *
+     * @return enumeration of type &lt;code&gt;String&lt;/code&gt; that contains the port
+     * names
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    @Override
+    public Enumeration&lt;String&gt; getPortNames() {
+
+<span class="nc" id="L277">        return serial.getSerialPortIdentifiers();</span>
+    }
+
+    /**
+     * Specify a platform appropriate port name for this adapter. Note that even
+     * though the port has been selected, it's ownership may be relinquished if
+     * it is not currently held in a 'exclusive' block. This class will then try
+     * to re-aquire the port when needed. If the port cannot be re-aquired ehen
+     * the exception &lt;code&gt;PortInUseException&lt;/code&gt; will be thrown.
+     *
+     * @param newPortName name of the target port, retrieved from getPortNames()
+     * @return &lt;code&gt;true&lt;/code&gt; if the port was aquired, &lt;code&gt;false&lt;/code&gt;
+     * if the port is not available.
+     * @throws OneWireIOException If port does not exist, or unable to
+     * communicate with port.
+     * @throws OneWireException If port does not exist
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    @Override
+    public boolean selectPort(String newPortName) throws OneWireIOException, OneWireException {
+
+        // find the port reference
+<span class="nc" id="L299">        serial = serial.getSerialService(newPortName);</span>
+
+        // check if there is no such port
+<span class="nc bnc" id="L302" title="All 2 branches missed.">        if (serial == null)</span>
+<span class="nc" id="L303">            throw new OneWireException(&quot;DS9097EAdapter: selectPort(), Not such serial port: &quot; + newPortName);</span>
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L308">            beginLocalExclusive();</span>
+
+            // attempt to open the port
+<span class="nc" id="L311">            serial.openPort();</span>
+<span class="nc" id="L312">            serial.setBaudRate(115200);</span>
+
+<span class="nc" id="L314">            return true;</span>
+<span class="nc" id="L315">        } catch (IOException ioe) {</span>
+<span class="nc" id="L316">            throw new OneWireIOException(ioe.toString());</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L320">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Retrieve the name of the selected port as a &lt;code&gt;String&lt;/code&gt;.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; of selected port
+     * @throws OneWireException if valid port not yet selected
+     */
+    @Override
+    public String getPortName() throws OneWireException {
+
+<span class="nc bnc" id="L333" title="All 2 branches missed.">        if (serial != null) {</span>
+<span class="nc" id="L334">            return serial.getPortName();</span>
+        }
+
+<span class="nc" id="L337">        throw new OneWireException(&quot;DS9097EAdapter-getPortName, port not selected&quot;);</span>
+    }
+
+    /**
+     * Free ownership of the selected port if it is currently owned back to the
+     * system. This should only be called if the recently selected port does not
+     * have an adapter or at the end of your application's use of the port.
+     *
+     * @throws OneWireException If port does not exist
+     */
+    @Override
+    public void freePort() throws OneWireException {
+
+        try {
+            // acquire exclusive use of the port
+<span class="nc" id="L352">            beginLocalExclusive();</span>
+
+            // attempt to open the port
+<span class="nc" id="L355">            serial.closePort();</span>
+        } finally {
+            // release local exclusive use of port
+<span class="nc" id="L358">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L360">    }</span>
+
+    /**
+     * Detect adapter presence on the selected port.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if the adapter is confirmed to be connected
+     * to the selected port, &lt;code&gt;false&lt;/code&gt; if the adapter is not
+     * connected.
+     * @throws OneWireIOException
+     * @throws OneWireException
+     */
+    @Override
+    public boolean adapterDetected() throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L374" title="All 2 branches missed.">        if (!adapterPresent) {</span>
+            try {
+                // acquire exclusive use of the port
+<span class="nc" id="L377">                beginLocalExclusive();</span>
+
+<span class="nc" id="L379">                adapterPresent();</span>
+<span class="nc" id="L380">            } catch (OneWireIOException e) {</span>
+<span class="nc" id="L381">                System.err.println(&quot;DS9097EAdapter: Not detected &quot; + e);</span>
+            } finally {
+                // release local exclusive use of port
+<span class="nc" id="L384">                endLocalExclusive();</span>
+            }
+        }
+
+<span class="nc" id="L388">        return adapterPresent;</span>
+    }
+
+    /**
+     * Retrieve the version of the adapter.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; of the adapter version. It will return &quot;&lt;na&gt;&quot;
+     * if the adapter version is not or cannot be known.
+     * @throws OneWireIOException on a 1-Wire communication error such as no
+     * device present. This could be caused by a physical interruption in the
+     * 1-Wire Network due to shorts or a newly arriving 1-Wire device issuing a
+     * 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the
+     * 1-Wire adapter
+     */
+    @Override
+    public String getAdapterVersion() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L406">        String version_string = &quot;DS9097 adapter&quot;; // Does not look for DS9097E</span>
+                                                    // yet
+
+<span class="nc" id="L409">        return version_string;</span>
+    }
+
+    /**
+     * Retrieve the address of the adapter if it has one.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; of the adapter address. It will return &quot;&lt;na&gt;&quot;
+     * if the adapter does not have an address. The address is a string
+     * representation of an 1-Wire address.
+     * @throws OneWireIOException on a 1-Wire communication error such as no
+     * device present. This could be caused by a physical interruption in the
+     * 1-Wire Network due to shorts or a newly arriving 1-Wire device issuing a
+     * 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the
+     * 1-Wire adapter
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    @Override
+    public String getAdapterAddress() throws OneWireIOException, OneWireException {
+
+        // there is no ID
+<span class="nc" id="L430">        return &quot;&lt;no adapter address&gt;&quot;;</span>
+    }
+
+    // --------
+    // -------- Finding iButtons
+    // --------
+
+    /** Field currentPosition */
+    int currentPosition; // the current position in the list of all devices.
+
+    /**
+     * Returns &lt;code&gt;true&lt;/code&gt; if the first iButton or 1-Wire device is
+     * found on the 1-Wire Network. If no devices are found, then
+     * &lt;code&gt;false&lt;/code&gt; will be returned.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if an iButton or 1-Wire device is found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public boolean findFirstDevice() throws OneWireIOException, OneWireException {
+
+        // reset the internal rom buffer
+<span class="nc" id="L453">        resetSearch = true;</span>
+
+<span class="nc" id="L455">        return findNextDevice();</span>
+    }
+
+    /**
+     * Returns &lt;code&gt;true&lt;/code&gt; if the next iButton or 1-Wire device is
+     * found. The previous 1-Wire device found is used as a starting point in
+     * the search. If no more devices are found then &lt;code&gt;false&lt;/code&gt; will
+     * be returned.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if an iButton or 1-Wire device is found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public boolean findNextDevice() throws OneWireIOException, OneWireException {
+
+        boolean retval;
+
+        try {
+            // acquire exclusive use of the port
+<span class="nc" id="L475">            beginLocalExclusive();</span>
+
+            while (true) {
+<span class="nc" id="L478">                retval = search(resetSearch);</span>
+
+<span class="nc bnc" id="L480" title="All 2 branches missed.">                if (retval) {</span>
+<span class="nc" id="L481">                    resetSearch = false;</span>
+
+                    // check if this is an OK family type
+<span class="nc bnc" id="L484" title="All 2 branches missed.">                    if (isValidFamily(CurrentDevice))</span>
+<span class="nc" id="L485">                        return true;</span>
+
+                    // Else, loop to the top and do another search.
+                } else {
+<span class="nc" id="L489">                    resetSearch = true;</span>
+
+<span class="nc" id="L491">                    return false;</span>
+                }
+            }
+        } finally {
+            // release local exclusive use of port
+<span class="nc" id="L496">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Copies the 'current' iButton address being used by the adapter into the
+     * array. This address is the last iButton or 1-Wire device found in a
+     * search (findNextDevice()...).
+     *
+     * @param address An array to be filled with the current iButton address.
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    @Override
+    public void getAddress(byte[] address) {
+
+<span class="nc" id="L511">        System.arraycopy(CurrentDevice, 0, address, 0, 8);</span>
+<span class="nc" id="L512">    }</span>
+
+    /**
+     * Copies the provided 1-Wire device address into the 'current' array. This
+     * address will then be used in the getDeviceContainer() method. Permits the
+     * adapter instance to create containers of devices it did not find in a
+     * search.
+     *
+     * @param address An array to be copied into the current iButton address.
+     */
+    public void setAddress(byte[] address) {
+
+<span class="nc" id="L524">        System.arraycopy(address, 0, CurrentDevice, 0, 8);</span>
+<span class="nc" id="L525">    }</span>
+
+    /**
+     * Set the 1-Wire Network search to find only iButtons and 1-Wire devices
+     * that are in an 'Alarm' state that signals a need for attention. Not all
+     * iButton types have this feature. Some that do: DS1994, DS1920, DS2407.
+     * This selective searching can be canceled with the 'setSearchAllDevices()'
+     * method.
+     *
+     * @see #setNoResetSearch
+     */
+    @Override
+    public void setSearchOnlyAlarmingDevices() {
+
+<span class="nc" id="L539">        searchOnlyAlarmingButtons = true;</span>
+<span class="nc" id="L540">    }</span>
+
+    /**
+     * Set the 1-Wire Network search to not perform a 1-Wire reset before a
+     * search. This feature is chiefly used with the DS2409 1-Wire coupler. The
+     * normal reset before each search can be restored with the
+     * 'setSearchAllDevices()' method.
+     */
+    @Override
+    public void setNoResetSearch() {
+
+<span class="nc" id="L551">        skipResetOnSearch = true;</span>
+<span class="nc" id="L552">    }</span>
+
+  /**
+     * Set the 1-Wire Network search to find all iButtons and 1-Wire devices
+     * whether they are in an 'Alarm' state or not and restores the default
+     * setting of providing a 1-Wire reset command before each search. (see
+     * setNoResetSearch() method).
+     *
+     * @see #setNoResetSearch
+     */
+    @Override
+    public void setSearchAllDevices() {
+
+<span class="nc" id="L565">        searchOnlyAlarmingButtons = false;</span>
+<span class="nc" id="L566">        skipResetOnSearch = false;</span>
+<span class="nc" id="L567">    }</span>
+
+  /**
+   * Gets exclusive use of the 1-Wire to communicate with an iButton or 1-Wire
+   * Device. This method should be used for critical sections of code where a
+   * sequence of commands must not be interrupted by communication of threads
+   * with other iButtons, and it is permissible to sustain a delay in the
+   * special case that another thread has already been granted exclusive
+   * access and this access has not yet been relinquished.
+   * &lt;p&gt;
+   *
+   * @throws OneWireException on a setup error with the 1-Wire adapter
+   */
+  @Override
+  public void beginExclusive() throws OneWireException {
+
+<span class="nc" id="L583">    serial.beginExclusive();</span>
+<span class="nc" id="L584">  }</span>
+
+  /**
+     * Relinquishes exclusive control of the 1-Wire Network. This command
+     * dynamically marks the end of a critical section and should be used when
+     * exclusive control is no longer needed.
+     */
+    @Override
+    public void endExclusive() {
+
+<span class="nc" id="L594">        serial.endExclusive();</span>
+<span class="nc" id="L595">    }</span>
+
+  /**
+   * Gets exclusive use of the 1-Wire to communicate with an iButton or 1-Wire
+   * Device if it is not already done. Used to make methods thread safe.
+   *
+   * @throws OneWireException on a setup error with the 1-Wire adapter
+   */
+  private void beginLocalExclusive() throws OneWireException {
+
+    // check if there is no such port
+<span class="nc bnc" id="L606" title="All 2 branches missed.">    if (serial == null) {</span>
+<span class="nc" id="L607">      throw new OneWireException(&quot;DS9097EAdapter: port not selected &quot;);</span>
+    }
+
+<span class="nc" id="L610">    serial.beginExclusive();</span>
+<span class="nc" id="L611">  }</span>
+
+  /**
+   * Relinquishes local exclusive control of the 1-Wire Network. This just
+   * checks if we did our own 'beginExclusive' block and frees it.
+   */
+  private void endLocalExclusive() {
+
+<span class="nc" id="L619">    serial.endExclusive();</span>
+<span class="nc" id="L620">  }</span>
+
+    /**
+     * Sends a bit to the 1-Wire Network.
+     *
+     * @param bitValue the bit value to send to the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public void putBit(boolean bitValue) throws OneWireIOException, OneWireException {
+
+        char send_byte;
+
+        try {
+            // acquire exclusive use of the port
+<span class="nc" id="L636">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L639" title="All 2 branches missed.">            if (adapterDetected()) {</span>
+<span class="nc bnc" id="L640" title="All 2 branches missed.">                if (bitValue)</span>
+<span class="nc" id="L641">                    send_byte = (char) 0xFF;</span>
+                else
+<span class="nc" id="L643">                    send_byte = (char) 0x00;</span>
+
+<span class="nc" id="L645">                serial.flush();</span>
+
+<span class="nc" id="L647">                serial.write(send_byte);</span>
+<span class="nc" id="L648">                char[] result = serial.readWithTimeout(1);</span>
+
+<span class="nc bnc" id="L650" title="All 2 branches missed.">                if (result[0] != send_byte)</span>
+<span class="nc" id="L651">                    throw new OneWireIOException(&quot;Error during putBit(), echo was incorrect&quot;);</span>
+<span class="nc" id="L652">            } else {</span>
+<span class="nc" id="L653">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+            }
+<span class="nc" id="L655">        } catch (IOException ioe) {</span>
+<span class="nc" id="L656">            throw new OneWireIOException(ioe.toString());</span>
+        } finally {
+            // release local exclusive use of port
+<span class="nc" id="L659">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L661">    }</span>
+
+    /**
+     * Gets a bit from the 1-Wire Network.
+     *
+     * @return the bit value recieved from the the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public boolean getBit() throws OneWireIOException, OneWireException {
+
+        try {
+            // acquire exclusive use of the port
+<span class="nc" id="L675">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L678" title="All 2 branches missed.">            if (adapterDetected()) {</span>
+<span class="nc" id="L679">                serial.flush();</span>
+
+<span class="nc" id="L681">                serial.write((char) 0x00FF);</span>
+<span class="nc" id="L682">                char[] result = serial.readWithTimeout(1);</span>
+
+<span class="nc bnc" id="L684" title="All 2 branches missed.">                return (result[0] == 0xFF);</span>
+            }
+
+<span class="nc" id="L687">            throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+
+<span class="nc" id="L689">        } catch (IOException ioe) {</span>
+<span class="nc" id="L690">            throw new OneWireIOException(null, &quot;getBit() failed&quot;, ioe);</span>
+        } finally {
+            // release local exclusive use of port
+<span class="nc" id="L693">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Sends a byte to the 1-Wire Network.
+     *
+     * @param byteValue the byte value to send to the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public void putByte(int byteValue) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L707">        byte[] temp_block = new byte[1];</span>
+
+<span class="nc" id="L709">        temp_block[0] = (byte) byteValue;</span>
+
+<span class="nc" id="L711">        dataBlock(temp_block, 0, 1);</span>
+<span class="nc" id="L712">    }</span>
+
+    /**
+     * Gets a byte from the 1-Wire Network.
+     *
+     * @return the byte value received from the the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public int getByte() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L724">        byte[] temp_block = new byte[1];</span>
+
+<span class="nc" id="L726">        temp_block[0] = (byte) 0xFF;</span>
+
+<span class="nc" id="L728">        dataBlock(temp_block, 0, 1);</span>
+
+<span class="nc bnc" id="L730" title="All 2 branches missed.">        if (temp_block.length == 1) {</span>
+<span class="nc" id="L731">            return (temp_block[0] &amp; 0xFF);</span>
+        }
+
+<span class="nc" id="L734">        throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+    }
+
+    /**
+     * Get a block of data from the 1-Wire Network.
+     *
+     * @param len length of data bytes to receive
+     * @return the data received from the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public byte[] getBlock(int len) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L748">        byte[] temp_block = new byte[len];</span>
+
+        // set block to read 0xFF
+<span class="nc bnc" id="L751" title="All 2 branches missed.">        for (int i = 0; i &lt; len; i++)</span>
+<span class="nc" id="L752">            temp_block[i] = (byte) 0xFF;</span>
+
+<span class="nc" id="L754">        getBlock(temp_block, len);</span>
+
+<span class="nc" id="L756">        return temp_block;</span>
+    }
+
+    /**
+     * Get a block of data from the 1-Wire Network and write it into the
+     * provided array.
+     *
+     * @param arr array in which to write the received bytes
+     * @param len length of data bytes to receive
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public void getBlock(byte[] arr, int len) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L771">        getBlock(arr, 0, len);</span>
+<span class="nc" id="L772">    }</span>
+
+    /**
+     * Get a block of data from the 1-Wire Network and write it into the
+     * provided array.
+     *
+     * @param arr array in which to write the received bytes
+     * @param off offset into the array to start
+     * @param len length of data bytes to receive
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public void getBlock(byte[] arr, int off, int len) throws OneWireIOException, OneWireException {
+
+        // set block to read 0xFF
+<span class="nc bnc" id="L788" title="All 2 branches missed.">        for (int i = off; i &lt; len; i++)</span>
+<span class="nc" id="L789">            arr[i] = (byte) 0xFF;</span>
+
+<span class="nc" id="L791">        dataBlock(arr, off, len);</span>
+<span class="nc" id="L792">    }</span>
+
+    /**
+     * Sends a block of data and returns the data received in the same array.
+     * This method is used when sending a block that contains reads and writes.
+     * The 'read' portions of the data block need to be pre-loaded with 0xFF's.
+     * It starts sending data from the index at offset 'off' for length 'len'.
+     *
+     * @param dataBlock array of data to transfer to and from the 1-Wire
+     * Network.
+     * @param off offset into the array of data to start
+     * @param len length of data to send / receive starting at 'off'
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public void dataBlock(byte dataBlock[], int off, int len) throws OneWireIOException, OneWireException {
+
+        try {
+            // acquire exclusive use of the port
+<span class="nc" id="L812">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L815" title="All 2 branches missed.">            if (adapterDetected()) {</span>
+                int t_off, t_len;
+<span class="nc" id="L817">                t_off = off;</span>
+<span class="nc" id="L818">                t_len = len;</span>
+
+                // break up large blocks to not exceed 128 bytes at a time
+                do {
+<span class="nc bnc" id="L822" title="All 2 branches missed.">                    if (t_len &gt; 128)</span>
+<span class="nc" id="L823">                        t_len = 128;</span>
+
+<span class="nc" id="L825">                    char[] send_block = constructSendBlock(dataBlock, t_off, t_len);</span>
+
+<span class="nc" id="L827">                    serial.flush();</span>
+
+<span class="nc" id="L829">                    serial.write(send_block);</span>
+<span class="nc" id="L830">                    char[] raw_recv = serial.readWithTimeout(send_block.length);</span>
+
+<span class="nc" id="L832">                    byte[] recv = interpretRecvBlock(raw_recv);</span>
+
+<span class="nc" id="L834">                    System.arraycopy(recv, 0, dataBlock, t_off, t_len);</span>
+
+<span class="nc" id="L836">                    t_off += t_len;</span>
+<span class="nc" id="L837">                    t_len = off + len - t_off;</span>
+<span class="nc bnc" id="L838" title="All 2 branches missed.">                } while (t_len &gt; 0);</span>
+<span class="nc" id="L839">            } else {</span>
+<span class="nc" id="L840">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+            }
+<span class="nc" id="L842">        } catch (IOException ioe) {</span>
+<span class="nc" id="L843">            throw new OneWireIOException(ioe.toString());</span>
+        } finally {
+            // release local exclusive use of port
+<span class="nc" id="L846">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L848">    }</span>
+
+    /**
+     * Sends a Reset to the 1-Wire Network.
+     *
+     * @return the result of the reset. Potential results are:
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (RESET_NOPRESENCE) no devices present on the 1-Wire Network.
+     * &lt;li&gt; 1 (RESET_PRESENCE) normal presence pulse detected on the 1-Wire
+     * Network indicating there is a device present.
+     * &lt;li&gt; 2 (RESET_ALARM) alarming presence pulse detected on the 1-Wire
+     * Network indicating there is a device present and it is in the alarm
+     * condition. This is only provided by the DS1994/DS2404 devices.
+     * &lt;li&gt; 3 (RESET_SHORT) inticates 1-Wire appears shorted. This can be
+     * transient conditions in a 1-Wire Network. Not all adapter types can
+     * detect this condition.
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @Override
+    public int reset() throws OneWireIOException, OneWireException {
+
+        try {
+            // acquire exclusive use of the port
+<span class="nc" id="L873">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L876" title="All 2 branches missed.">            if (adapterDetected()) {</span>
+<span class="nc" id="L877">                serial.flush();</span>
+
+                // send a break to reset 1-Wire
+<span class="nc" id="L880">                serial.sendBreak(1);</span>
+
+                // get the result
+<span class="nc" id="L883">                serial.readWithTimeout(1);</span>
+
+                // does not work: return ((c.length &gt; 1) ? RESET_PRESENCE :
+                // RESET_NOPRESENCE);
+
+<span class="nc" id="L888">                return RESET_PRESENCE;</span>
+            }
+
+<span class="nc" id="L891">            return RESET_NOPRESENCE;</span>
+
+<span class="nc" id="L893">        } catch (IOException ioe) {</span>
+
+<span class="nc" id="L895">            ioe.printStackTrace();</span>
+<span class="nc" id="L896">            return RESET_NOPRESENCE;</span>
+
+<span class="nc" id="L898">        } catch (OneWireIOException e) {</span>
+
+<span class="nc" id="L900">            System.err.println(&quot;DS9097EAdapter: Not detected &quot;);</span>
+<span class="nc" id="L901">            e.printStackTrace();</span>
+
+<span class="nc" id="L903">            return RESET_NOPRESENCE;</span>
+
+        } finally {
+            // release local exclusive use of port
+<span class="nc" id="L907">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Single search. Take into account reset and alarm options.
+     *
+     * @param resetSearch - true to start search over (like first)
+     * @return true if device found of false if end of search
+     * @throws OneWireException
+     * @throws OneWireIOException
+     */
+    private boolean search(boolean resetSearch) throws OneWireIOException, OneWireException {
+
+        int bit_test, bit_number;
+        int last_zero, serial_byte_number;
+        int serial_byte_mask;
+        int lastcrc8;
+        boolean next_result, search_direction;
+
+        // initialize for search
+<span class="nc" id="L928">        bit_number = 1;</span>
+<span class="nc" id="L929">        last_zero = 0;</span>
+<span class="nc" id="L930">        serial_byte_number = 0;</span>
+<span class="nc" id="L931">        serial_byte_mask = 1;</span>
+<span class="nc" id="L932">        next_result = false;</span>
+<span class="nc" id="L933">        lastcrc8 = 0;</span>
+
+        // check for a force reset of the search
+<span class="nc bnc" id="L936" title="All 2 branches missed.">        if (resetSearch) {</span>
+<span class="nc" id="L937">            LastDiscrepancy = 0;</span>
+<span class="nc" id="L938">            LastDevice = false;</span>
+            //LastFamilyDiscrepancy = 0;
+        }
+
+        // if the last call was not the last one
+<span class="nc bnc" id="L943" title="All 2 branches missed.">        if (!LastDevice) {</span>
+            // check if reset first is requested
+<span class="nc bnc" id="L945" title="All 2 branches missed.">            if (!skipResetOnSearch) {</span>
+                // reset the 1-wire
+                // if there are no parts on 1-wire, return false
+<span class="nc bnc" id="L948" title="All 2 branches missed.">                if (reset() != RESET_PRESENCE) {</span>
+                    // reset the search
+<span class="nc" id="L950">                    LastDiscrepancy = 0;</span>
+                    //LastFamilyDiscrepancy = 0;
+<span class="nc" id="L952">                    return false;</span>
+                }
+            }
+
+            // If finding alarming devices issue a different command
+<span class="nc bnc" id="L957" title="All 2 branches missed.">            if (searchOnlyAlarmingButtons)</span>
+<span class="nc" id="L958">                putByte(ALARM_SEARCH_CMD); // issue the alarming search command</span>
+            else
+<span class="nc" id="L960">                putByte(NORMAL_SEARCH_CMD); // issue the search command</span>
+
+            // loop to do the search
+            do {
+                // read a bit and its compliment
+<span class="nc bnc" id="L965" title="All 2 branches missed.">                bit_test = (getBit() ? 1 : 0) &lt;&lt; 1;</span>
+<span class="nc bnc" id="L966" title="All 2 branches missed.">                bit_test |= (getBit() ? 1 : 0);</span>
+
+                // check for no devices on 1-wire
+<span class="nc bnc" id="L969" title="All 2 branches missed.">                if (bit_test == 3) {</span>
+<span class="nc" id="L970">                    break;</span>
+                }
+
+                // all devices coupled have 0 or 1
+<span class="nc bnc" id="L974" title="All 2 branches missed.">                if (bit_test &gt; 0)</span>
+<span class="nc bnc" id="L975" title="All 2 branches missed.">                    search_direction = !((bit_test &amp; 0x01) == 0x01); // bit</span>
+                                                                        // write
+                                                                        // value
+                                                                        // for
+                                                                        // search
+                else {
+                    // if this discrepancy if before the Last Discrepancy
+                    // on a previous next then pick the same as last time
+<span class="nc bnc" id="L983" title="All 2 branches missed.">                    if (bit_number &lt; LastDiscrepancy)</span>
+<span class="nc bnc" id="L984" title="All 2 branches missed.">                        search_direction = ((CurrentDevice[serial_byte_number] &amp; serial_byte_mask) &gt; 0);</span>
+                    else
+                        // if equal to last pick 1, if not then pick 0
+<span class="nc bnc" id="L987" title="All 2 branches missed.">                        search_direction = (bit_number == LastDiscrepancy);</span>
+
+                    // if 0 was picked then record its position in LastZero
+<span class="nc bnc" id="L990" title="All 2 branches missed.">                    if (!search_direction)</span>
+<span class="nc" id="L991">                        last_zero = bit_number;</span>
+
+                    // check for Last discrepancy in family
+                    //if (last_zero &lt; 9)
+                        //LastFamilyDiscrepancy = last_zero;
+                }
+
+                // set or clear the bit in the CurrentDevice byte
+                // serial_byte_number
+                // with mask serial_byte_mask
+<span class="nc bnc" id="L1001" title="All 2 branches missed.">                if (search_direction)</span>
+<span class="nc" id="L1002">                    CurrentDevice[serial_byte_number] |= serial_byte_mask;</span>
+                else
+<span class="nc" id="L1004">                    CurrentDevice[serial_byte_number] &amp;= ~serial_byte_mask;</span>
+
+                // serial number search direction write bit
+<span class="nc" id="L1007">                putBit(search_direction);</span>
+
+                // increment the byte counter bit_number
+                // and shift the mask serial_byte_mask
+<span class="nc" id="L1011">                bit_number++;</span>
+<span class="nc" id="L1012">                serial_byte_mask = (serial_byte_mask &lt;&lt;= 1) &amp; 0x00FF;</span>
+
+                // if the mask is 0 then go to new CurrentDevice byte
+                // serial_byte_number
+                // and reset mask
+<span class="nc bnc" id="L1017" title="All 2 branches missed.">                if (serial_byte_mask == 0) {</span>
+                    // accumulate the CRC
+<span class="nc" id="L1019">                    lastcrc8 = CRC8.compute(CurrentDevice[serial_byte_number], lastcrc8);</span>
+<span class="nc" id="L1020">                    serial_byte_number++;</span>
+<span class="nc" id="L1021">                    serial_byte_mask = 1;</span>
+                }
+
+<span class="nc bnc" id="L1024" title="All 2 branches missed.">            } while (serial_byte_number &lt; 8); // loop until through all</span>
+                                                // CurrentDevice bytes 0-7
+
+            // if the search was successful then
+<span class="nc bnc" id="L1028" title="All 4 branches missed.">            if (!((bit_number &lt; 65) || (lastcrc8 != 0))) {</span>
+                // search successful so set
+                // LastDiscrepancy,LastDevice,next_result
+<span class="nc" id="L1031">                LastDiscrepancy = last_zero;</span>
+<span class="nc bnc" id="L1032" title="All 2 branches missed.">                LastDevice = (LastDiscrepancy == 0);</span>
+<span class="nc" id="L1033">                next_result = true;</span>
+            }
+        }
+
+        // if no device found then reset counters so next 'next' will be
+        // like a first
+<span class="nc bnc" id="L1039" title="All 4 branches missed.">        if (!next_result || (CurrentDevice[0] == 0)) {</span>
+<span class="nc" id="L1040">            LastDiscrepancy = 0;</span>
+<span class="nc" id="L1041">            LastDevice = false;</span>
+            //LastFamilyDiscrepancy = 0;
+<span class="nc" id="L1043">            next_result = false;</span>
+        }
+
+<span class="nc" id="L1046">        return next_result;</span>
+    }
+
+    /**
+     * Attempt to detect prense of DS9097 style adapter. Mostly just checks to
+     * make sure it is NOT a DS2480 or an AT modem.
+     *
+     * @return true if adapter likely present
+     */
+    private boolean adapterPresent() {
+
+<span class="nc bnc" id="L1057" title="All 2 branches missed.">        if (!adapterPresent) {</span>
+<span class="nc" id="L1058">            char[] test_buf = { 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,</span>
+                    0x00, 0x00, 0xE3, 0xC1, 'A', 'T', 'E', '0', 0x0D, 'A' };
+
+            try {
+                // do reset
+<span class="nc" id="L1063">                serial.flush();</span>
+
+                // send a break to reset 1-Wire
+<span class="nc" id="L1066">                serial.sendBreak(1);</span>
+
+                // get the result
+<span class="nc" id="L1069">                serial.readWithTimeout(1);</span>
+
+                // send the test message
+<span class="nc" id="L1072">                serial.flush();</span>
+<span class="nc" id="L1073">                serial.write(test_buf);</span>
+
+                // get echo
+<span class="nc" id="L1076">                serial.readWithTimeout(test_buf.length);</span>
+
+<span class="nc" id="L1078">                serial.flush();</span>
+
+                // if get entire echo then must be OK
+<span class="nc" id="L1081">                adapterPresent = true;</span>
+<span class="nc" id="L1082">            } catch (IOException ioe) {</span>
+                // DRAIN
+<span class="nc" id="L1084">            }</span>
+        }
+
+<span class="nc" id="L1087">        return adapterPresent;</span>
+    }
+
+    /**
+     * Translate a data block to a DS9097 style block where every byte represent
+     * one bit timeslot.
+     *
+     * @param data byte array
+     * @param off offset into data array
+     * @param len length of data array to send
+     * @return character array send block
+     */
+    private char[] constructSendBlock(byte[] data, int off, int len) {
+
+<span class="nc" id="L1101">        int shift_byte, cnt = 0;</span>
+<span class="nc" id="L1102">        char[] send_block = new char[len * 8];</span>
+
+<span class="nc bnc" id="L1104" title="All 2 branches missed.">        for (int i = 0; i &lt; len; i++) {</span>
+<span class="nc" id="L1105">            shift_byte = data[i + off];</span>
+
+<span class="nc bnc" id="L1107" title="All 2 branches missed.">            for (int j = 0; j &lt; 8; j++) {</span>
+<span class="nc bnc" id="L1108" title="All 2 branches missed.">                if ((shift_byte &amp; 0x01) == 0x01)</span>
+<span class="nc" id="L1109">                    send_block[cnt++] = 0x00FF;</span>
+                else
+<span class="nc" id="L1111">                    send_block[cnt++] = 0x00;</span>
+
+<span class="nc" id="L1113">                shift_byte &gt;&gt;&gt;= 1;</span>
+            }
+        }
+
+<span class="nc" id="L1117">        return send_block;</span>
+    }
+
+    /**
+     * Inerpret a response communication block from a DS9097 adapter and
+     * translate it into a byte array of data.
+     *
+     * @param rawBlock character array of raw communication
+     * @return byte array of data recieved
+     */
+    private byte[] interpretRecvBlock(char[] rawBlock) {
+
+<span class="nc" id="L1129">        int shift_byte = 0, bit_cnt = 0, byte_cnt = 0;</span>
+<span class="nc" id="L1130">        byte[] recv_block = new byte[rawBlock.length / 8];</span>
+
+<span class="nc bnc" id="L1132" title="All 2 branches missed.">        for (int i = 0; i &lt; rawBlock.length; i++) {</span>
+<span class="nc" id="L1133">            shift_byte &gt;&gt;&gt;= 1;</span>
+
+<span class="nc bnc" id="L1135" title="All 2 branches missed.">            if (rawBlock[i] == 0x00FF)</span>
+<span class="nc" id="L1136">                shift_byte |= 0x80;</span>
+
+<span class="nc" id="L1138">            bit_cnt++;</span>
+
+<span class="nc bnc" id="L1140" title="All 2 branches missed.">            if (bit_cnt == 8) {</span>
+<span class="nc" id="L1141">                bit_cnt = 0;</span>
+<span class="nc" id="L1142">                recv_block[byte_cnt++] = (byte) shift_byte;</span>
+<span class="nc" id="L1143">                shift_byte = 0;</span>
+            }
+        }
+
+<span class="nc" id="L1147">        return recv_block;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

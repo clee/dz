@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DamperFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">DZ3 Dampers based on Servomaster</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.servomaster</a> &gt; <span class="el_source">DamperFactory.java</span></div><h1>DamperFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.servomaster;
+
+import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.actuator.Damper;
+import net.sf.servomaster.device.model.ServoController;
+
+/**
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class DamperFactory {
+
+<span class="fc" id="L20">    private final Logger logger = LogManager.getLogger(getClass());</span>
+    private final ServoController theController;
+
+<span class="fc" id="L23">    public DamperFactory(String className, String portName) {</span>
+
+<span class="fc" id="L25">        ThreadContext.push(&quot;DamperFactory()&quot;);</span>
+
+        try {
+
+<span class="fc" id="L29">            Class&lt;?&gt; controllerClass = Class.forName(className);</span>
+<span class="fc" id="L30">            logger.debug(&quot;found class: {}&quot;, controllerClass.getCanonicalName());</span>
+
+<span class="fc bfc" id="L32" title="All 2 branches covered.">            if (!ServoController.class.isAssignableFrom(controllerClass)) {</span>
+<span class="fc" id="L33">                throw new IllegalArgumentException(&quot;Not a servo controller: &quot; + controllerClass.getName());</span>
+            }
+
+<span class="fc" id="L36">            Constructor&lt;?&gt; c = controllerClass.getDeclaredConstructor(String.class);</span>
+<span class="fc" id="L37">            Object controllerObject = c.newInstance(portName);</span>
+
+<span class="fc" id="L39">            theController = (ServoController) controllerObject;</span>
+<span class="fc" id="L40">            theController.open();</span>
+
+<span class="fc" id="L42">            logger.info(&quot;Controller instantiated: {}&quot;, theController.getMeta());</span>
+
+<span class="fc" id="L44">        } catch (ClassNotFoundException|InstantiationException|IllegalAccessException|InvocationTargetException|SecurityException|NoSuchMethodException ex) {</span>
+
+<span class="fc" id="L46">            throw new IllegalArgumentException(&quot;can't instantitate '&quot; + className + &quot;'&quot;, ex);</span>
+
+<span class="nc" id="L48">        } catch (IOException ex) {</span>
+
+<span class="nc" id="L50">            throw new IllegalStateException(&quot;don't know how to handle&quot;, ex);</span>
+
+        } finally {
+<span class="fc" id="L53">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L55">    }</span>
+
+    /**
+     * Get an instance of a straight (not reversed) damper with no calibration.
+     *
+     * @param name Human readable name.
+     * @param id Controller specific servo ID.
+     *
+     * @return Damper instance.
+     * @throws IOException if things go wrong.
+     */
+    public Damper getDamper(String name, String id) throws IOException {
+<span class="nc" id="L67">        return getDamper(name, id, true, false, null, null);</span>
+    }
+
+    /**
+     * Get an instance of a damper with range calibration only.
+     *
+     * @param name Human readable name.
+     * @param id Controller specific servo ID.
+     * @param crawl {@code true} if the damper needs to be crawling.
+     * @param reverse {@code true} if the damper needs to be reversed.
+     * @param rangeCalibration Range calibration object.
+     *
+     * @return Damper instance.
+     * @throws IOException if things go wrong.
+     */
+    public Damper getDamper(
+            String name,
+            String id,
+            boolean crawl,
+            boolean reverse,
+            RangeCalibration rangeCalibration) throws IOException {
+
+<span class="nc" id="L89">        return getDamper(name, id, crawl, reverse, rangeCalibration, null);</span>
+    }
+
+    /**
+     * Get an instance of a damper with limit calibration only.
+     *
+     * @param name Human readable name.
+     * @param id Controller specific servo ID.
+     * @param crawl {@code true} if the damper needs to be crawling.
+     * @param reverse {@code true} if the damper needs to be reversed.
+     * @param limitCalibration Limit calibration object.
+     *
+     * @return Damper instance.
+     * @throws IOException if things go wrong.
+     */
+    public Damper getDamper(
+            String name,
+            String id,
+            boolean crawl,
+            boolean reverse,
+            LimitCalibration limitCalibration) throws IOException {
+
+<span class="nc" id="L111">        return getDamper(name, id, crawl, reverse, null, limitCalibration);</span>
+    }
+
+    private Damper getDamper(
+            String name,
+            String id,
+            boolean crawl,
+            boolean reverse,
+            RangeCalibration rangeCalibration,
+            LimitCalibration limitCalibration) throws IOException {
+
+<span class="nc" id="L122">        return new ServoDamper(name, theController.getServo(id), crawl, reverse, rangeCalibration, limitCalibration);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

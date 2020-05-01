@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractEconomizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">AbstractEconomizer.java</span></div><h1>AbstractEconomizer.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import net.sf.dz3.controller.pid.AbstractPidController;
+import net.sf.dz3.device.model.Economizer;
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxAware;
+
+/**
+ * Base class for {@link Economizer} implementations.
+ *
+ * Handles common inputs and outputs.
+ *  
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public abstract class AbstractEconomizer implements Economizer, JmxAware {
+
+<span class="nc" id="L25">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+<span class="nc" id="L26">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;Double&gt;();</span>
+    
+    protected final String name;
+    protected final String signature;
+    
+    protected final ThermostatModel thermostat;
+    protected final AnalogSensor outdoorSensor;
+    /**
+     * @see #getThreshold()
+     */
+    protected double threshold;
+    
+    /**
+     * Last known indoor temperature - or {@code null} if unknown.
+     */
+    protected Double indoor;
+    
+    /**
+     * Last known outdoor temperature - or {@code null} if unknown.
+     */
+    protected Double outdoor;
+    
+    /**
+     * Timestamp for last known indoor or outdoor temperature values.
+     */
+    protected long timestamp;
+    
+    /**
+     * Last issued signal.
+     */
+    private DataSample&lt;Double&gt; signal;
+
+<span class="nc" id="L58">    public AbstractEconomizer(String name, ThermostatModel thermostat, AnalogSensor outdoorSensor, double threshold) {</span>
+        
+<span class="nc" id="L60">        this.name = name;</span>
+<span class="nc" id="L61">        this.signature = MessageDigestCache.getMD5(name).substring(0, 19);</span>
+        
+<span class="nc" id="L63">        this.thermostat = thermostat;</span>
+<span class="nc" id="L64">        this.outdoorSensor = outdoorSensor;</span>
+        
+<span class="nc" id="L66">        init();</span>
+<span class="nc" id="L67">    }</span>
+    
+    /**
+     * Initialize the instance.
+     */
+    abstract protected void init();
+
+    @Override
+    public final double getThreshold() {
+        
+<span class="nc" id="L77">        return threshold;</span>
+    }
+
+    public final void setThreshold(double threshold) {
+        
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if (threshold &lt; 0) {</span>
+<span class="nc" id="L83">            throw new IllegalArgumentException(&quot;threshold value must be non-negative (&quot; + threshold + &quot; was given)&quot;);</span>
+        }
+        
+<span class="nc" id="L86">        this.threshold = threshold;</span>
+        
+<span class="nc" id="L88">    }</span>
+
+    @Override
+    public final void addConsumer(DataSink&lt;Double&gt; consumer) {
+        
+<span class="nc" id="L93">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="nc" id="L94">    }</span>
+
+    @Override
+    public final void removeConsumer(DataSink&lt;Double&gt; consumer) {
+        
+<span class="nc" id="L99">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L100">    }</span>
+
+    /**
+     * @return {@code true} if the {@link #thermostat} is in cooling mode.
+     */
+    protected final boolean isCooling() {
+        
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        return ((AbstractPidController) thermostat.getController()).getP() &gt; 0;</span>
+    }
+
+    /**
+     * Broadcast the signal to listeners.
+     * 
+     * @param signal Signal to broadcast.
+     * @see #compute()
+     */
+    protected final void broadcast(double signal) {
+        
+<span class="nc" id="L118">        this.signal = new DataSample&lt;Double&gt;(timestamp, name, signature, signal, null);</span>
+        
+<span class="nc" id="L120">        dataBroadcaster.broadcast(this.signal);</span>
+<span class="nc" id="L121">    }</span>
+    
+    @JmxAttribute(description = &quot;Last issued signal&quot;)
+    public DataSample&lt;Double&gt; getSignal() {
+        
+<span class="nc" id="L126">        return signal;</span>
+    }
+
+    /**
+     * Compute the output signal.
+     * 
+     * @return Output signal computed. Positive value means the device must be turned on.
+     * 
+     * By design contract, value returned must not be negative.
+     */
+    abstract protected double compute();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

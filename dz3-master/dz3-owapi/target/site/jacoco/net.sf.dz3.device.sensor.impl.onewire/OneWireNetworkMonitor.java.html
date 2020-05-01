@@ -1,0 +1,610 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireNetworkMonitor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.onewire</a> &gt; <span class="el_source">OneWireNetworkMonitor.java</span></div><h1>OneWireNetworkMonitor.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.onewire;
+
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.container.OneWireContainer1F;
+import com.dalsemi.onewire.utils.OWPath;
+
+import net.sf.dz3.instrumentation.Marker;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+import net.sf.jukebox.sem.EventSemaphore;
+import net.sf.jukebox.sem.SemaphoreTimeoutException;
+import net.sf.jukebox.service.ActiveService;
+import net.sf.jukebox.util.CollectionSynchronizer;
+
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.apache.logging.log4j.ThreadContext;
+
+/**
+ * 1-Wire&amp;reg; network monitor.
+ * &lt;p&gt;
+ * The difference between this class and DalSemi's {@code
+ * com.dalsemi.onewire.utils.NetworkMonitor} is that this class not only
+ * searches the currently open branches, but manipulates the MicroLAN couplers
+ * (DS2409) it finds in order to get a complete network map. It may not be
+ * desirable for a generic network browser, but it is perfectly OK in the
+ * context of this project.
+ * &lt;p&gt;
+ * Note that DS2409 devices cannot be used as payload switches with this code,
+ * only as branch couplers.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class OneWireNetworkMonitor extends ActiveService {
+
+    /**
+     * Adapter to monitor.
+     */
+    private DSPortAdapter adapter;
+
+    /**
+     * Lock to use for mutual exclusive access to the adapter. I hope there'll
+     * be a day when the adapter itself will provide this lock...
+     */
+    private ReentrantReadWriteLock lock;
+
+    /**
+     * Device map. The key is the address as string, the value is the device
+     * container for that address.
+     */
+<span class="nc" id="L60">    private Map&lt;String, OneWireContainer&gt; address2device = new TreeMap&lt;String, OneWireContainer&gt;();</span>
+
+    /**
+     * Path map. The key is the address as string, the value is the path to the
+     * device with that address.
+     */
+<span class="nc" id="L66">    private Map&lt;String, OWPath&gt; address2path = new TreeMap&lt;String, OWPath&gt;();</span>
+
+    /**
+     * Listener set.
+     */
+<span class="nc" id="L71">    private Set&lt;OneWireNetworkEventListener&gt; listenerSet = new HashSet&lt;OneWireNetworkEventListener&gt;();</span>
+
+    /**
+     * &quot;Force rescan&quot; semaphore.
+     * &lt;p&gt;
+     * When this semaphore is posted, {@link #browse() browse()} is called
+     * immediately, as opposed to once in a timeout.
+     * &lt;p&gt;
+     * This semaphore is triggered by calling {@link #rescan rescan()}.
+     *
+     * @see #rescanComplete
+     */
+<span class="nc" id="L83">    private EventSemaphore rescanNow = new EventSemaphore();</span>
+
+    /**
+     * &quot;Rescan complete&quot; semaphore.
+     * &lt;p&gt;
+     * This semaphore is triggered whenever {@link #browse() browse()} finishes.
+     * {@link #rescan rescan()} returns this semaphore, for convenience of the
+     * callers.
+     */
+<span class="nc" id="L92">    private EventSemaphore rescanComplete = new EventSemaphore();</span>
+
+    /**
+     * Rescan timeout. Default is 1 minute.
+     */
+<span class="nc" id="L97">    private long timeout = 60000;</span>
+
+    /**
+     * A debug variable - set to true whenever a rescan is forced (as opposed to
+     * the rescan semaphore timing out).
+     */
+<span class="nc" id="L103">    private boolean forcedRescan = false;</span>
+
+    /**
+     * Create an instance.
+     *
+     * @param adapter Adapter to work with. Can't be {@code null}.
+     * @param lock Lock to use. Can't be {@code null}.
+     */
+<span class="nc" id="L111">    public OneWireNetworkMonitor(DSPortAdapter adapter, ReentrantReadWriteLock lock) {</span>
+
+<span class="nc bnc" id="L113" title="All 4 branches missed.">        if (adapter == null || lock == null) {</span>
+
+<span class="nc" id="L115">            throw new IllegalArgumentException(&quot;One of parameters is null: adapter: &quot; + adapter + &quot;, lock: &quot; + lock);</span>
+        }
+
+<span class="nc" id="L118">        this.adapter = adapter;</span>
+<span class="nc" id="L119">        this.lock = lock;</span>
+<span class="nc" id="L120">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void startup() throws Throwable {
+
+<span class="nc" id="L128">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void execute() throws Throwable {
+        
+<span class="nc" id="L136">        ThreadContext.push(&quot;execute&quot;);</span>
+        
+        try {
+
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            while (isEnabled()) {</span>
+
+                try {
+
+<span class="nc" id="L144">                    browse();</span>
+
+                    // Currently, browse() takes 10+ seconds. Let's give them a
+                    // break
+
+                    try {
+
+<span class="nc" id="L151">                        rescanNow.waitFor(timeout);</span>
+<span class="nc" id="L152">                        logger.debug(&quot;Rescan requested&quot;);</span>
+
+<span class="nc" id="L154">                        forcedRescan = true;</span>
+
+<span class="nc" id="L156">                    } catch (SemaphoreTimeoutException ignored) {</span>
+
+                        // Don't do anything, this is a normal outcome when the
+                        // semaphore times out, which happens every time the
+                        // rescan() wasn't called.
+
+<span class="nc" id="L162">                        forcedRescan = false;</span>
+<span class="nc" id="L163">                    }</span>
+
+<span class="nc" id="L165">                } catch (Throwable t) {</span>
+
+<span class="nc" id="L167">                    String message = t.getMessage();</span>
+
+<span class="nc bnc" id="L169" title="All 4 branches missed.">                    if (message != null &amp;&amp; message.startsWith(&quot;Error short&quot;)) {</span>
+
+<span class="nc" id="L171">                        logger.fatal(&quot;1-Wire Network shorted out!!!&quot;, t);</span>
+
+                        // VT: FIXME: This is a critical failure. All the
+                        // listeners must be notified immediately - this most
+                        // probably means loss of all sensors, and what's worse,
+                        // this means loss of control over HVAC actuator
+                        // devices, though the devices themselves have to be
+                        // powered and therefore keep their state - in other
+                        // words, if the HVAC is on, it will stay on. Very Bad
+                        // Thing (TM).
+
+                        // Well, and of course, it *has* to be this inconvenient
+                        // - the only place where a network short can be
+                        // detected is where you actually *write* something to
+                        // it. Both places are outside of normal control flow,
+                        // and they're asynchronous.
+
+<span class="nc" id="L188">                        handleShortCircuit();</span>
+
+                        // Now, the short circuit is a condition that is
+                        // detected at the very beginning of browse(), very
+                        // fast. Let to its own devices, this will cycle
+                        // indefinitely, so it would be a good idea to restrict
+                        // the cycle rate.
+
+<span class="nc" id="L196">                        Thread.sleep(1000);</span>
+
+                    } else {
+
+<span class="nc" id="L200">                        logger.warn(&quot;Browse failure:&quot;, t);</span>
+                    }
+<span class="nc" id="L202">                }</span>
+            }
+        
+        } finally {
+<span class="nc" id="L206">            ThreadContext.pop();</span>
+<span class="nc" id="L207">            ThreadContext.clearStack();</span>
+        }
+<span class="nc" id="L209">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected void shutdown() throws Throwable {
+        
+<span class="nc" id="L217">        logger.info(&quot;stopped&quot;);</span>
+<span class="nc" id="L218">    }</span>
+
+    /**
+     * Find all devices on 1-Wire&amp;reg; network.
+     * &lt;p&gt;
+     * This is an intrusive search that is going to shuffle all the MicroLAN
+     * couplers on the network.
+     *
+     * @throws Throwable if anything goes wrong.
+     */
+    private void browse() throws Throwable {
+        
+<span class="nc" id="L230">        ThreadContext.push(&quot;browse&quot;);</span>
+<span class="nc" id="L231">        Marker m = new Marker(&quot;browse&quot;);</span>
+        
+<span class="nc" id="L233">        lock.writeLock().lock();</span>
+<span class="nc" id="L234">        m.checkpoint(&quot;got lock&quot;);</span>
+        
+        try {
+
+<span class="nc bnc" id="L238" title="All 2 branches missed.">            if (forcedRescan) {</span>
+
+<span class="nc" id="L240">                logger.info(&quot;Forced rescan&quot;);</span>
+            }
+
+
+<span class="nc" id="L244">            Map&lt;String, OneWireContainer&gt; address2deviceLocal = new TreeMap&lt;String, OneWireContainer&gt;();</span>
+<span class="nc" id="L245">            Map&lt;String, OWPath&gt; address2pathLocal = new TreeMap&lt;String, OWPath&gt;();</span>
+
+<span class="nc" id="L247">            ThreadContext.push(&quot;browseProper&quot;);</span>
+<span class="nc" id="L248">            Marker m2 = new Marker(&quot;browseProper&quot;);</span>
+
+            try {
+
+
+<span class="nc" id="L253">                adapter.setSearchAllDevices();</span>
+<span class="nc" id="L254">                adapter.targetAllFamilies();</span>
+
+<span class="nc" id="L256">                OWPath rootPath = new OWPath(adapter);</span>
+
+<span class="nc" id="L258">                browse(rootPath, address2deviceLocal, address2pathLocal);</span>
+
+            } finally {
+
+<span class="nc" id="L262">                m2.close();</span>
+<span class="nc" id="L263">                ThreadContext.pop();</span>
+            }
+            
+<span class="nc" id="L266">            ThreadContext.push(&quot;handleChanges&quot;);</span>
+<span class="nc" id="L267">            Marker m3 = new Marker(&quot;handleChanges&quot;);</span>
+            
+            try {
+
+<span class="nc" id="L271">                handleDepartures(address2deviceLocal, address2pathLocal);</span>
+<span class="nc" id="L272">                handleArrivals(address2deviceLocal, address2pathLocal);</span>
+
+<span class="nc" id="L274">                address2device = address2deviceLocal;</span>
+<span class="nc" id="L275">                address2path = address2pathLocal;</span>
+
+            } finally {
+                
+<span class="nc" id="L279">                m3.close();</span>
+<span class="nc" id="L280">                ThreadContext.pop();</span>
+            }
+
+<span class="nc" id="L283">            logger.debug(&quot;Rescan complete&quot;);</span>
+<span class="nc" id="L284">            rescanComplete.post();</span>
+
+<span class="nc bnc" id="L286" title="All 2 branches missed.">            if (address2deviceLocal.isEmpty()) {</span>
+<span class="nc" id="L287">                logger.warn(&quot;No devices found, waiting 10 seconds to avoid runaway looping&quot;);</span>
+<span class="nc" id="L288">                Thread.sleep(10000);</span>
+            }
+
+        } finally {
+
+<span class="nc" id="L293">            forcedRescan = false;</span>
+<span class="nc" id="L294">            lock.writeLock().unlock();</span>
+
+<span class="nc" id="L296">            m.close();</span>
+<span class="nc" id="L297">            ThreadContext.pop();</span>
+<span class="nc" id="L298">            ThreadContext.clearStack();</span>
+        }
+<span class="nc" id="L300">    }</span>
+
+    /**
+     * Browse the path.
+     *
+     * @param path Path to start browsing at.
+     * @param address2deviceLocal Input/output parameter to fill out. The key is
+     * the address as string, the value is the device container.
+     * @param address2pathLocal Input/output parameter to fill out. The key is
+     * the address as string, the value is the path to that address.
+     * @throws Throwable if anything goes wrong.
+     */
+    private void browse(OWPath path, Map&lt;String, OneWireContainer&gt; address2deviceLocal,
+            Map&lt;String, OWPath&gt; address2pathLocal) throws Throwable {
+
+<span class="nc" id="L315">        closeAllPaths();</span>
+
+<span class="nc" id="L317">        path.open();</span>
+
+<span class="nc" id="L319">        List&lt;OWPath&gt; switchList = new LinkedList&lt;OWPath&gt;();</span>
+
+<span class="nc bnc" id="L321" title="All 2 branches missed.">        for (Enumeration&lt;OneWireContainer&gt; e = adapter.getAllDeviceContainers(); e.hasMoreElements();) {</span>
+
+<span class="nc" id="L323">            OneWireContainer owc = e.nextElement();</span>
+<span class="nc" id="L324">            String address = owc.getAddressAsString();</span>
+
+            // This device might have been discovered already
+
+<span class="nc bnc" id="L328" title="All 2 branches missed.">            if (address2deviceLocal.get(address) != null) {</span>
+
+<span class="nc" id="L330">                continue;</span>
+            }
+
+<span class="nc" id="L333">            logger.debug(&quot;Found: &quot; + owc.getName() + &quot; &quot; + address + &quot; at &quot; + path);</span>
+
+<span class="nc" id="L335">            address2deviceLocal.put(address, owc);</span>
+<span class="nc" id="L336">            address2pathLocal.put(address, path);</span>
+
+<span class="nc bnc" id="L338" title="All 2 branches missed.">            if (owc instanceof OneWireContainer1F) {</span>
+
+<span class="nc" id="L340">                OWPath channel1 = new OWPath(adapter, path);</span>
+
+<span class="nc" id="L342">                channel1.add(owc, 0);</span>
+
+<span class="nc" id="L344">                switchList.add(channel1);</span>
+
+<span class="nc" id="L346">                OWPath channel2 = new OWPath(adapter, path);</span>
+
+<span class="nc" id="L348">                channel2.add(owc, 1);</span>
+
+<span class="nc" id="L350">                switchList.add(channel2);</span>
+            }
+<span class="nc" id="L352">        }</span>
+
+<span class="nc bnc" id="L354" title="All 2 branches missed.">        for (Iterator&lt;OWPath&gt; i = switchList.iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L356">            OWPath branchPath = i.next();</span>
+
+<span class="nc" id="L358">            browse(branchPath, address2deviceLocal, address2pathLocal);</span>
+<span class="nc" id="L359">        }</span>
+<span class="nc" id="L360">    }</span>
+
+    /**
+     * Rescan the network now.
+     * &lt;p&gt;
+     * If a synchronous invocation is desired, this method may be invoked as
+     * follows:
+     *
+     * &lt;pre&gt;
+     * monitor.rescan().waitFor();
+     * &lt;/pre&gt;
+     *
+     * &lt;strong&gt;WARNING:&lt;/strong&gt; Do not attempt to wait on the semaphore unless
+     * you initiated the rescan - you may end up waiting for entire timeout
+     * interval.
+     *
+     * @return {@link #rescanComplete A semaphore} that is triggered when
+     * {@link #browse() browse()} is complete.
+     */
+    public EventSemaphore rescan() {
+
+<span class="nc" id="L381">        rescanNow.post();</span>
+
+<span class="nc" id="L383">        return rescanComplete;</span>
+    }
+
+    /**
+     * Handle the new device arrival. Compare new maps with existing maps, and
+     * issue notifications about devices that have just arrived, if any.
+     *
+     * @param newDeviceMap Full device address to device container map, possibly
+     * containing devices that have just arrived.
+     * @param newPathMap Full device address to device path map, possibly
+     * containing devices that have just arrived.
+     */
+    private void handleArrivals(final Map&lt;String, OneWireContainer&gt; newDeviceMap, final Map&lt;String, OWPath&gt; newPathMap) {
+
+<span class="nc bnc" id="L397" title="All 2 branches missed.">        for (Iterator&lt;String&gt; i = newDeviceMap.keySet().iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L399">            String address = i.next();</span>
+
+<span class="nc bnc" id="L401" title="All 2 branches missed.">            if (!address2device.containsKey(address)) {</span>
+
+<span class="nc" id="L403">                logger.info(&quot;Arrived: &quot; + newDeviceMap.get(address).getName() + &quot; &quot; + address + &quot; on &quot;</span>
+<span class="nc" id="L404">                        + newPathMap.get(address));</span>
+
+<span class="nc" id="L406">                OneWireNetworkEvent e = new OwapiNetworkEvent(this, adapter, address, newPathMap.get(address));</span>
+
+<span class="nc" id="L408">                for (Iterator&lt;OneWireNetworkEventListener&gt; li = (new CollectionSynchronizer&lt;OneWireNetworkEventListener&gt;())</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">                        .copy(listenerSet).iterator(); li.hasNext();) {</span>
+
+                    try {
+<span class="nc" id="L412">                        li.next().networkArrival(e);</span>
+<span class="nc" id="L413">                    } catch (Throwable t) {</span>
+<span class="nc" id="L414">                        logger.error(&quot;Unexpected exception&quot;, t);</span>
+<span class="nc" id="L415">                    }</span>
+                }
+            }
+<span class="nc" id="L418">        }</span>
+<span class="nc" id="L419">    }</span>
+
+    /**
+     * Handle device departure. Compare new maps with existing maps, and
+     * issue notifications about devices that have just departed, if any.
+     *
+     * @param newDeviceMap Full device address to device container map, possibly
+     * containing devices that have just departed.
+     * @param newPathMap Full device address to device path map, possibly
+     * containing devices that have just departed.
+     */
+    private void handleDepartures(final Map&lt;String, OneWireContainer&gt; newDeviceMap, final Map&lt;String, OWPath&gt; newPathMap) {
+
+<span class="nc bnc" id="L432" title="All 2 branches missed.">        for (Iterator&lt;String&gt; i = address2device.keySet().iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L434">            String address = i.next();</span>
+
+<span class="nc" id="L436">            OWPath oldPath = address2path.get(address);</span>
+<span class="nc" id="L437">            OWPath newPath = newPathMap.get(address);</span>
+
+<span class="nc bnc" id="L439" title="All 2 branches missed.">            if (oldPath == null) {</span>
+
+                // This means that we're actually seeing the arrival, not
+                // departure
+
+<span class="nc" id="L444">                continue;</span>
+            }
+
+<span class="nc bnc" id="L447" title="All 2 branches missed.">            if (newPath == null) {</span>
+
+                // The device has departed
+
+<span class="nc" id="L451">                logger.warn(&quot;Departed: &quot; + address + &quot; from &quot; + oldPath);</span>
+
+<span class="nc" id="L453">                OneWireNetworkEvent e = new OwapiNetworkEvent(this, adapter, address, oldPath);</span>
+
+<span class="nc" id="L455">                for (Iterator&lt;OneWireNetworkEventListener&gt; li = (new CollectionSynchronizer&lt;OneWireNetworkEventListener&gt;())</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">                        .copy(listenerSet).iterator(); li.hasNext();) {</span>
+
+                    try {
+<span class="nc" id="L459">                        li.next().networkDeparture(e);</span>
+<span class="nc" id="L460">                    } catch (Throwable t) {</span>
+<span class="nc" id="L461">                        logger.error(&quot;Unexpected exception&quot;, t);</span>
+<span class="nc" id="L462">                    }</span>
+                }
+
+<span class="nc" id="L465">                continue;</span>
+            }
+
+            // At this point, oldPath can't be null
+
+<span class="nc bnc" id="L470" title="All 2 branches missed.">            if (!oldPath.equals(newPath)) {</span>
+
+                // The path has changed
+
+<span class="nc" id="L474">                logger.info(&quot;Moved: &quot; + address + &quot; from &quot; + oldPath + &quot; to &quot; + newPath);</span>
+
+<span class="nc" id="L476">                OneWireNetworkEvent e = new OwapiNetworkEvent(this, adapter, address, oldPath);</span>
+
+<span class="nc" id="L478">                for (Iterator&lt;OneWireNetworkEventListener&gt; li = (new CollectionSynchronizer&lt;OneWireNetworkEventListener&gt;())</span>
+<span class="nc bnc" id="L479" title="All 2 branches missed.">                        .copy(listenerSet).iterator(); li.hasNext();) {</span>
+
+                    try {
+<span class="nc" id="L482">                        li.next().networkDeparture(e);</span>
+<span class="nc" id="L483">                    } catch (Throwable t) {</span>
+<span class="nc" id="L484">                        logger.error(&quot;Unexpected exception&quot;, t);</span>
+<span class="nc" id="L485">                    }</span>
+                }
+
+<span class="nc" id="L488">                e = new OwapiNetworkEvent(this, adapter, address, newPath);</span>
+
+<span class="nc" id="L490">                for (Iterator&lt;OneWireNetworkEventListener&gt; li = (new CollectionSynchronizer&lt;OneWireNetworkEventListener&gt;())</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">                        .copy(listenerSet).iterator(); li.hasNext();) {</span>
+
+                    try {
+<span class="nc" id="L494">                        li.next().networkArrival(e);</span>
+<span class="nc" id="L495">                    } catch (Throwable t) {</span>
+<span class="nc" id="L496">                        logger.error(&quot;Unexpected exception&quot;, t);</span>
+<span class="nc" id="L497">                    }</span>
+                }
+            }
+<span class="nc" id="L500">        }</span>
+<span class="nc" id="L501">    }</span>
+
+    /**
+     * Handle a short circuit.
+     */
+    private void handleShortCircuit() {
+
+<span class="nc bnc" id="L508" title="All 2 branches missed.">        for (Iterator&lt;String&gt; i = address2device.keySet().iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L510">            String address = i.next();</span>
+<span class="nc" id="L511">            OneWireNetworkEvent e = new OwapiNetworkEvent(this, adapter, address, null);</span>
+
+<span class="nc" id="L513">            for (Iterator&lt;OneWireNetworkEventListener&gt; li = (new CollectionSynchronizer&lt;OneWireNetworkEventListener&gt;())</span>
+<span class="nc bnc" id="L514" title="All 2 branches missed.">                    .copy(listenerSet).iterator(); li.hasNext();) {</span>
+
+                try {
+<span class="nc" id="L517">                    li.next().networkFault(e, &quot;1-Wire network short circuit&quot;);</span>
+<span class="nc" id="L518">                } catch (Throwable t) {</span>
+<span class="nc" id="L519">                    logger.error(&quot;Unexpected exception&quot;, t);</span>
+<span class="nc" id="L520">                }</span>
+            }
+<span class="nc" id="L522">        }</span>
+<span class="nc" id="L523">    }</span>
+
+    /**
+     * Add a listener.
+     *
+     * @param listener Listener to add.
+     */
+    public void addListener(OneWireNetworkEventListener listener) {
+
+<span class="nc" id="L532">        synchronized (listenerSet) {</span>
+
+<span class="nc" id="L534">            listenerSet.add(listener);</span>
+<span class="nc" id="L535">        }</span>
+<span class="nc" id="L536">    }</span>
+
+    /**
+     * Remove a listener.
+     *
+     * @param listener Listener to remove.
+     */
+    public void removeListener(OneWireNetworkEventListener listener) {
+
+<span class="nc" id="L545">        synchronized (listenerSet) {</span>
+
+<span class="nc" id="L547">            listenerSet.remove(listener);</span>
+<span class="nc" id="L548">        }</span>
+<span class="nc" id="L549">    }</span>
+
+    /**
+     * Close all open device paths. VT: FIXME: This is a shortcut using DS2409
+     * specific hardware commands to close all open paths. Must be modified if a
+     * different adapter is ever used.
+     *
+     * @throws Throwable if anything goes wrong.
+     */
+    private void closeAllPaths() throws Throwable {
+
+        // DS2409 specific - skip, all lines off
+
+<span class="nc" id="L562">        adapter.reset();</span>
+<span class="nc" id="L563">        adapter.putByte(0x00CC);</span>
+<span class="nc" id="L564">        adapter.putByte(0x0066);</span>
+<span class="nc" id="L565">        adapter.getByte();</span>
+<span class="nc" id="L566">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L574">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="nc" id="L576">                getClass().getSimpleName(),</span>
+<span class="nc" id="L577">                Integer.toHexString(hashCode()),</span>
+                &quot;1-Wire Network Monitor&quot;);
+    }
+    
+    /**
+     * @deprecated This method is intended to help finding a memory leak and has no other reason to exist.
+     */
+    @JmxAttribute(description = &quot;listenerSet size&quot;)
+    public int getListenerSetSize() {
+<span class="nc" id="L586">        return listenerSet.size();</span>
+    }
+    /**
+     * Instrumentation method to track down a memory leak.
+     * 
+     * @return Size of {@link #address2device} map.
+     * @deprecated This method is intended to help finding a memory leak and has no other reason to exist.
+     */
+    @JmxAttribute(description = &quot;address2device size&quot;)
+    public synchronized int getAddress2deviceSize() {
+<span class="nc" id="L596">        return address2device.size();</span>
+    }
+
+    /**
+     * Instrumentation method to track down a memory leak.
+     * 
+     * @return Size of {@link #address2path} map.
+     * @deprecated This method is intended to help finding a memory leak and has no other reason to exist.
+     */
+    @JmxAttribute(description = &quot;address2path size&quot;)
+    public synchronized int getAddress2pathSize() {
+<span class="nc" id="L607">        return address2path.size();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

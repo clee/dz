@@ -207,7 +207,7 @@ public class Console extends Connector<JComponent> {
 
             Container display = mainFrame.getContentPane();
 
-            display.setBackground(ColorScheme.offMap.background);
+            display.setBackground(ColorScheme.offMap.BACKGROUND);
 
             GridBagLayout layout = new GridBagLayout();
             GridBagConstraints cs = new GridBagConstraints();
@@ -234,6 +234,28 @@ public class Console extends Connector<JComponent> {
         } finally {
             ThreadContext.pop();
         }
+    }
+
+    /**
+     * Create the display zone where unit state will be reflected.
+     *
+     * @param display
+     * @param componentMap
+     */
+//    private JComponent createUnitPanel(Map<Object, JComponent> componentMap) {
+//
+//        return new JLabel("<unit status>", JLabel.CENTER);
+//    }
+
+    /**
+     * Hide the console.
+     *
+     * @deprecated Use {@link Connector#deactivate()} instead.
+     */
+    @Deprecated
+    public synchronized void hide() {
+
+        deactivate();
     }
 
     @Override
@@ -337,6 +359,8 @@ public class Console extends Connector<JComponent> {
             ThreadContext.push("keyPressed");
 
             try {
+
+                logger.info(e.toString());
 
                 switch (e.getKeyChar()) {
 

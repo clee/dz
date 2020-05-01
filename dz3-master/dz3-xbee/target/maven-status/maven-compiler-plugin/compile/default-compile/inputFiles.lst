@@ -1,0 +1,8 @@
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/Converter.java
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/Parser.java
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/XBeeDeviceContainer.java
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/XBeeDeviceFactory.java
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/XBeeSwitch.java
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/IoSample.java
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/XBeeSensor.java
+/home/vt/dev/dz/dz3-master/dz3-xbee/src/main/java/net/sf/dz3/device/sensor/impl/xbee/XBeeConstants.java

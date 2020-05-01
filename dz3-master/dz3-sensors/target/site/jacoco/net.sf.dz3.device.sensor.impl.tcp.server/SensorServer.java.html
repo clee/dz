@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SensorServer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.tcp.server</a> &gt; <span class="el_source">SensorServer.java</span></div><h1>SensorServer.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.tcp.server;
+
+import java.io.BufferedReader;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import net.sf.dz3.device.sensor.TemperatureSensor;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+
+public class SensorServer extends AbstractListener {
+
+    public SensorServer(Set&lt;String&gt; addressSet, int port, int broadcastPort) {
+<span class="fc" id="L18">        super(addressSet, port, broadcastPort);</span>
+<span class="fc" id="L19">    }</span>
+
+    public SensorServer(Set&lt;String&gt; addressSet, int port, int broadcastPort,
+            boolean secure, String password) {
+<span class="nc" id="L23">        super(addressSet, port, broadcastPort, secure, password);</span>
+<span class="nc" id="L24">    }</span>
+
+    @Override
+    protected void cleanup() throws Throwable {
+
+<span class="fc" id="L29">    }</span>
+
+    @Override
+    protected ConnectionHandler createHandler(Socket socket, BufferedReader br, PrintWriter pw) {
+        
+<span class="nc" id="L34">        return new BroadcastHandler(socket, br, pw);</span>
+    }
+
+    @Override
+    public int getDefaultBroadcastPort() {
+        
+<span class="nc" id="L40">        return 5001;</span>
+    }
+
+    @Override
+    public int getDefaultListenPort() {
+        
+<span class="nc" id="L46">        return 5000;</span>
+    }
+
+    @Override
+    public String getServiceSignature() {
+        
+<span class="nc" id="L52">        return &quot;DZ DAC Sensors&quot;;</span>
+    }
+
+    @Override
+    protected boolean isUnique() {
+        
+<span class="nc" id="L58">        return false;</span>
+    }
+
+    @Override
+    protected void shutdown2() throws Throwable {
+
+<span class="nc" id="L64">    }</span>
+
+    @Override
+    protected void startup2() throws Throwable {
+
+<span class="nc" id="L69">    }</span>
+
+    public void stateChanged(TemperatureSensor source, DataSample&lt;Double&gt; snapshot) {
+        
+        
+<span class="nc" id="L74">    }</span>
+
+    public class BroadcastHandler extends ConnectionHandler implements DataSink&lt;Double&gt; {
+        
+        /**
+         * The key is the source name, the value is last known signal from this source.
+         */
+<span class="nc" id="L81">    	private final Map&lt;String, DataSample&lt;Double&gt;&gt; sensor2signal = new TreeMap&lt;String, DataSample&lt;Double&gt;&gt;(); </span>
+
+<span class="nc" id="L83">        public BroadcastHandler(Socket socket, BufferedReader br, PrintWriter pw) {</span>
+<span class="nc" id="L84">            super(socket, br, pw);</span>
+<span class="nc" id="L85">        }</span>
+
+        @Override
+        protected CommandParser createParser() {
+<span class="nc" id="L89">            return null;</span>
+        }
+
+        @Override
+        protected void sayHello() {
+            
+<span class="nc" id="L95">            synchronized (sensor2signal) {</span>
+<span class="nc" id="L96">                iHave();</span>
+                
+<span class="nc bnc" id="L98" title="All 2 branches missed.">                for (Iterator&lt;String&gt; i = sensor2signal.keySet().iterator(); i.hasNext(); ) {</span>
+                    
+<span class="nc" id="L100">                    String sensor = i.next();</span>
+<span class="nc" id="L101">                    DataSample&lt;Double&gt; signal = sensor2signal.get(sensor);</span>
+                    
+<span class="nc" id="L103">                    send(renderSignal(signal));</span>
+<span class="nc" id="L104">                }</span>
+<span class="nc" id="L105">            }</span>
+<span class="nc" id="L106">        }</span>
+
+        @Override
+        public void iHave() {
+            
+<span class="nc" id="L111">            StringBuilder sb = new StringBuilder();</span>
+            
+<span class="nc" id="L113">            sb.append(&quot;IHAVE &quot;).append(sensor2signal.size()).append(&quot;:&quot;);</span>
+            
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            for (Iterator&lt;String&gt; i = sensor2signal.keySet().iterator(); i.hasNext(); ) {</span>
+                
+<span class="nc bnc" id="L117" title="All 2 branches missed.">                if (i.hasNext()) {</span>
+<span class="nc" id="L118">                    sb.append(&quot; &quot;);</span>
+                }
+                
+<span class="nc" id="L121">                sb.append(i.next());</span>
+            }
+            
+<span class="nc" id="L124">            send(sb.toString());</span>
+<span class="nc" id="L125">        }</span>
+
+		@Override
+		public void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L130">            sensor2signal.put(signal.sourceName, signal);</span>
+            
+<span class="nc" id="L132">			send(renderSignal(signal));</span>
+<span class="nc" id="L133">		}</span>
+
+		private String renderSignal(DataSample&lt;Double&gt; signal) {
+            
+<span class="nc" id="L137">            StringBuilder sb = new StringBuilder();</span>
+            
+<span class="nc bnc" id="L139" title="All 2 branches missed.">            sb.append(signal.isError() ? &quot;E&quot; : &quot;D&quot;).append(&quot; &quot;).append(signal.sourceName);</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            sb.append(signal.isError() ? signal.error.getMessage() : Double.toString(signal.sample));</span>
+            
+<span class="nc" id="L142">            return sb.toString();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

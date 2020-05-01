@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractHvacUnit2020.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dz3-hvac2020</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">AbstractHvacUnit2020.java</span></div><h1>AbstractHvacUnit2020.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.actuator.HvacUnit2020;
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.model.Unit;
+import net.sf.dz3.device.sensor.Switch;
+import com.homeclimatecontrol.jukebox.datastream.signal.model.DataSample;
+
+public abstract class AbstractHvacUnit2020 implements HvacUnit2020 {
+
+<span class="fc" id="L30">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+<span class="fc" id="L32">    protected final ExecutorService executor = Executors.newSingleThreadExecutor();</span>
+
+    private final String name;
+
+    /**
+     * Initial mode.
+     *
+     * We'll need it to prevent the system from attempts to change it for fixed operation units
+     * (fan panels, pure AC, furnaces).
+     */
+    protected final HvacMode mode;
+
+    private Status statusRequested;
+    private Status statusActual;
+
+<span class="fc" id="L47">    public AbstractHvacUnit2020(String name, HvacMode mode) {</span>
+
+<span class="fc" id="L49">        assertNotNull(name, &quot;name&quot;);</span>
+<span class="fc" id="L50">        assertNotNull(mode, &quot;mode&quot;);</span>
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (&quot;&quot;.equals(name)) {</span>
+<span class="fc" id="L53">            throw new IllegalArgumentException(&quot;name can't be empty&quot;);</span>
+        }
+
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (mode == HvacMode.OFF) {</span>
+<span class="fc" id="L57">            throw new IllegalArgumentException(&quot;mode can be either HEATING or COOLING&quot;);</span>
+        }
+
+<span class="fc" id="L60">        this.name = name;</span>
+<span class="fc" id="L61">        this.mode = mode;</span>
+
+<span class="fc" id="L63">        this.statusRequested = new Status(mode, 0, 0);</span>
+<span class="fc" id="L64">        this.statusActual = new Status(mode, 0, 0);</span>
+<span class="fc" id="L65">    }</span>
+
+    @Override
+    public final int compareTo(HvacUnit2020 o) {
+<span class="fc" id="L69">        return toString().compareTo(o.toString());</span>
+    }
+
+
+    @Override
+    public final String getName() {
+<span class="fc" id="L75">        return name;</span>
+    }
+
+    @Override
+    public final synchronized Status getStatus() {
+<span class="fc" id="L80">        return statusRequested;</span>
+    }
+
+    @Override
+    public final synchronized Status getActualStatus() {
+<span class="fc" id="L85">        return statusActual;</span>
+    }
+
+    protected static void assertNotNull(Object target, String message) {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (target == null) {</span>
+<span class="fc" id="L90">            throw new IllegalArgumentException(message + &quot; can't be null&quot;);</span>
+        }
+<span class="fc" id="L92">    }</span>
+
+    /**
+     * Normalize the given map.
+     *
+     * @param source Map with arbitrary values.
+     * @return Map with values scaled to {@code 0..1} range.
+     */
+    static SortedMap&lt;Double, Switch&gt; normalize(SortedMap&lt;Double, Switch&gt; source) {
+
+        // Handle edge cases
+
+<span class="fc" id="L104">        assertNotNull(source, &quot;demandMap&quot;);</span>
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (source.isEmpty()) {</span>
+<span class="fc" id="L107">            throw new IllegalArgumentException(&quot;demandMap can't be empty&quot;);</span>
+        }
+
+<span class="fc" id="L110">        SortedSet&lt;Double&gt; keys = new TreeSet&lt;&gt;(source.keySet());</span>
+<span class="fc" id="L111">        double min = keys.first();</span>
+<span class="fc" id="L112">        double max = keys.last();</span>
+<span class="fc" id="L113">        double offset = min;</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        double scale = (Double.compare(min, max) == 0) ? 1 : (1 / (max - min));</span>
+
+<span class="fc" id="L116">        Iterator&lt;Double&gt; normalizedKeys = keys</span>
+<span class="fc" id="L117">                .stream()</span>
+<span class="fc" id="L118">                .map(v -&gt; (v - offset) * scale)</span>
+<span class="fc" id="L119">                .collect(Collectors.toList())</span>
+<span class="fc" id="L120">                .iterator();</span>
+
+<span class="fc" id="L122">        return new TreeMap&lt;&gt;(</span>
+<span class="fc" id="L123">                source.entrySet()</span>
+<span class="fc" id="L124">                .stream()</span>
+<span class="fc" id="L125">                .collect(Collectors.toMap(</span>
+<span class="fc" id="L126">                        e -&gt; normalizedKeys.next(),</span>
+                        Map.Entry::getValue)));
+    }
+
+    static SortedMap&lt;Double, Switch&gt; map(Switch s) {
+<span class="fc" id="L131">        assertNotNull(s, &quot;switch&quot;);</span>
+
+<span class="fc" id="L133">        SortedMap&lt;Double, Switch&gt; result = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L134">        result.put(0d, s);</span>
+<span class="fc" id="L135">        return result;</span>
+    }
+
+    /**
+     * Execute the signal, synchronously.
+     *
+     * @param signal Signal to map to switch status.
+     * @param map Demand map. Injected to make the method independently testable.
+     */
+    void execute(double signal, SortedMap&lt;Double, Switch&gt; map) throws IOException {
+
+<span class="fc" id="L146">        ThreadContext.push(&quot;execute/&quot; + signal);</span>
+
+        try {
+
+            // Signal value has just been logged, no need to do it again
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            for (Entry&lt;Double, Switch&gt; e : map.entrySet()) {</span>
+
+                // Let's be verbose, the safety of our hardware may depend on it
+
+<span class="fc" id="L156">                double threshold = e.getKey();</span>
+<span class="fc" id="L157">                Switch s = e.getValue();</span>
+
+                // 0.0 is a special case
+<span class="fc bfc" id="L160" title="All 4 branches covered.">                boolean state = Double.compare(signal, 0.0) != 0 &amp;&amp; signal &gt;= threshold;</span>
+
+<span class="fc" id="L162">                logger.debug(&quot;{}: {} &gt; {} = {}&quot;, s.getAddress(), signal, threshold, state);</span>
+
+<span class="fc" id="L164">                s.setState(state);</span>
+<span class="fc" id="L165">            }</span>
+        } finally {
+<span class="fc" id="L167">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L169">    }</span>
+
+    protected final synchronized void setStatusActual(Status status) {
+<span class="fc" id="L172">        this.statusActual = status;</span>
+<span class="fc" id="L173">    }</span>
+
+    /**
+     * Figure out the control signals based on given inputs.
+     *
+     * No sanity checks are performed, they're expected to have been done by callers.
+     * Side effect: {@link #statusActual} is set to its actual value as the operations are performed.
+     *
+     * @param mode Mode to set.
+     * @param demand Demand to calculate the control signals out of.
+     * @param speed Fan speed to calculate the control signals out of.
+     *
+     * @return The future that will be completed when all changes are completed.
+     */
+    protected abstract Future&lt;Status&gt; set(HvacMode mode, double demand, double speed);
+
+    /**
+     * Confirm that the mode change is allowed (not all subclasses support this).
+     *
+     * @param mode Mode to change to.
+     * @throws UnsupportedOperationException if the mode change to the given mode is not supported.
+     */
+    protected abstract void verifyModeChange(HvacMode mode);
+
+    /**
+     * Set the operating mode.
+     *
+     * DANGER ZONE: It is expected that the caller will observe proper timing before flipping this switch.
+     * Calling this method without doing so will probably damage the hardware.
+     *
+     * @param mode Mode to set.
+     */
+    @Override
+    public final synchronized Future&lt;Status&gt; setMode(HvacMode mode) {
+<span class="fc" id="L207">        assertNotNull(mode, &quot;mode can't be null&quot;);</span>
+
+<span class="fc" id="L209">        ThreadContext.push(&quot;setMode&quot;);</span>
+
+        try {
+
+            // Careful, the only thing you can do with this kind of HVAC unit is turn it off
+            // (and, well, back on, eh?)
+
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            if (mode == statusRequested.mode) {</span>
+                // NOP
+<span class="fc" id="L218">                logger.debug(&quot;already {}&quot;, mode);</span>
+<span class="fc" id="L219">                return CompletableFuture.completedFuture(statusRequested);</span>
+            }
+
+<span class="fc" id="L222">            verifyModeChange(mode);</span>
+
+            // All right, the mode is good
+
+            // There will be a discrepancy between the requested and actual status until set() completes
+            // Need to set this here because race conditions on thread creation may screw this up
+
+<span class="fc" id="L229">            statusRequested = new Status(mode, statusRequested.demand, statusRequested.fanSpeed);</span>
+
+<span class="fc" id="L231">            return set(mode, statusRequested.demand, statusRequested.fanSpeed);</span>
+
+        } finally {
+<span class="fc" id="L234">            ThreadContext.pop();</span>
+        }
+    }
+
+    @Override
+    public final synchronized Future&lt;Status&gt; setDemand(double demand) {
+
+        // There will be a discrepancy between the requested and actual status until set() completes
+        // Need to set this here because race conditions on thread creation may screw this up
+
+<span class="fc" id="L244">        statusRequested = new Status(statusRequested.mode, demand, statusRequested.fanSpeed);</span>
+
+<span class="fc" id="L246">        return set(statusRequested.mode, demand, statusRequested.fanSpeed);</span>
+    }
+
+    @Override
+    public final synchronized Future&lt;Status&gt; setFanSpeed(double speed) {
+
+        // There will be a discrepancy between the requested and actual status until set() completes
+        // Need to set this here because race conditions on thread creation may screw this up
+
+<span class="fc" id="L255">        statusRequested = new Status(statusRequested.mode, statusRequested.demand, speed);</span>
+
+<span class="fc" id="L257">        return set(statusRequested.mode, statusRequested.demand, speed);</span>
+    }
+
+    @java.lang.SuppressWarnings({&quot;squid:S2142&quot;})
+    @Override
+    public final void powerOff() {
+
+        try {
+
+<span class="fc" id="L266">            powerOffAsync().get();</span>
+
+<span class="fc" id="L268">        } catch (InterruptedException | ExecutionException ex) {</span>
+
+            // VT: NOTE: squid:S2142 We cannot afford to rethrow the exception here, there
+            // are other synchronous powerOff() activities that may be happening, can't risk
+            // disrupting them.
+
+            // We're being shut down, and there's a problem??? Better alert the user.
+            // There's nothing we can do except complain loudly.
+
+<span class="fc" id="L277">            logger.fatal(&quot;Shutdown failure&quot;, ex);</span>
+<span class="fc" id="L278">        }</span>
+<span class="fc" id="L279">    }</span>
+
+    @Override
+    public final synchronized Future&lt;Status&gt; powerOffAsync() {
+
+<span class="fc" id="L284">        ThreadContext.push(&quot;powerOff&quot;);</span>
+        try {
+
+            // There will be a discrepancy between the requested and actual status until set() completes
+            // Need to set this here because race conditions on thread creation may screw this up
+
+<span class="fc" id="L290">            statusRequested = new Status(HvacMode.OFF, 0, 0);</span>
+
+<span class="fc" id="L292">            return set(HvacMode.OFF, 0, 0);</span>
+
+        } finally {
+<span class="fc" id="L295">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Map the {@link #setDemand(double) demand} and {@link #setFanSpeed(double) fan speed}
+     * to the actual control signal.
+     *
+     * @param demand Requested demand.
+     * @param speed Requested fan speed.
+     *
+     * @return Control value.
+     */
+    final double map(double demand, double speed) {
+
+        // Demand is 0 to +infinity
+        // Fan speed is 0 to 1
+        // Actionable control values are 0 to 1
+
+        // Well, we're cutting the demand if it is above 1
+<span class="fc bfc" id="L315" title="All 2 branches covered.">        demand = demand &gt; 1 ? 1 : demand;</span>
+
+        // Whichever is higher, wins
+
+        // VT: NOTE: This happens to work with both refrigeration cycle and fan panel
+        // based devices, in its basic form. However, it will not work correctly if, for
+        // example, the fan is requested to work at reduced speed in the beginning of
+        // the cycle when the condenser is working full speed. Need to come up with a
+        // pluggable function to address this.
+
+<span class="fc bfc" id="L325" title="All 2 branches covered.">        return demand &gt; speed ? demand : speed;</span>
+    }
+
+    /**
+     * This method is here to allow old abstractions expecting {@link Unit} to work.
+     */
+    @Override
+    public void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="fc" id="L334">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+<span class="fc" id="L338">            check(signal);</span>
+
+            // There's nothing we care about there except the demand.
+<span class="fc" id="L341">            setDemand(signal.sample);</span>
+
+        } finally {
+
+<span class="fc" id="L345">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L347">    }</span>
+
+    /**
+     * Make sure the signal given to {@link #consume(DataSample)} is sane.
+     *
+     * @param signal Signal to check.
+     */
+    private void check(DataSample&lt;Double&gt; signal) {
+
+<span class="fc" id="L356">        ThreadContext.push(&quot;check&quot;);</span>
+
+        try {
+
+<span class="fc bfc" id="L360" title="All 2 branches covered.">            if (signal == null) {</span>
+<span class="fc" id="L361">                throw new IllegalArgumentException(&quot;signal can't be null&quot;);</span>
+            }
+
+<span class="fc bfc" id="L364" title="All 2 branches covered.">            if (signal.isError()) {</span>
+<span class="fc" id="L365">                throw new IllegalArgumentException(&quot;Error signal should have been handled by zone controller&quot;, signal.error);</span>
+            }
+
+<span class="fc bfc" id="L368" title="All 2 branches covered.">            if (signal.sample &lt; 0.0) {</span>
+<span class="fc" id="L369">                throw new IllegalArgumentException(&quot;Signal must be non-negative, received &quot; + signal);</span>
+            }
+
+        } finally {
+<span class="fc" id="L373">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L375">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

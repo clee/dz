@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FileUsageCounter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Common Components</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.util.counter</a> &gt; <span class="el_source">FileUsageCounter.java</span></div><h1>FileUsageCounter.java</h1><pre class="source lang-java linenums">package net.sf.dz3.util.counter;
+
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.LineNumberReader;
+import java.io.PrintWriter;
+import java.util.StringTokenizer;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.jukebox.datastream.signal.model.DataSource;
+
+/**
+ * Usage counter storing the state into a file.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class FileUsageCounter extends TransientUsageCounter {
+
+    private static final String CF_THRESHOLD = &quot;threshold&quot;;
+    private static final String CF_CURRENT = &quot;current&quot;;
+
+    /**
+     * Create an instance.
+     *
+     * @param name Human readable name for the user interface.
+     * @param counter Counter to use.
+     * @param target What to count.
+     * @param persistentStorage File to store the counter data into.
+     *
+     * @throws IOException if things go sour.
+     */
+    public FileUsageCounter(String name, CounterStrategy counter, DataSource&lt;Double&gt; target, File persistentStorage) throws IOException {
+<span class="fc" id="L36">        super(name, counter, target, new Object [] { persistentStorage });</span>
+<span class="fc" id="L37">    }</span>
+
+    @Override
+    protected CounterState load() throws IOException {
+
+<span class="fc" id="L42">        ThreadContext.push(&quot;load&quot;);</span>
+
+        try {
+
+<span class="fc" id="L46">            Object[] storageKeys = getStorageKeys();</span>
+
+<span class="fc" id="L48">            File persistentStorage = (File) storageKeys[0];</span>
+
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (persistentStorage == null) {</span>
+<span class="fc" id="L51">                throw new IllegalArgumentException(&quot;persistentStorage can't be null&quot;);</span>
+            }
+
+<span class="fc" id="L54">            logger.info(&quot;Loading &quot; + persistentStorage);</span>
+
+<span class="fc bfc" id="L56" title="All 2 branches covered.">            if (!persistentStorage.exists()) {</span>
+
+<span class="fc" id="L58">                logger.warn(persistentStorage + &quot; doesn't exist, will initialize&quot;);</span>
+<span class="fc" id="L59">                return new CounterState(0, 0);</span>
+            }
+
+<span class="fc" id="L62">            checkSanity(persistentStorage);</span>
+
+<span class="fc" id="L64">            try (LineNumberReader lnr = new LineNumberReader(new FileReader(persistentStorage))) {</span>
+
+<span class="fc" id="L66">                Long threshold = null;</span>
+<span class="fc" id="L67">                Long current = null;</span>
+
+                while (true) {
+
+<span class="fc" id="L71">                    String line = lnr.readLine();</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">                    if (line == null) {</span>
+
+                        // End of file
+<span class="fc" id="L76">                        break;</span>
+                    }
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                    if (line.startsWith(&quot;#&quot;)) {</span>
+                        // That's a comment
+<span class="fc" id="L81">                        continue;</span>
+                    }
+
+<span class="fc" id="L84">                    StringTokenizer st = new StringTokenizer(line, &quot;=&quot;);</span>
+
+                    try {
+
+<span class="fc" id="L88">                        String key = st.nextToken();</span>
+<span class="fc" id="L89">                        Long value = Long.parseLong(st.nextToken());</span>
+
+<span class="fc bfc" id="L91" title="All 2 branches covered.">                        if (CF_THRESHOLD.equals(key)) {</span>
+<span class="fc" id="L92">                            threshold = value;</span>
+                        }
+
+<span class="fc bfc" id="L95" title="All 2 branches covered.">                        if (CF_CURRENT.equals(key)) {</span>
+<span class="fc" id="L96">                            current = value;</span>
+                        }
+
+<span class="fc" id="L99">                    } catch (Throwable t) {</span>
+<span class="fc" id="L100">                        throw new IllegalArgumentException(&quot;Failed to parse line '&quot; + line + &quot;' out of &quot; + persistentStorage.getCanonicalPath() + &quot; (line &quot; + lnr.getLineNumber() + &quot;)&quot;);</span>
+<span class="fc" id="L101">                    }</span>
+<span class="fc" id="L102">                }</span>
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">                if (threshold == null) {</span>
+<span class="fc" id="L105">                    throw new IllegalArgumentException(&quot;No '&quot; + CF_THRESHOLD + &quot;=NN' found in &quot; + persistentStorage.getCanonicalPath());</span>
+                }
+
+<span class="fc bfc" id="L108" title="All 2 branches covered.">                if (current == null) {</span>
+<span class="fc" id="L109">                    throw new IllegalArgumentException(&quot;No '&quot; + CF_CURRENT +&quot;=NN' found in &quot; + persistentStorage.getCanonicalPath());</span>
+                }
+
+<span class="fc" id="L112">                CounterState state = new CounterState(threshold.longValue(), current.longValue());</span>
+
+<span class="fc" id="L114">                logger.info(&quot;Loaded: &quot; + state);</span>
+
+<span class="fc" id="L116">                return state;</span>
+            }
+
+        } finally {
+<span class="fc" id="L120">            ThreadContext.pop();</span>
+        }
+    }
+
+    private void checkSanity(File persistentStorage) throws IOException {
+
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (persistentStorage.isDirectory()) {</span>
+<span class="fc" id="L127">            throw new IOException(persistentStorage + &quot;: is a directory&quot;);</span>
+        }
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        if (!persistentStorage.canWrite()) {</span>
+<span class="fc" id="L131">            throw new IOException(persistentStorage + &quot;: can't write&quot;);</span>
+        }
+
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        if (!persistentStorage.isFile()) {</span>
+<span class="fc" id="L135">            throw new IOException(persistentStorage + &quot;: not a regular file&quot;);</span>
+        }
+<span class="fc" id="L137">    }</span>
+
+    @Override
+    protected synchronized void save() throws IOException {
+
+<span class="fc" id="L142">        ThreadContext.push(&quot;save@&quot; + Integer.toHexString(hashCode()));</span>
+
+        try {
+
+<span class="fc" id="L146">            logger.debug(getUsageRelative() + &quot;/&quot; + getUsageAbsolute());</span>
+
+<span class="fc" id="L148">            File persistentStorage = (File) getStorageKeys()[0];</span>
+<span class="fc" id="L149">            File canonical = new File(persistentStorage.getCanonicalPath());</span>
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">            if (canonical.getParentFile().mkdirs()) {</span>
+<span class="fc" id="L152">                logger.info(&quot;Created &quot; + canonical);</span>
+            };
+
+            // Now, careful... https://github.com/home-climate-control/dz/issues/102
+
+            // If we just try to open the file and write into it, and get hit by an
+            // interrupt at this very moment before the file system gets flushed (yes, it
+            // does happen), we end up with zero length file which breaks everything on next load()
+
+            // To counter that, let's write into a temporary file first, then flip the old counter file into a backup,
+            // and the temp file into the counter file
+
+<span class="fc" id="L164">            File temp = new File(canonical.getParent(), canonical.getName() + &quot;+&quot;);</span>
+<span class="fc" id="L165">            File backup = new File(canonical.getParent(), canonical.getName() + &quot;-&quot;);</span>
+
+<span class="fc" id="L167">            try (PrintWriter pw = new PrintWriter(new FileWriter(temp))) {</span>
+
+<span class="fc" id="L169">                pw.println(&quot;# Resource Usage Counter: &quot; + getName());</span>
+<span class="fc" id="L170">                pw.println(CF_THRESHOLD + &quot;=&quot; + getThreshold());</span>
+<span class="fc" id="L171">                pw.println(CF_CURRENT + &quot;=&quot; + getUsageAbsolute());</span>
+            }
+
+<span class="pc bpc" id="L174" title="1 of 4 branches missed.">            if (canonical.exists() &amp;&amp; !canonical.renameTo(backup)) {</span>
+<span class="nc" id="L175">                throw new IOException(&quot;failed to rename &quot; + canonical + &quot; to &quot; + backup);</span>
+            }
+
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">            if (!temp.renameTo(canonical)) {</span>
+<span class="nc" id="L179">                throw new IOException(&quot;failed to rename &quot; + temp + &quot; to &quot; + canonical);</span>
+            }
+
+        } finally {
+<span class="fc" id="L183">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L185">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

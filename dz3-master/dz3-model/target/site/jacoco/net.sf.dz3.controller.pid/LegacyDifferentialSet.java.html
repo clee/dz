@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LegacyDifferentialSet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller.pid</a> &gt; <span class="el_source">LegacyDifferentialSet.java</span></div><h1>LegacyDifferentialSet.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller.pid;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import net.sf.dz3.controller.DataSet;
+import net.sf.dz3.controller.LegacyDataSet;
+
+/**
+ * Data set supporting the differential calculation.
+ *
+ * This is the old implementation, written in 2000 with little regard to performance.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2015
+ */
+public class LegacyDifferentialSet extends LegacyDataSet&lt;Double&gt; implements DifferentialSet {
+
+    /**
+     * Create the instance.
+     *
+     * @param differentialTime Differential time, milliseconds. Data elements
+     * older than this are expired.
+     */
+    public LegacyDifferentialSet(final long differentialTime) {
+
+<span class="fc" id="L28">        super(differentialTime);</span>
+<span class="fc" id="L29">    }</span>
+
+  /**
+   * Get the differential starting with the first data element available and
+   * ending with the last data element available.
+   * &lt;p&gt;
+   * Differentiation time must have been taken care of by {@link
+   * DataSet#expire expiration}.
+   *
+   * @return A differential value.
+   */
+  @Override
+  public final synchronized double getDifferential() {
+
+<span class="fc bfc" id="L43" title="All 2 branches covered.">      if (size() &lt; 2) {</span>
+
+          // Nothing to compare yet
+
+<span class="fc" id="L47">          return 0;</span>
+      }
+
+      //long startTime = System.currentTimeMillis();
+
+      try {
+
+          // The following line will throw the NoSuchElementException if
+          // the dataSet is empty. It is possible to check the size, but
+          // handling the exception is more efficient because happens just
+          // once - at the startup, or when there was an interruption in
+          // the data sequence longer than the expiration interval and all
+          // the data elements were expired.
+
+<span class="fc" id="L61">          Iterator&lt;Map.Entry&lt;Long, Double&gt;&gt; i = entryIterator();</span>
+<span class="fc" id="L62">          Map.Entry&lt;Long, Double&gt; trailerEntry = i.next();</span>
+
+<span class="fc" id="L64">          SortedMap&lt;Long, Double&gt; resultSet = new TreeMap&lt;Long, Double&gt;();</span>
+
+<span class="fc bfc" id="L66" title="All 2 branches covered.">          while (i.hasNext()) {</span>
+
+<span class="fc" id="L68">              long trailerKey = trailerEntry.getKey();</span>
+<span class="fc" id="L69">              double trailerValue = trailerEntry.getValue();</span>
+
+<span class="fc" id="L71">              Map.Entry&lt;Long, Double&gt; currentEntry = i.next();</span>
+
+<span class="fc" id="L73">              long currentKey = currentEntry.getKey();</span>
+<span class="fc" id="L74">              double currentValue = currentEntry.getValue();</span>
+
+<span class="fc" id="L76">              long start = trailerKey;</span>
+<span class="fc" id="L77">              long stop = currentKey;</span>
+
+<span class="fc" id="L79">              double diff = (currentValue - trailerValue) / (currentKey - trailerKey);</span>
+
+<span class="fc" id="L81">              resultSet.put(Long.valueOf(start + ((start + stop) / 2)), Double.valueOf(diff));</span>
+
+<span class="fc" id="L83">              trailerEntry = currentEntry;</span>
+<span class="fc" id="L84">          }</span>
+
+<span class="fc" id="L86">          double result = 0;</span>
+
+<span class="fc" id="L88">          i = resultSet.entrySet().iterator();</span>
+<span class="fc" id="L89">          trailerEntry = i.next();</span>
+
+<span class="fc bfc" id="L91" title="All 2 branches covered.">          while (i.hasNext()) {</span>
+
+<span class="fc" id="L93">              long trailerKey = trailerEntry.getKey();</span>
+<span class="fc" id="L94">              double trailerValue = trailerEntry.getValue();</span>
+
+<span class="fc" id="L96">              Map.Entry&lt;Long, Double&gt; currentEntry = i.next();</span>
+
+<span class="fc" id="L98">              long currentKey = currentEntry.getKey();</span>
+<span class="fc" id="L99">              double currentValue = currentEntry.getValue();</span>
+
+<span class="fc" id="L101">              double diff = ((currentValue + trailerValue) / 2) * (currentKey - trailerKey);</span>
+
+<span class="fc" id="L103">              result += diff;</span>
+
+<span class="fc" id="L105">              trailerEntry = currentEntry;</span>
+<span class="fc" id="L106">          }</span>
+
+<span class="fc" id="L108">          return result;</span>
+
+      } finally {
+
+          // System.err.println(&quot;getDifferential@&quot; + hashCode() + &quot;,&quot; +
+          // dataSet.size() + &quot;: &quot; + (System.currentTimeMillis() -
+          // startTime));
+      }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

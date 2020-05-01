@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Damper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator</a> &gt; <span class="el_source">Damper.java</span></div><h1>Damper.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxAware;
+import net.sf.servomaster.device.model.TransitionStatus;
+
+/**
+ * The damper abstraction.
+ *
+ * Classes implementing this interface control the hardware.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public interface Damper extends DataSink&lt;Double&gt;, DataSource&lt;Double&gt;, JmxAware {
+
+    /**
+     * Get damper name.
+     *
+     * @return Damper name.
+     */
+    @JmxAttribute(description = &quot;Damper name&quot;)
+    String getName();
+
+    /**
+     * Set the damper opening.
+     *
+     * This method is intentionally not made available to JMX instrumentation,
+     * to avoid interference.
+     *
+     * @param position 0 is fully closed, 1 is fully open, 0...1 corresponds
+     * to partially open position.
+     *
+     * @return A token that allows to track the completion of the damper
+     * movement.
+     *
+     * @exception IllegalArgumentException if {@code position} is outside of 0...1 range.
+     */
+    Future&lt;TransitionStatus&gt; set(double position);
+
+    /**
+     * Get current damper position.
+     *
+     * @return Damper position.
+     *
+     * @exception IOException if there was a problem communicating with the
+     * hardware.
+     */
+    @JmxAttribute(description = &quot;Current position&quot;)
+    double getPosition() throws IOException;
+
+    /**
+     * Set 'park' position.
+     *
+     * See &lt;a
+     * href=&quot;http://sourceforge.net/tracker/index.php?func=detail&amp;aid=916345&amp;group_id=52647&amp;atid=467669&quot;&gt;bug
+     * #916345&lt;/a&gt; for more information.
+     *
+     * &lt;p&gt;
+     *
+     * This call doesn't cause the damper position to change, it only sets
+     * the parked position preference.
+     *
+     * @param position A value that is considered 'parked'.
+     *
+     * @see #park
+     *
+     * @exception IllegalArgumentException if {@code position} is outside of 0...1 range.
+     */
+    void setParkPosition(double position);
+
+    /**
+     * Get 'safe' position.
+     *
+     * @return A damper position that is considered 'parked'. Recommended
+     * default value is 1 (fully open).
+     */
+    @JmxAttribute(description = &quot;Parked position&quot;)
+    double getParkPosition();
+
+    /**
+     * Determine whether the park position has been explicitly specified.
+     *
+     * See https://github.com/home-climate-control/dz/issues/51 diffs for details.
+     *
+     * @return {@code true} if park position was specified either via constructor, or by calling
+     * {@link #setParkPosition(double)}.
+     */
+    @JmxAttribute(description = &quot;If true, park position is custom&quot;)
+    boolean isCustomParkPosition();
+
+    /**
+     * 'Park' the damper.
+     *
+     * This call will cause the damper to move to {@link #getParkPosition
+     * parked position}. Any subsequent call to {@link #set set()} will
+     * unpark the damper.
+     *
+     * &lt;p&gt;
+     *
+     * A damper is parked in two cases: first, when the HVAC unit stops (so
+     * the ventilation system can continue to work), second, when CORE shuts
+     * down, so DZ can be safely disconnected and the HVAC infrastructure
+     * can work without DZ's interference.
+     *
+     * &lt;p&gt;
+     *
+     * VT: NOTE: As ventilation aspect of DZ continues to evolve (talk to
+     * Jerry Scharf), the dampers will not be parked when HVAC is shut down;
+     * rather, they will be controlled by DZ's ventilation subsystem.
+     *
+     * @return A semaphore that is triggered when the damper is parked (it
+     * may take a while if the damper is configured with a transition
+     * controller).
+     */
+    Future&lt;TransitionStatus&gt; park();
+
+    /**
+     * Synchronous wrapper for {@link Damper#set(double)}.
+     */
+    public static class Move implements Callable&lt;TransitionStatus&gt; {
+
+        private final Damper target;
+        private final double position;
+
+<span class="fc" id="L145">        public Move(Damper target, double position) {</span>
+
+<span class="fc" id="L147">            this.target = target;</span>
+<span class="fc" id="L148">            this.position = position;</span>
+<span class="fc" id="L149">        }</span>
+
+        @Override
+        public TransitionStatus call() throws Exception {
+
+<span class="fc" id="L154">            return target.set(position).get();</span>
+        }
+    }
+
+    /**
+     * Utility class to move a set of dampers to given positions, synchronously or asynchronously.
+     */
+    public static class MoveGroup implements Callable&lt;TransitionStatus&gt; {
+
+<span class="fc" id="L163">        protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+        private final Map&lt;Damper, Double&gt; targetPosition;
+
+        /**
+         * @param targetPosition Map between damper and positions they're supposed to be set to.
+         */
+<span class="fc" id="L170">        public MoveGroup(Map&lt;Damper, Double&gt; targetPosition) {</span>
+
+<span class="fc" id="L172">            this.targetPosition = Collections.unmodifiableMap(targetPosition);</span>
+<span class="fc" id="L173">        }</span>
+
+        @Override
+        public TransitionStatus call() throws Exception {
+
+<span class="fc" id="L178">            ThreadContext.push(&quot;run/scatter@&quot; + hashCode());</span>
+
+            try {
+
+                // VT: NOTE: This object is bogus - the whole concept needs to be revisited;
+                // see #132
+
+<span class="fc" id="L185">                TransitionStatus result = new TransitionStatus(hashCode());</span>
+
+<span class="fc" id="L187">                result.complete(hashCode(), null);</span>
+
+<span class="fc" id="L189">                int count = targetPosition.size();</span>
+<span class="fc" id="L190">                ExecutorService executor = Executors.newFixedThreadPool(count,</span>
+                        new BasicThreadFactory.Builder()
+<span class="fc" id="L192">                        .wrappedFactory(Executors.defaultThreadFactory())</span>
+<span class="fc" id="L193">                        .namingPattern(&quot;DamperMove@%d&quot;)</span>
+<span class="fc" id="L194">                        .build());</span>
+<span class="fc" id="L195">                CompletionService&lt;TransitionStatus&gt; cs = new ExecutorCompletionService&lt;&gt;(executor);</span>
+
+<span class="fc bfc" id="L197" title="All 2 branches covered.">                for (Iterator&lt;Entry&lt;Damper, Double&gt;&gt; i = targetPosition.entrySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc" id="L199">                    Entry&lt;Damper, Double&gt; entry = i.next();</span>
+<span class="fc" id="L200">                    Damper d = entry.getKey();</span>
+<span class="fc" id="L201">                    double position = entry.getValue();</span>
+
+<span class="fc" id="L203">                    logger.debug(&quot;{}: {}&quot;, d.getName(), position);</span>
+
+<span class="fc" id="L205">                    cs.submit(new Damper.Move(d, position));</span>
+<span class="fc" id="L206">                }</span>
+
+<span class="fc" id="L208">                logger.debug(&quot;fired {} transitions: {}&quot;, targetPosition.size(), targetPosition);</span>
+
+<span class="fc" id="L210">                ThreadContext.pop();</span>
+<span class="fc" id="L211">                ThreadContext.push(&quot;run/gather@&quot; + hashCode());</span>
+
+<span class="fc" id="L213">                int left = count;</span>
+
+<span class="fc" id="L215">                logger.debug(&quot;{} tasks running&quot;, left);</span>
+
+<span class="fc bfc" id="L217" title="All 2 branches covered.">                while (left-- &gt; 0) {</span>
+
+                    try {
+
+<span class="fc" id="L221">                        cs.take().get();</span>
+
+<span class="fc bfc" id="L223" title="All 2 branches covered.">                        if (left &gt; 0) {</span>
+<span class="fc" id="L224">                            logger.debug(&quot;{} tasks still running...&quot;, left);</span>
+                        }
+
+<span class="nc" id="L227">                    } catch (ExecutionException ex) {</span>
+
+                        // This is potentially expensive - may slug the HVAC if the dampers are
+                        // left closed while it is running, hence fatal level, and rethrow
+                        // to indicate the group move failure
+
+<span class="nc" id="L233">                        logger.fatal(&quot;can't set damper position&quot;, ex);</span>
+
+<span class="nc" id="L235">                        throw new IllegalStateException(&quot;group move failed&quot;, ex);</span>
+<span class="fc" id="L236">                    }</span>
+                }
+
+<span class="fc" id="L239">                logger.debug(&quot;transitions complete&quot;);</span>
+<span class="fc" id="L240">                executor.shutdownNow();</span>
+
+<span class="fc" id="L242">                return result;</span>
+
+            } finally {
+
+<span class="fc" id="L246">                ThreadContext.pop();</span>
+<span class="fc" id="L247">                ThreadContext.clearStack();</span>
+            }
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

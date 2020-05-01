@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZoneCell.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing.thermostat</a> &gt; <span class="el_source">ZoneCell.java</span></div><h1>ZoneCell.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing.thermostat;
+
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+
+import javax.swing.JPanel;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.controller.pid.AbstractPidController;
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.device.model.ThermostatSignal;
+import net.sf.dz3.device.model.ZoneState;
+import net.sf.dz3.device.model.impl.ThermostatModel;
+import net.sf.dz3.view.swing.ColorScheme;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+
+/**
+ * Condensed zone status indicator. {@link ZonePanel} displays these for all zones in a bar on top.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class ZoneCell extends JPanel implements DataSink&lt;ThermostatSignal&gt; {
+
+    private static final long serialVersionUID = 4736300051405383448L;
+
+<span class="nc" id="L34">    private final Logger logger = LogManager.getLogger(getClass());</span>
+
+    /**
+     * How many pixels are there between zone cells.
+     */
+    private static final int HORIZONTAL_PADDING = 1;
+
+    /**
+     * How many pixels are there between the zone panel and zone cell bottom.
+     */
+    private static final int ZONE_PANEL_GAP = 4;
+
+    /**
+     * How many pixels are there between the indicator and zone cell.
+     */
+    private static final int INDICATOR_GAP = 2;
+    /**
+     * How many pixels the zone status indicator takes.
+     */
+    private static final int INDICATOR_HEIGHT = 10;
+
+<span class="nc" id="L55">    private boolean selected = false;</span>
+
+    private DataSample&lt;ThermostatSignal&gt; signal;
+    private final Thermostat source;
+
+<span class="nc" id="L60">    public ZoneCell(Thermostat ts) {</span>
+
+<span class="nc" id="L62">        this.source = ts;</span>
+<span class="nc" id="L63">        ts.addConsumer(this);</span>
+
+<span class="nc" id="L65">        setPreferredSize(new Dimension(20, 70));</span>
+<span class="nc" id="L66">        setToolTipText(ts.getName());</span>
+<span class="nc" id="L67">    }</span>
+
+    @Override
+    public void consume(DataSample&lt;ThermostatSignal&gt; signal) {
+
+<span class="nc" id="L72">        ThreadContext.push(&quot;consume@&quot; + Integer.toHexString(hashCode()));</span>
+
+        try {
+
+<span class="nc" id="L76">            this.signal = signal;</span>
+
+<span class="nc" id="L78">            logger.trace(signal);</span>
+
+<span class="nc" id="L80">            repaint();</span>
+
+        } finally {
+<span class="nc" id="L83">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L85">    }</span>
+
+    /**
+     * Change the appearance depending on whether this cell is selected.
+     *
+     * @param selected {@code true} if this cell is selected.
+     */
+    public void setSelected(boolean selected) {
+
+<span class="nc" id="L94">        this.selected = selected;</span>
+
+<span class="nc" id="L96">        repaint();</span>
+<span class="nc" id="L97">    }</span>
+
+    @Override
+    public synchronized void paintComponent(Graphics g) {
+
+        // Draw background
+<span class="nc" id="L103">        super.paintComponent(g);</span>
+
+<span class="nc" id="L105">        Graphics2D g2d = (Graphics2D) g;</span>
+<span class="nc" id="L106">        Dimension d = getSize();</span>
+
+        // Background should be set, or edges will bleed white
+
+<span class="nc" id="L110">        g2d.setColor(ColorScheme.getScheme(getMode()).background);</span>
+<span class="nc" id="L111">        g2d.fillRect(0, 0, d.width, d.height);</span>
+
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        Double signal = this.signal == null ? null : this.signal.sample.demand.sample;</span>
+<span class="nc" id="L114">        HvacMode mode = getMode();</span>
+<span class="nc bnc" id="L115" title="All 4 branches missed.">        ZoneState state = this.signal == null ? ZoneState.ERROR : (this.signal.sample.calling ? ZoneState.CALLING : ZoneState.HAPPY);</span>
+
+<span class="nc bnc" id="L117" title="All 4 branches missed.">        if ( this.signal == null || this.signal.sample.demand.isError()) {</span>
+
+<span class="nc" id="L119">        	state = ZoneState.ERROR;</span>
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        } else if (!this.signal.sample.enabled) {</span>
+
+<span class="nc" id="L123">        	state = ZoneState.OFF;</span>
+        }
+
+<span class="nc" id="L126">        Rectangle upper = new Rectangle(1, 0, d.width - 2, d.height - ZONE_PANEL_GAP - INDICATOR_HEIGHT - INDICATOR_GAP);</span>
+<span class="nc" id="L127">        Rectangle indicator = new Rectangle(</span>
+        		1, d.height - ZONE_PANEL_GAP - INDICATOR_HEIGHT,
+        		d.width - 2, INDICATOR_HEIGHT);
+
+<span class="nc" id="L131">        paintGradient(state, mode, signal, g2d, upper);</span>
+<span class="nc" id="L132">        paintBorder(mode, g2d, upper);</span>
+<span class="nc" id="L133">        paintIndicator(state, mode, g2d, indicator);</span>
+<span class="nc" id="L134">	}</span>
+
+    private void paintGradient(ZoneState state, HvacMode mode, Double signal, Graphics2D g2d, Rectangle boundary) {
+
+<span class="nc bnc" id="L138" title="All 3 branches missed.">        switch (state) {</span>
+
+        case CALLING:
+        case ERROR:
+        case OFF:
+
+<span class="nc" id="L144">    		BackgroundRenderer.drawBottom(state, mode, signal, g2d, boundary, false);</span>
+<span class="nc" id="L145">    		break;</span>
+
+        case HAPPY:
+
+<span class="nc" id="L149">    		BackgroundRenderer.drawTop(mode, signal, g2d, boundary);</span>
+    		break;
+        }
+
+<span class="nc" id="L153">    }</span>
+
+    private void paintBorder(HvacMode mode, Graphics2D g2d, Rectangle boundary) {
+
+<span class="nc" id="L157">        Color borderColor = ColorScheme.getScheme(mode).setpoint;</span>
+
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (selected) {</span>
+
+<span class="nc" id="L161">        	borderColor = borderColor.brighter().brighter();</span>
+
+        } else {
+
+<span class="nc" id="L165">        	borderColor = borderColor.darker().darker();</span>
+        }
+
+<span class="nc" id="L168">        g2d.setColor(borderColor);</span>
+<span class="nc" id="L169">        g2d.drawRect(1, 0, boundary.width - 2, boundary.height - 1);</span>
+<span class="nc" id="L170">    }</span>
+
+    private void paintIndicator(ZoneState state, HvacMode mode, Graphics2D g2d, Rectangle boundary) {
+
+        Color bgColor;
+
+<span class="nc bnc" id="L176" title="All 4 branches missed.">        switch (state) {</span>
+
+        case HAPPY:
+
+<span class="nc" id="L180">            bgColor = ColorScheme.getScheme(mode).green;</span>
+<span class="nc" id="L181">            break;</span>
+
+        case ERROR:
+
+<span class="nc" id="L185">            bgColor = ColorScheme.getScheme(mode).error;</span>
+<span class="nc" id="L186">            break;</span>
+
+        case OFF:
+
+<span class="nc" id="L190">            bgColor = ColorScheme.getScheme(mode).off;</span>
+<span class="nc" id="L191">            break;</span>
+
+        default:
+
+<span class="nc" id="L195">            bgColor = ColorScheme.getScheme(mode).bottom;</span>
+        }
+
+<span class="nc" id="L198">        g2d.setPaint(bgColor);</span>
+<span class="nc" id="L199">        g2d.fillRect(boundary.x, boundary.y, boundary.width, boundary.height);</span>
+<span class="nc" id="L200">    }</span>
+
+    private HvacMode getMode() {
+
+<span class="nc bnc" id="L204" title="All 2 branches missed.">    	return ((AbstractPidController) ((ThermostatModel) source).getController()).getP() &gt; 0 ? HvacMode.COOLING : HvacMode.HEATING;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

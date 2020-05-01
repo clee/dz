@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BufferedExchanger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.common</a> &gt; <span class="el_source">BufferedExchanger.java</span></div><h1>BufferedExchanger.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.common;
+
+import java.net.URL;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.concurrent.BlockingQueue;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.view.http.v1.HttpConnector;
+import net.sf.jukebox.jmx.JmxAttribute;
+
+/**
+ * Keeps sending data that appears in {@link HttpConnector#upstreamQueue} to the server
+ * once in a while, and accepting whatever they have to say.
+ *
+ * @param &lt;DataBlock&gt; Data type to send out to the server.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public abstract class BufferedExchanger&lt;DataBlock&gt; extends AbstractExchanger&lt;DataBlock&gt; {
+
+    /**
+     * Maximum age of the buffer before it gets sent, regardless of whether it is empty or not.
+     * 
+     * Careful, setting it too low will pound the server with empty packets. This will
+     * improve response latency, but create a lot of overhead and may exhaust the quota very quickly.
+     */
+<span class="nc" id="L29">    private long maxBufferAgeMillis = 10000L;</span>
+    
+    public BufferedExchanger(URL serverContextRoot, String username, String password, BlockingQueue&lt;DataBlock&gt; upstreamQueue) {
+
+<span class="nc" id="L33">        super(serverContextRoot, username, password, upstreamQueue);</span>
+<span class="nc" id="L34">    }</span>
+    
+    @JmxAttribute(description=&quot;Maximum age of the buffer before it gets sent, in milliseconds&quot;)
+    public long getMaxBufferAgeMillis() {
+<span class="nc" id="L38">        return maxBufferAgeMillis;</span>
+    }
+
+    /**
+     * Set the maximum buffer age.
+     * 
+     * @param maxBufferAgeMillis Maximum buffer age, in milliseconds.
+     */
+    public void setMaxBufferAgeMillis(long maxBufferAgeMillis) {
+        
+<span class="nc bnc" id="L48" title="All 2 branches missed.">        if (maxBufferAgeMillis &lt; 1000) {</span>
+            
+<span class="nc" id="L50">            throw new IllegalArgumentException(&quot;Unreasonably short buffer age (&quot; + maxBufferAgeMillis + &quot;), min is 1000ms&quot;);</span>
+        }
+        
+<span class="nc" id="L53">        this.maxBufferAgeMillis = maxBufferAgeMillis;</span>
+<span class="nc" id="L54">    }</span>
+
+    /**
+     * Keep sending data that appears in {@link HttpConnector#upstreamQueue} to the server
+     * right away, and accepting whatever they have to say.
+     */
+    @Override
+    protected void execute() throws Throwable {
+        
+<span class="nc" id="L63">        ThreadContext.push(&quot;execute&quot;);</span>
+        
+        try {
+
+<span class="nc bnc" id="L67" title="All 2 branches missed.">            while (isEnabled()) {</span>
+                
+                try {
+                    
+<span class="nc" id="L71">                    Thread.sleep(maxBufferAgeMillis);</span>
+                    
+<span class="nc" id="L73">                    List&lt;DataBlock&gt; buffer = new LinkedList&lt;DataBlock&gt;();</span>
+                    
+<span class="nc bnc" id="L75" title="All 2 branches missed.">                    while (!upstreamQueue.isEmpty()) {</span>
+<span class="nc" id="L76">                        buffer.add(upstreamQueue.remove());</span>
+                    }
+                    
+<span class="nc" id="L79">                    exchange(buffer);</span>
+
+<span class="nc" id="L81">                } catch (Throwable t) {</span>
+                    
+                    // Can't afford to bail out, this may be a transient condition
+<span class="nc" id="L84">                    logger.error(&quot;Unexpected exception&quot;, t);</span>
+<span class="nc" id="L85">                }    </span>
+            }
+            
+        } finally {
+<span class="nc" id="L89">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L91">    }</span>
+    
+    protected abstract void exchange(List&lt;DataBlock&gt; buffer);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

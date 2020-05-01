@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractDamper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">AbstractDamper.java</span></div><h1>AbstractDamper.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.io.IOException;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
+
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.actuator.Damper;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.servomaster.device.model.TransitionStatus;
+
+/**
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public abstract class AbstractDamper implements Damper {
+
+<span class="fc" id="L27">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    /**
+     * Custom thread factory providing human-readable names to executor threads.
+     */
+    private final ThreadFactory tf;
+
+    /**
+     * Completion service for asynchronous transitions.
+     *
+     * This pool requires exactly one thread, to honor the happened-before relation
+     * between the series of commands sent to this damper.
+     *
+     * {@link #park()} will {@link #releaseExecutor()}, and {@link #set(double)} will create it
+     * until the next {@link #park()}.
+     */
+    private ExecutorService executor;
+
+    /**
+     * Damper name.
+     *
+     * Necessary evil to allow instrumentation signature.
+     */
+     private final String name;
+
+     /**
+      * Instrumentation signature.
+      */
+     private final String signature;
+
+<span class="fc" id="L57">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;&gt;();</span>
+
+    /**
+     * Position to park if there was no park position {@link #setParkPosition(double) explicitly specified}.
+     *
+     * Normally, the damper should be fully open in this position.
+     */
+<span class="fc" id="L64">    private double defaultParkPosition = 1.0;</span>
+
+    /**
+     * A damper position defined as 'parked'.
+     *
+     * Default is {@code null} - none. See commits related to https://github.com/home-climate-control/dz/issues/51
+     * for more details.
+     *
+     * If the value is {@code null} and {@link #park()} method is called, the value of
+     * {@link #defaultParkPosition} is used.
+     */
+<span class="fc" id="L75">    private Double parkPosition = null;</span>
+
+    /**
+     * Current position.
+     */
+<span class="fc" id="L80">    private double position = defaultParkPosition;</span>
+
+<span class="fc" id="L82">    public AbstractDamper(String name) {</span>
+
+<span class="pc bpc" id="L84" title="2 of 4 branches missed.">        if (name == null || &quot;&quot;.equals(name)) {</span>
+<span class="nc" id="L85">            throw new IllegalArgumentException(&quot;name can't be null&quot;);</span>
+        }
+
+<span class="fc" id="L88">        this.name = name;</span>
+<span class="fc" id="L89">        signature = MessageDigestCache.getMD5(name).substring(0, 19);</span>
+
+<span class="fc" id="L91">        tf = new BasicThreadFactory.Builder()</span>
+<span class="fc" id="L92">                .wrappedFactory(Executors.defaultThreadFactory())</span>
+<span class="fc" id="L93">                .namingPattern(getClass().getSimpleName() + &quot;(&quot; + name + &quot;)@%d&quot;)</span>
+<span class="fc" id="L94">                .build();</span>
+<span class="fc" id="L95">    }</span>
+
+    @Override
+    public final String getName() {
+<span class="fc" id="L99">        return name;</span>
+    }
+
+    protected final synchronized ExecutorService getExecutor() {
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (executor == null) {</span>
+<span class="fc" id="L105">            executor = Executors.newSingleThreadExecutor(tf);</span>
+        }
+
+<span class="fc" id="L108">        return executor;</span>
+    }
+
+    protected final synchronized void releaseExecutor() {
+
+<span class="fc" id="L113">        executor.shutdown();</span>
+<span class="fc" id="L114">        executor = null;</span>
+<span class="fc" id="L115">    }</span>
+
+    @Override
+    public final void setParkPosition(double parkPosition) {
+
+<span class="pc bpc" id="L120" title="2 of 4 branches missed.">        if (parkPosition &lt; 0 || parkPosition &gt; 1) {</span>
+
+<span class="nc" id="L122">            throw new IllegalArgumentException(&quot;Invalid position (&quot; + parkPosition + &quot;) - value can be 0..1.&quot;);</span>
+        }
+
+<span class="fc" id="L125">        this.parkPosition = parkPosition;</span>
+<span class="fc" id="L126">    }</span>
+
+    @Override
+    public final double getParkPosition() {
+
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        return parkPosition == null ? defaultParkPosition : parkPosition;</span>
+    }
+
+    @Override
+    public boolean isCustomParkPosition() {
+
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        return parkPosition != null;</span>
+    }
+
+    @Override
+    public final Future&lt;TransitionStatus&gt; set(double throttle) {
+
+        // VT: NOTE: This object is bogus - the whole concept needs to be revisited; see #132
+
+<span class="fc" id="L145">        int authToken = hashCode();</span>
+<span class="fc" id="L146">        TransitionStatus result = new TransitionStatus(authToken);</span>
+
+<span class="fc" id="L148">        Callable&lt;TransitionStatus&gt; c = () -&gt; {</span>
+
+<span class="fc" id="L150">            ThreadContext.push(&quot;set/&quot; + getName());</span>
+
+            try {
+
+<span class="fc" id="L154">                logger.info(&quot;position={}&quot;, throttle);</span>
+
+<span class="pc bpc" id="L156" title="3 of 6 branches missed.">                if ( throttle &lt; 0 || throttle &gt; 1.0 || Double.compare(throttle, Double.NaN) == 0) {</span>
+
+<span class="nc" id="L158">                    throw new IllegalArgumentException(&quot;Throttle out of 0...1 range: &quot; + throttle);</span>
+                }
+
+<span class="fc" id="L161">                this.position = throttle;</span>
+
+<span class="fc" id="L163">                moveDamper(throttle);</span>
+<span class="fc" id="L164">                stateChanged();</span>
+
+<span class="fc" id="L166">                result.complete(authToken, null);</span>
+
+<span class="fc" id="L168">                return result;</span>
+
+            } finally {
+<span class="fc" id="L171">                ThreadContext.pop();</span>
+            }
+        };
+
+<span class="fc" id="L175">        return getExecutor().submit(c);</span>
+    }
+
+    /**
+     * Move the actual damper.
+     *
+     * @param position Position to set.
+     *
+     * @exception IOException if there was a problem moving the damper.
+     */
+    protected abstract void moveDamper(double position) throws IOException;
+
+    @Override
+    public Future&lt;TransitionStatus&gt; park() {
+
+<span class="fc" id="L190">        ThreadContext.push(&quot;park/&quot; + getName());</span>
+
+        try {
+
+<span class="fc" id="L194">            logger.debug(&quot;parking at {}&quot;, getParkPosition());</span>
+
+<span class="fc" id="L196">            Future&lt;TransitionStatus&gt; done = set(getParkPosition());</span>
+
+<span class="fc" id="L198">            releaseExecutor();</span>
+
+<span class="fc" id="L200">            return done;</span>
+
+        } finally {
+<span class="fc" id="L203">            ThreadContext.pop();</span>
+        }
+    }
+
+    private synchronized void stateChanged() {
+
+<span class="fc" id="L209">        dataBroadcaster.broadcast(new DataSample&lt;Double&gt;(System.currentTimeMillis(), name, signature, position, null));</span>
+<span class="fc" id="L210">    }</span>
+
+    @Override
+    public void addConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L215">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="nc" id="L216">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L221">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L222">    }</span>
+
+    @Override
+    public void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L227">        set(signal.sample);</span>
+<span class="nc" id="L228">    }</span>
+
+    @Override
+    public final String toString() {
+<span class="fc" id="L232">        return getClass().getSimpleName() + &quot;@&quot; + hashCode() + &quot;(&quot; + getName() + &quot;)&quot;;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

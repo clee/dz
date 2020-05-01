@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PidControllerSignalSplitter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller.pid</a> &gt; <span class="el_source">PidControllerSignalSplitter.java</span></div><h1>PidControllerSignalSplitter.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller.pid;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.controller.ProcessControllerSignalSplitter;
+import net.sf.dz3.controller.ProcessControllerStatus;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+
+/**
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class PidControllerSignalSplitter extends ProcessControllerSignalSplitter {
+    
+    /**
+     * Create an instance not attached to anything.
+     */
+<span class="nc" id="L18">    public PidControllerSignalSplitter() {</span>
+
+<span class="nc" id="L20">    }</span>
+
+    /**
+     * Create an instance and add it as a listener to the given source.
+     * 
+     * @param controller Controller to listen to.
+     */
+    public PidControllerSignalSplitter(AbstractPidController controller) {
+<span class="fc" id="L28">        super(controller);</span>
+<span class="fc" id="L29">    }</span>
+
+    @Override
+    public void consume(DataSample&lt;ProcessControllerStatus&gt; signal) {
+        
+        // Let them consume the common process controller signal components
+<span class="fc" id="L35">        super.consume(signal);</span>
+        
+        // And now let's take care of PID specific components
+        
+<span class="fc" id="L39">        ThreadContext.push(&quot;consume.pid&quot;);</span>
+        
+        try {
+            
+            // This is a bit dangerous, but let's see how exactly dangerous 
+<span class="fc" id="L44">            PidControllerStatus pidStatus = (PidControllerStatus) signal.sample; </span>
+            
+<span class="fc" id="L46">            long timestamp = signal.timestamp;</span>
+<span class="fc" id="L47">            String sourceName = signal.sourceName;</span>
+            
+<span class="fc" id="L49">            consume(timestamp, sourceName + &quot;.p&quot;, pidStatus.p);</span>
+<span class="fc" id="L50">            consume(timestamp, sourceName + &quot;.i&quot;, pidStatus.i);</span>
+<span class="fc" id="L51">            consume(timestamp, sourceName + &quot;.d&quot;, pidStatus.d);</span>
+            
+        } finally {
+<span class="fc" id="L54">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L56">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

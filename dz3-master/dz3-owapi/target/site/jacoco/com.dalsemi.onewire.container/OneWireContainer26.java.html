@@ -1,0 +1,2003 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireContainer26.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.container</a> &gt; <span class="el_source">OneWireContainer26.java</span></div><h1>OneWireContainer26.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.container;
+
+import java.util.Enumeration;
+import java.util.Vector;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+import com.dalsemi.onewire.utils.Address;
+import com.dalsemi.onewire.utils.CRC8;
+
+/**
+ *  &lt;P&gt;1-Wire&amp;#174 container that encapsulates the functionality of the 1-Wire
+ *  family type &lt;B&gt;26&lt;/B&gt; (hex), Dallas Semiconductor part number: &lt;B&gt;DS2438,
+ *  Smart Battery Monitor&lt;/B&gt;.&lt;/P&gt;
+ *
+ * &lt;H2&gt;Features&lt;/H2&gt;
+ * &lt;UL&gt;
+ *   &lt;LI&gt;direct-to-digital temperature sensor
+ *   &lt;LI&gt;A/D converters which measures the battery voltage and current
+ *   &lt;LI&gt;integrated current accumulator which keeps a running
+ *       total of all current going into and out of the battery
+ *   &lt;LI&gt;elapsed time meter
+ *   &lt;LI&gt;40 bytes of nonvolatile EEPROM memory for storage of important parameters
+ *   &lt;LI&gt;Operating temperature range from -40&amp;#176C to
+ *        +85&amp;#176Ci
+ * &lt;/UL&gt;
+ *
+ * &lt;H2&gt;Note&lt;/H2&gt;
+ *  &lt;P&gt;
+ *  Sometimes the VAD input will report 10.23 V even if nothing is attached.
+ *  This value is also the maximum voltage that part can report.
+ *  &lt;/P&gt;
+ *
+
+ * &lt;H3&gt; DataSheet &lt;/H3&gt;
+ * &lt;DL&gt;
+ * &lt;DD&gt;http://pdfserv.maxim-ic.com/arpdf/DS2438.pdf (not active yet, Sep-06-2001)
+ * &lt;DD&gt;&lt;A HREF=&quot;http://www.ibutton.com/weather/humidity.html&quot;&gt;http://www.ibutton.com/weather/humidity.html&lt;/A&gt;
+ * &lt;/DL&gt;
+ *
+ *  @version    0.00, 28 Aug 2000
+ *  @author     COlmstea
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class OneWireContainer26 extends OneWireContainer implements ADContainer, TemperatureContainer, ClockContainer, HumidityContainer {
+
+    public static final double RESOLUTION_TEMPERATURE = 0.03125;
+    public static final double RESOLUTION_HUMIDIY = 0.1;
+
+    /**
+     * Memory commands.
+     */
+    private static final byte READ_SCRATCHPAD_COMMAND  = ( byte ) 0xBE;
+    private static final byte RECALL_MEMORY_COMMAND    = ( byte ) 0xB8;
+    private static final byte COPY_SCRATCHPAD_COMMAND  = ( byte ) 0x48;
+    private static final byte WRITE_SCRATCHPAD_COMMAND = ( byte ) 0x4E;
+    private static final byte CONVERT_TEMP_COMMAND     = ( byte ) 0x44;
+    private static final byte CONVERT_VOLTAGE_COMMAND  = ( byte ) 0xB4;
+
+    /**
+     * Channel selector for the VDD input.  Meant to be used with
+     * a battery.
+     */
+    public static final int CHANNEL_VDD = 0x00;
+
+    /**
+     * Channel selector for the VAD input.  This is the general purpose
+     * A-D input.
+     */
+    public static final int CHANNEL_VAD = 0x01;
+
+    /**
+     * Channel selector the the IAD input.  Measures voltage across
+     * a resistor, Rsense, for calculating current.
+     */
+    public static final int CHANNEL_VSENSE = 0x02;
+
+    /**
+     * Flag to set/check the Current A/D Control bit with setFlag/getFlag. When
+     * this bit is true, the current A/D and the ICA are enabled and
+     * current measurements will be taken at the rate of 36.41 Hz.
+     */
+    public static final byte IAD_FLAG = 0x01;
+
+    /**
+     * Flag to set/check the Current Accumulator bit with setFlag/getFlag. When
+     * this bit is true, both the total discharging and charging current are
+     * integrated into seperate registers and can be used for determining
+     * full/empty levels.  When this bit is zero the memory (page 7) can be used
+     * as user memory.
+     */
+    public static final byte CA_FLAG = 0x02;
+
+    /**
+     * Flag to set/check the Current Accumulator Shadow Selector bit with
+     * setFlag/getFlag.  When this bit is true the CCA/DCA registers used to
+     * add up charging/discharging current are shadowed to EEPROM to protect
+     * against loss of data if the battery pack becomes discharged.
+     */
+    public static final byte EE_FLAG = 0x04;
+
+    /**
+     * Flag to set/check the voltage A/D Input Select Bit with setFlag/getFlag
+     * When this bit is true the battery input is (VDD) is selected as input for
+     * the voltage A/D input. When false the general purpose A/D input (VAD) is
+     * selected as the voltage A/D input.
+     */
+    public static final byte AD_FLAG = 0x08;
+
+    /**
+     * Flag to check whether or not a temperature conversion is in progress
+     * using getFlag().
+     */
+    public static final byte TB_FLAG = 0x10;
+
+    /**
+     * Flag to check whether or not an operation is being performed on the
+     * nonvolatile memory using getFlag.
+     */
+    public static final byte NVB_FLAG = 0x20;
+
+    /**
+     * Flag to check whether or not the A/D converter is busy using getFlag().
+     */
+    public static final byte ADB_FLAG = 0x40;
+
+    /**
+     * Holds the value of the sensor resistance.
+     */
+<span class="nc" id="L159">    private double Rsens = .05;</span>
+
+    /**
+     * Flag to indicate need to check speed
+     */
+<span class="nc" id="L164">    private boolean    doSpeedEnable = true;</span>
+
+    //--------
+    //-------- Constructors
+    //--------
+
+    /**
+     * Default constructor
+     */
+<span class="nc" id="L173">    public OneWireContainer26() {</span>
+<span class="nc" id="L174">    }</span>
+
+    /**
+     * Create a container with a provided adapter object
+     * and the address of the 1-Wire device.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this 1-Wire device
+     * @param  newAddress        address of this 1-Wire device
+     */
+    public OneWireContainer26(DSPortAdapter sourceAdapter, byte[] newAddress) {
+<span class="nc" id="L185">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L186">    }</span>
+
+    /**
+     * Create a container with a provided adapter object
+     * and the address of the 1-Wire device.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this 1-Wire device
+     * @param  newAddress        address of this 1-Wire device
+     */
+    public OneWireContainer26(DSPortAdapter sourceAdapter, long newAddress) {
+<span class="nc" id="L197">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L198">    }</span>
+
+    /**
+     * Create a container with a provided adapter object
+     * and the address of the 1-Wire device.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this 1-Wire device
+     * @param  newAddress        address of this 1-Wire device
+     */
+    public OneWireContainer26(DSPortAdapter sourceAdapter, String newAddress) {
+<span class="nc" id="L209">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L210">    }</span>
+
+    /**
+     * Gets an enumeration of memory bank instances that implement one or more
+     * of the following interfaces:
+     * {@link com.dalsemi.onewire.container.MemoryBank MemoryBank},
+     * {@link com.dalsemi.onewire.container.PagedMemoryBank PagedMemoryBank},
+     * and {@link com.dalsemi.onewire.container.OTPMemoryBank OTPMemoryBank}.
+     * @return &lt;CODE&gt;Enumeration&lt;/CODE&gt; of memory banks
+     */
+    @Override
+    public Enumeration&lt;MemoryBank&gt; getMemoryBanks() {
+
+<span class="nc" id="L223">        Vector&lt;MemoryBank&gt; bank_vector = new Vector&lt;MemoryBank&gt;(8);</span>
+
+        // Status
+<span class="nc" id="L226">        bank_vector.addElement(new MemoryBankSBM(this));</span>
+
+        // Temp/Volt/Current
+<span class="nc" id="L229">        MemoryBankSBM temp = new MemoryBankSBM(this);</span>
+<span class="nc" id="L230">        temp.bankDescription      = &quot;Temperature/Voltage/Current&quot;;</span>
+<span class="nc" id="L231">        temp.generalPurposeMemory = false;</span>
+<span class="nc" id="L232">        temp.startPhysicalAddress = 1;</span>
+<span class="nc" id="L233">        temp.size                 = 6;</span>
+<span class="nc" id="L234">        temp.readWrite            = false;</span>
+<span class="nc" id="L235">        temp.readOnly             = true;</span>
+<span class="nc" id="L236">        temp.nonVolatile          = false;</span>
+<span class="nc" id="L237">        temp.powerDelivery        = false;</span>
+<span class="nc" id="L238">        bank_vector.addElement(temp);</span>
+
+        // Threshold
+<span class="nc" id="L241">        temp = new MemoryBankSBM(this);</span>
+<span class="nc" id="L242">        temp.bankDescription      = &quot;Threshold&quot;;</span>
+<span class="nc" id="L243">        temp.generalPurposeMemory = false;</span>
+<span class="nc" id="L244">        temp.startPhysicalAddress = 7;</span>
+<span class="nc" id="L245">        temp.size                 = 1;</span>
+<span class="nc" id="L246">        temp.readWrite            = true;</span>
+<span class="nc" id="L247">        temp.readOnly             = false;</span>
+<span class="nc" id="L248">        temp.nonVolatile          = true;</span>
+<span class="nc" id="L249">        temp.powerDelivery        = true;</span>
+<span class="nc" id="L250">        bank_vector.addElement(temp);</span>
+
+        // Elapsed Timer Meter
+<span class="nc" id="L253">        temp = new MemoryBankSBM(this);</span>
+<span class="nc" id="L254">        temp.bankDescription      = &quot;Elapsed Timer Meter&quot;;</span>
+<span class="nc" id="L255">        temp.generalPurposeMemory = false;</span>
+<span class="nc" id="L256">        temp.startPhysicalAddress = 8;</span>
+<span class="nc" id="L257">        temp.size                 = 5;</span>
+<span class="nc" id="L258">        temp.readWrite            = true;</span>
+<span class="nc" id="L259">        temp.readOnly             = false;</span>
+<span class="nc" id="L260">        temp.nonVolatile          = false;</span>
+<span class="nc" id="L261">        temp.powerDelivery        = true;</span>
+<span class="nc" id="L262">        bank_vector.addElement(temp);</span>
+
+        // Current Offset
+<span class="nc" id="L265">        temp = new MemoryBankSBM(this);</span>
+<span class="nc" id="L266">        temp.bankDescription      = &quot;Current Offset&quot;;</span>
+<span class="nc" id="L267">        temp.generalPurposeMemory = false;</span>
+<span class="nc" id="L268">        temp.startPhysicalAddress = 13;</span>
+<span class="nc" id="L269">        temp.size                 = 2;</span>
+<span class="nc" id="L270">        temp.readWrite            = true;</span>
+<span class="nc" id="L271">        temp.readOnly             = false;</span>
+<span class="nc" id="L272">        temp.nonVolatile          = true;</span>
+<span class="nc" id="L273">        temp.powerDelivery        = true;</span>
+<span class="nc" id="L274">        bank_vector.addElement(temp);</span>
+
+        // Disconnect / End of Charge
+<span class="nc" id="L277">        temp = new MemoryBankSBM(this);</span>
+<span class="nc" id="L278">        temp.bankDescription      = &quot;Disconnect / End of Charge&quot;;</span>
+<span class="nc" id="L279">        temp.generalPurposeMemory = false;</span>
+<span class="nc" id="L280">        temp.startPhysicalAddress = 16;</span>
+<span class="nc" id="L281">        temp.size                 = 8;</span>
+<span class="nc" id="L282">        temp.readWrite            = true;</span>
+<span class="nc" id="L283">        temp.readOnly             = false;</span>
+<span class="nc" id="L284">        temp.nonVolatile          = false;</span>
+<span class="nc" id="L285">        temp.powerDelivery        = true;</span>
+<span class="nc" id="L286">        bank_vector.addElement(temp);</span>
+
+        // User Main Memory
+<span class="nc" id="L289">        temp = new MemoryBankSBM(this);</span>
+<span class="nc" id="L290">        temp.bankDescription      = &quot;User Main Memory&quot;;</span>
+<span class="nc" id="L291">        temp.generalPurposeMemory = true;</span>
+<span class="nc" id="L292">        temp.startPhysicalAddress = 24;</span>
+<span class="nc" id="L293">        temp.size                 = 32;</span>
+<span class="nc" id="L294">        temp.readWrite            = true;</span>
+<span class="nc" id="L295">        temp.readOnly             = false;</span>
+<span class="nc" id="L296">        temp.nonVolatile          = true;</span>
+<span class="nc" id="L297">        temp.powerDelivery        = true;</span>
+<span class="nc" id="L298">        bank_vector.addElement(temp);</span>
+
+        // User Memory / CCA / DCA
+<span class="nc" id="L301">        temp = new MemoryBankSBM(this);</span>
+<span class="nc" id="L302">        temp.bankDescription      = &quot;User Memory / CCA / DCA&quot;;</span>
+<span class="nc" id="L303">        temp.generalPurposeMemory = false;</span>
+<span class="nc" id="L304">        temp.startPhysicalAddress = 56;</span>
+<span class="nc" id="L305">        temp.size                 = 8;</span>
+<span class="nc" id="L306">        temp.readWrite            = true;</span>
+<span class="nc" id="L307">        temp.readOnly             = false;</span>
+<span class="nc" id="L308">        temp.nonVolatile          = true;</span>
+<span class="nc" id="L309">        temp.powerDelivery        = true;</span>
+<span class="nc" id="L310">        bank_vector.addElement(temp);</span>
+
+<span class="nc" id="L312">        return bank_vector.elements();</span>
+    }
+
+    /**
+     *  Returns the Dallas Semiconductor part number of this 1-Wire device
+     *  as a string.
+     *
+     *  @return representation of this 1-Wire device's name
+     *
+     */
+    @Override
+    public String getName() {
+<span class="nc" id="L324">        return &quot;DS2438&quot;;</span>
+    }
+
+    /**
+     *  Return the alternate Dallas Semiconductor part number or name.
+     *  ie. Smart Battery Monitor
+     *
+     *  @return representation of the alternate name(s)
+     */
+    @Override
+    public String getAlternateNames() {
+<span class="nc" id="L335">        return &quot;Smart Battery Monitor&quot;;</span>
+    }
+
+    /**
+     *  Return a short description of the function of this 1-Wire device type.
+     *
+     *  @return representation of the functional description
+     */
+    @Override
+    public String getDescription() {
+<span class="nc" id="L345">        return &quot;1-Wire device that integrates the total current charging or &quot;</span>
+        + &quot;discharging through a battery and stores it in a register. &quot;
+        + &quot;It also returns the temperature (accurate to 2 degrees celcius),&quot;
+        + &quot; as well as the instantaneous current and voltage and also &quot;
+        + &quot;provides 40 bytes of EEPROM storage.&quot;;
+    }
+
+    /**
+     * Set the value of the sense resistor used to determine
+     * battery current.  This value is used in the &lt;CODE&gt;getCurrent()&lt;/CODE&gt; calculation.
+     * See the DS2438 datasheet for more information on sensing battery
+     * current.
+     *
+     * @param resistance Value of the sense resistor in Ohms.
+     */
+    public synchronized void setSenseResistor(double resistance) {
+<span class="nc" id="L361">        Rsens = resistance;</span>
+<span class="nc" id="L362">    }</span>
+
+    /**
+     * Get the value used for the sense resistor in the &lt;CODE&gt;getCurrent()&lt;/CODE&gt;
+     * calculations.
+     *
+     * @return currently stored value of the sense resistor in Ohms
+     */
+    public double getSenseResistor() {
+<span class="nc" id="L371">        return Rsens;</span>
+    }
+
+    /**
+     * Directs the container to avoid the calls to doSpeed() in methods that communicate
+     * with the Thermocron. To ensure that all parts can talk to the 1-Wire bus
+     * at their desired speed, each method contains a call
+     * to &lt;code&gt;doSpeed()&lt;/code&gt;.  However, this is an expensive operation.
+     * If a user manages the bus speed in an
+     * application,  call this method with &lt;code&gt;doSpeedCheck&lt;/code&gt;
+     * as &lt;code&gt;false&lt;/code&gt;.  The default behavior is
+     * to call &lt;code&gt;doSpeed()&lt;/code&gt;.
+     *
+     * @param doSpeedCheck &lt;code&gt;true&lt;/code&gt; for &lt;code&gt;doSpeed()&lt;/code&gt; to be called before every
+     * 1-Wire bus access, &lt;code&gt;false&lt;/code&gt; to skip this expensive call
+     *
+     * @see OneWireContainer#doSpeed()
+     */
+    public synchronized void setSpeedCheck(boolean doSpeedCheck) {
+<span class="nc" id="L390">        doSpeedEnable = doSpeedCheck;</span>
+<span class="nc" id="L391">    }</span>
+
+    /**
+     * Reads the specified 8 byte page and returns the data in an array.
+     *
+     * @param page the page number to read
+     *
+     * @return  eight byte array that make up the page
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public byte[] readPage(int page) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L406">        byte[] buffer = new byte [11];</span>
+<span class="nc" id="L407">        byte[] result = new byte [8];</span>
+        int    crc8;   // this device uses a crc 8
+
+        /* check validity of parameter */
+<span class="nc bnc" id="L411" title="All 4 branches missed.">        if ((page &lt; 0) || (page &gt; 7)) {</span>
+<span class="nc" id="L412">            throw new IllegalArgumentException(&quot;OneWireContainer26-Page &quot; + page</span>
+<span class="nc" id="L413">                    + &quot; is an invalid page @&quot; + Address.toString(address));</span>
+        }
+
+        /* perform the read/verification */
+<span class="nc bnc" id="L417" title="All 2 branches missed.">        if (doSpeedEnable) {</span>
+<span class="nc" id="L418">            doSpeed();</span>
+        }
+
+<span class="nc bnc" id="L421" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+
+            /* recall memory to the scratchpad */
+<span class="nc" id="L424">            buffer [0] = RECALL_MEMORY_COMMAND;</span>
+<span class="nc" id="L425">            buffer [1] = ( byte ) page;</span>
+
+<span class="nc" id="L427">            adapter.dataBlock(buffer, 0, 2);</span>
+
+            /* perform the read scratchpad */
+<span class="nc" id="L430">            adapter.reset();</span>
+<span class="nc" id="L431">            adapter.select(address);</span>
+
+<span class="nc" id="L433">            buffer [0] = READ_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L434">            buffer [1] = ( byte ) page;</span>
+
+<span class="nc bnc" id="L436" title="All 2 branches missed.">            for (int i = 2; i &lt; 11; i++)</span>
+<span class="nc" id="L437">                buffer [i] = ( byte ) 0x0ff;</span>
+
+<span class="nc" id="L439">            adapter.dataBlock(buffer, 0, 11);</span>
+
+            /* do the crc check */
+<span class="nc" id="L442">            crc8 = CRC8.compute(buffer, 2, 9);</span>
+
+<span class="nc bnc" id="L444" title="All 2 branches missed.">            if (crc8 != 0x0)</span>
+<span class="nc" id="L445">                throw new OneWireIOException(address, &quot;OneWireContainer26-Bad CRC during read.&quot; + crc8);</span>
+
+            // copy the data into the result
+<span class="nc" id="L448">            System.arraycopy(buffer, 2, result, 0, 8);</span>
+        } else {
+<span class="nc" id="L450">            throw new OneWireException(address, &quot;OneWireContainer26-device not found&quot;);</span>
+        }
+
+<span class="nc" id="L453">        return result;</span>
+    }
+
+    /**
+     * Writes a page of memory to this device. Pages 3-6 are always
+     * available for user storage and page 7 is available if the CA bit is set
+     * to 0 (false) with &lt;CODE&gt;setFlag()&lt;/CODE&gt;.
+     *
+     * @param page    the page number
+     * @param source  data to be written to page
+     * @param offset  offset with page to begin writting
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public void writePage(int page, byte[] source, int offset) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L471">        byte[] buffer = new byte [10];</span>
+
+        /* check parameter validity */
+<span class="nc bnc" id="L474" title="All 4 branches missed.">        if ((page &lt; 0) || (page &gt; 7)) {</span>
+<span class="nc" id="L475">            throw new IllegalArgumentException(&quot;OneWireContainer26-Page &quot; + page</span>
+<span class="nc" id="L476">                    + &quot; is an invalid page @&quot; + Address.toString(address));</span>
+        }
+
+<span class="nc bnc" id="L479" title="All 2 branches missed.">        if (source.length &lt; 8) {</span>
+<span class="nc" id="L480">            throw new IllegalArgumentException(&quot;OneWireContainer26-Invalid data page passed to writePage @&quot; + Address.toString(address));</span>
+        }
+
+<span class="nc bnc" id="L483" title="All 2 branches missed.">        if (doSpeedEnable) {</span>
+<span class="nc" id="L484">            doSpeed();</span>
+        }
+
+<span class="nc bnc" id="L487" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+
+            // write the page to the scratchpad first
+<span class="nc" id="L490">            buffer [0] = WRITE_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L491">            buffer [1] = ( byte ) page;</span>
+
+<span class="nc" id="L493">            System.arraycopy(source, offset, buffer, 2, 8);</span>
+<span class="nc" id="L494">            adapter.dataBlock(buffer, 0, 10);</span>
+
+            // now copy that part of the scratchpad to memory
+<span class="nc" id="L497">            adapter.reset();</span>
+<span class="nc" id="L498">            adapter.select(address);</span>
+
+<span class="nc" id="L500">            buffer [0] = COPY_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L501">            buffer [1] = ( byte ) page;</span>
+
+<span class="nc" id="L503">            adapter.dataBlock(buffer, 0, 2);</span>
+        } else {
+<span class="nc" id="L505">            throw new OneWireException(address, &quot;OneWireContainer26-Device not found&quot;);</span>
+        }
+<span class="nc" id="L507">    }</span>
+
+    /**
+     * Checks the specified flag in the status/configuration register
+     * and returns its status as a boolean.
+     *
+     * @param  flagToGet flag bitmask.
+     * Acceptable parameters: IAD_FLAG, CA_FLAG, EE_FLAG, AD_FLAG, TB_FLAG,
+     * NVB_FLAG, ADB_FLAG
+     * (may be ORed with | to check the status of more than one).
+     *
+     * @return state of flag
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public boolean getFlag(byte flagToGet) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L526">        byte[] data = readPage(0);</span>
+
+<span class="nc bnc" id="L528" title="All 2 branches missed.">        return (data [0] &amp; flagToGet) != 0 ? true : false;</span>
+    }
+
+    /**
+     * Set one of the flags in the STATUS/CONFIGURATION register.
+     *
+     * @param bitmask of the flag to set
+     * Acceptable parameters: IAD_FLAG, CA_FLAG, EE_FLAG, AD_FLAG, TB_FLAG,
+     * NVB_FLAG, ADB_FLAG.
+     *
+     * @param flagValue value to set flag to
+     *
+     * @throws OneWireIOException Error writting data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public void setFlag(byte flagToSet, boolean flagValue) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L546">        byte[] data = readPage(0);</span>
+
+<span class="nc bnc" id="L548" title="All 2 branches missed.">        if (flagValue) {</span>
+<span class="nc" id="L549">            data [0] = ( byte ) (data [0] | flagToSet);</span>
+        } else {
+<span class="nc" id="L551">            data [0] = ( byte ) (data [0] &amp; ~(flagToSet));</span>
+        }
+
+<span class="nc" id="L554">        writePage(0, data, 0);</span>
+<span class="nc" id="L555">    }</span>
+
+    /**
+     * Get the instantaneous current. The IAD flag must be true!!
+     * Remember to set the Sense resistor value using
+     * &lt;CODE&gt;setSenseResitor(double)&lt;/CODE&gt;.
+     *
+     *
+     * @param state current state of device
+     * @return current value in Amperes
+     */
+    public double getCurrent(byte[] state) {
+
+<span class="nc" id="L568">        short rawCurrent = ( short ) ((state [6] &lt;&lt; 8) | (state [5] &amp; 0x0ff));</span>
+
+<span class="nc" id="L570">        return rawCurrent / (4096.0 * Rsens);</span>
+    }
+
+    /**
+     * Calculate the remaining capacity in mAH as outlined in the data sheet.
+     *
+     * @return battery capacity remaining in mAH
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public double getRemainingCapacity() throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L584">        int ica = getICA();</span>
+
+<span class="nc" id="L586">        return (1000 * ica / (2048 * Rsens));</span>
+    }
+
+    /**
+     * Determines if the battery is charging and returns a boolean.
+     *
+     *
+     * @param state current state of device
+     *
+     * @return true if battery is changing, false if battery is idle or discharging
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public boolean isCharging(byte[] state) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+        // positive current (if the thing is hooked up right) is charging
+<span class="nc bnc" id="L604" title="All 2 branches missed.">        return getCurrent(state) &gt; 0 ? true : false;</span>
+    }
+
+    /**
+     * Calibrate the current ADC. Although the part is shipped calibrated,
+     * calibrations should be done whenever possible for best results.
+     * NOTE: You MUST force zero current through Rsens (the sensor resistor)
+     * while calibrating.
+     *
+     * @throws OneWireIOException Error calibrating
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public void calibrateCurrentADC() throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+        byte[] data;
+        byte   currentLSB, currentMSB;
+
+        // grab the current IAD settings so that we dont change anything
+<span class="nc" id="L623">        boolean IADvalue = getFlag(IAD_FLAG);</span>
+
+        // the IAD bit must be set to &quot;0&quot; to write to the Offset Register
+<span class="nc" id="L626">        setFlag(IAD_FLAG, false);</span>
+
+        // write all zeroes to the offset register
+<span class="nc" id="L629">        data     = readPage(1);</span>
+<span class="nc" id="L630">        data [5] = data [6] = 0;</span>
+
+<span class="nc" id="L632">        writePage(1, data, 0);</span>
+
+        // enable current measurements once again
+<span class="nc" id="L635">        setFlag(IAD_FLAG, true);</span>
+
+        // read the Current Register value
+<span class="nc" id="L638">        data       = readPage(0);</span>
+<span class="nc" id="L639">        currentLSB = data [5];</span>
+<span class="nc" id="L640">        currentMSB = data [6];</span>
+
+        // disable current measurements so that we can write to the offset reg
+<span class="nc" id="L643">        setFlag(IAD_FLAG, false);</span>
+
+        // change the sign of the current register value and store it as the offset
+<span class="nc" id="L646">        data     = readPage(1);</span>
+<span class="nc" id="L647">        data [5] = ( byte ) (~(currentLSB) + 1);</span>
+<span class="nc" id="L648">        data [6] = ( byte ) (~(currentMSB));</span>
+
+<span class="nc" id="L650">        writePage(1, data, 0);</span>
+
+        // eset the IAD settings back to normal
+<span class="nc" id="L653">        setFlag(IAD_FLAG, IADvalue);</span>
+<span class="nc" id="L654">    }</span>
+
+    /**
+     * Set the minimum current measurement magnitude for which the ICA/CCA/DCA
+     * are incremented. This is important for applications where the current
+     * may get very small for long periods of time. Small currents can be
+     * inaccurate by a high percentage, which leads to very inaccurate
+     * accumulations.
+     *
+     * @param threshold minimum number of bits a current measurement must have to be accumulated,
+     * Only 0,2,4 and 8 are valid parameters
+     *
+     * @throws OneWireIOException Error setting the threshold
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public void setThreshold(byte thresholdValue) throws OneWireIOException, OneWireException {
+
+        byte   thresholdReg;
+        byte[] data;
+
+<span class="nc bnc" id="L675" title="All 5 branches missed.">        switch (thresholdValue) {</span>
+
+        case 0 :
+<span class="nc" id="L678">            thresholdReg = 0;</span>
+<span class="nc" id="L679">            break;</span>
+        case 2 :
+<span class="nc" id="L681">            thresholdReg = 64;</span>
+<span class="nc" id="L682">            break;</span>
+        case 4 :
+<span class="nc" id="L684">            thresholdReg = ( byte ) 128;</span>
+<span class="nc" id="L685">            break;</span>
+        case 8 :
+<span class="nc" id="L687">            thresholdReg = ( byte ) 192;</span>
+<span class="nc" id="L688">            break;</span>
+        default :
+<span class="nc" id="L690">            throw new IllegalArgumentException(</span>
+<span class="nc" id="L691">            &quot;OneWireContainer26-Threshold value must be 0,2,4, or 8 @&quot; + Address.toString(address));</span>
+        }
+
+        // first save their original IAD settings so we dont change anything
+<span class="nc" id="L695">        boolean IADvalue = getFlag(IAD_FLAG);</span>
+
+        // current measurements must be off to write to the threshold register
+<span class="nc" id="L698">        setFlag(IAD_FLAG, false);</span>
+
+        // write the threshold register
+<span class="nc" id="L701">        data     = readPage(0);</span>
+<span class="nc" id="L702">        data [7] = thresholdReg;</span>
+
+<span class="nc" id="L704">        writePage(0, data, 0);</span>
+
+        // set the IAD back to the way the user had it
+<span class="nc" id="L707">        setFlag(IAD_FLAG, IADvalue);</span>
+<span class="nc" id="L708">    }</span>
+
+    /**
+     * Retrieves the current ICA value in mVHr.
+     *
+     * @return value in the ICA register
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public int getICA() throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L721">        byte[] data = readPage(1);</span>
+
+<span class="nc" id="L723">        return data [4] &amp; 0x000000ff;</span>
+    }
+
+    /**
+     * Retrieves the current CCA value in mVHr. This value is accumulated over
+     * the lifetime of the part (until it is set to 0 or the CA flag is set
+     * to false) and includes only charging current (positive).
+     *
+     * @return CCA value
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public int getCCA() throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L739">        byte[] data = readPage(7);</span>
+
+<span class="nc" id="L741">        return ((data [5] &lt;&lt; 8) &amp; 0x0000ff00) | (data [4] &amp; 0x000000ff);</span>
+    }
+
+    /**
+     * Retrieves the value of the DCA in mVHr. This value is accumulated over
+     * the lifetime of the part (until explicitly set to 0 or if the CA flag
+     * is set to false) and includes only discharging current (negative).
+     *
+     * @return DCA value
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public int getDCA() throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L757">        byte[] data = readPage(7);</span>
+
+<span class="nc" id="L759">        return ((data [7] &lt;&lt; 8) &amp; 0x0000ff00) | (data [6] &amp; 0x000000ff);</span>
+    }
+
+    /**
+     * Set the value of the ICA.
+     *
+     * @param icaValue  new ICA value
+     *
+     * @throws OneWireIOException Error writing data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public void setICA (int icaValue) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L773">        byte[] data = readPage(1);</span>
+
+<span class="nc" id="L775">        data [4] = ( byte ) (icaValue &amp; 0x000000ff);</span>
+
+<span class="nc" id="L777">        writePage(1, data, 0);</span>
+<span class="nc" id="L778">    }</span>
+
+    /**
+     * Set the value of the CCA.
+     *
+     * @param ccaValue new CCA value
+     *
+     * @throws OneWireIOException Error writing data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public void setCCA (int ccaValue) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L791">        byte[] data = readPage(7);</span>
+
+<span class="nc" id="L793">        data [4] = ( byte ) (ccaValue &amp; 0x00ff);</span>
+<span class="nc" id="L794">        data [5] = ( byte ) ((ccaValue &amp; 0xff00) &gt;&gt;&gt; 8);</span>
+
+<span class="nc" id="L796">        writePage(7, data, 0);</span>
+<span class="nc" id="L797">    }</span>
+
+    /**
+     * Set the value of the DCA.
+     *
+     * @param dcaValue new DCA value
+     *
+     * @throws OneWireIOException Error writing data
+     * @throws OneWireException Could not find part
+     * @throws IllegalArgumentException Bad parameters passed
+     */
+    public void setDCA(int dcaValue) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+<span class="nc" id="L810">        byte[] data = readPage(7);</span>
+
+<span class="nc" id="L812">        data [6] = ( byte ) (dcaValue &amp; 0x00ff);</span>
+<span class="nc" id="L813">        data [7] = ( byte ) ((dcaValue &amp; 0xff00) &gt;&gt;&gt; 8);</span>
+
+<span class="nc" id="L815">        writePage(7, data, 0);</span>
+<span class="nc" id="L816">    }</span>
+
+    /**
+     * This method extracts the Clock Value in milliseconds from the
+     * state data retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state device state.
+     *
+     * @return time in milliseconds that have occurred since 1970.
+     */
+    public long getDisconnectTime(byte[] state) {
+<span class="nc" id="L827">        return getTime(state, 16) * 1000;</span>
+    }
+
+    /**
+     * This method extracts the Clock Value in milliseconds from the
+     * state data retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state device state
+     *
+     * @return time in milliseconds that have occurred since 1970.
+     */
+    public long getEndOfChargeTime(byte[] state)
+    {
+<span class="nc" id="L840">        return getTime(state, 20) * 1000;</span>
+    }
+
+    //actually could be called byteArrayToLong, only used in time functions
+    private long getTime(byte[] state, int start) {
+
+<span class="nc" id="L846">        long time = (state [start] &amp; 0x0ff)</span>
+        | ((state [start + 1] &amp; 0x0ff) &lt;&lt; 8)
+        | ((state [start + 2] &amp; 0x0ff) &lt;&lt; 16)
+        | ((state [start + 3] &amp; 0x0ff) &lt;&lt; 24);
+
+<span class="nc" id="L851">        return time &amp; 0x0ffffffff;</span>
+    }
+
+    //////////////////////////////////////////////////////////////////////////////
+    //
+    //      INTERFACE METHODS!!!!!!!!
+    //
+    //////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Query to get the number of channels supported by this A/D.
+     * Channel specific methods will use a channel number specified
+     * by an integer from [0 to (getNumberChannels() - 1)].
+     *
+     * @return number of channels
+     */
+    @Override
+    public int getNumberADChannels() {
+
+<span class="nc" id="L870">        return 3;   //has VDD, VAD channel  (battery, gen purpose)</span>
+        // and it has a Vsense channel for current sensing
+    }
+
+    /**
+     * Query to see if this A/D measuring device has high/low
+     * alarms.
+     *
+     * @return true if has high/low trips
+     */
+    @Override
+    public boolean hasADAlarms() {
+
+<span class="nc" id="L883">        return false;</span>
+    }
+
+    /**
+     * Query to get an array of available ranges for the specified
+     * A/D channel.
+     *
+     * @param channel  channel in the range
+     *                  [0 to (getNumberChannels() - 1)]
+     *
+     * @return available ranges
+     */
+    @Override
+    public double[] getADRanges(int channel) {
+
+<span class="nc" id="L898">        double[] result = new double [1];</span>
+
+<span class="nc bnc" id="L900" title="All 2 branches missed.">        if(channel==CHANNEL_VSENSE) {</span>
+<span class="nc" id="L901">            result [0] = .250;</span>
+        } else {
+<span class="nc" id="L903">            result [0] = 10.23;</span>
+        }
+
+        /* for VAD, not entirely true--this should be
+         2 * VDD.  If you hook up VDD to the
+         one-wire in series with a diode and then
+         hang a .1 microF capacitor off the line to ground,
+         you can get about 9.5 for the high end accurately
+                       ----------------------------------
+                       |             *****************  |
+         One-Wire------- DIODE-------*VDD     ONEWIRE*---
+                                 |   *               *
+                                 |   *        GROUND *---
+                                 C   *               *  |
+                                 |   *    2438       *  |
+                                gnd  *               *  |
+                                 |   *****************  |
+                                 |----------------------|
+
+         */
+<span class="nc" id="L923">        return result;</span>
+    }
+
+    /**
+     * Query to get an array of available resolutions based
+     * on the specified range on the specified A/D channel.
+     *
+     * @param channel channel in the range
+     *                  [0 to (getNumberChannels() - 1)]
+     * @param range A/D range
+     *
+     * @return available resolutions
+     */
+    @Override
+    public double[] getADResolutions(int channel, double range) {
+
+<span class="nc" id="L939">        double[] result = new double [1];</span>
+
+<span class="nc bnc" id="L941" title="All 2 branches missed.">        if(channel == CHANNEL_VSENSE) {</span>
+<span class="nc" id="L942">            result [0] = 0.2441;</span>
+        } else {
+<span class="nc" id="L944">            result [0] = 0.01;   //10 mV</span>
+        }
+
+<span class="nc" id="L947">        return result;</span>
+    }
+
+    /**
+     * Query to see if this A/D supports doing multiple voltage
+     * conversions at the same time.
+     *
+     * @return true if device can do multi-channel voltage reads
+     */
+    @Override
+    public boolean canADMultiChannelRead() {
+<span class="nc" id="L958">        return false;</span>
+    }
+
+    //--------
+    //-------- A/D IO Methods
+    //--------
+
+    /**
+     * This method is used to perform voltage conversion on all specified
+     * channels.  The method 'getVoltage()' can be used to read the result
+     * of the conversion.
+     *
+     * @param channel channel in the range
+     *                 &lt;CODE&gt; [0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param state  current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @throws OneWireIOException Error writing data
+     * @throws OneWireException Could not find part
+     */
+    @Override
+    public void doADConvert(int channel, byte[] state) throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L981" title="All 2 branches missed.">        if(channel == CHANNEL_VSENSE) {</span>
+
+<span class="nc bnc" id="L983" title="All 2 branches missed.">            if((state[0]&amp;IAD_FLAG) == 0) {</span>
+                // enable the current sense channel
+<span class="nc" id="L985">                setFlag(IAD_FLAG, true);</span>
+<span class="nc" id="L986">                state[0] |= IAD_FLAG;</span>
+                try {
+                    // updates once every 27.6 milliseconds
+<span class="nc" id="L989">                    Thread.sleep(30);</span>
+<span class="nc" id="L990">                } catch (InterruptedException ex){</span>
+<span class="nc" id="L991">                    logger.debug(&quot;Interrupted&quot;, ex);</span>
+<span class="nc" id="L992">                }</span>
+            }
+
+<span class="nc" id="L995">            byte[] data = readPage(0);</span>
+            // update the state
+<span class="nc" id="L997">            System.arraycopy(data, 5, state, 5, 2);</span>
+<span class="nc" id="L998">        } else {</span>
+<span class="nc bnc" id="L999" title="All 2 branches missed.">            setFlag(AD_FLAG, channel == CHANNEL_VDD);</span>
+
+            // first perform the conversion
+<span class="nc bnc" id="L1002" title="All 2 branches missed.">            if (doSpeedEnable) {</span>
+<span class="nc" id="L1003">                doSpeed();</span>
+            }
+
+<span class="nc bnc" id="L1006" title="All 2 branches missed.">            if (adapter.select(address)) {</span>
+
+<span class="nc" id="L1008">                adapter.putByte(CONVERT_VOLTAGE_COMMAND);</span>
+
+                try {
+
+<span class="nc" id="L1012">                    Thread.sleep(4);</span>
+<span class="nc" id="L1013">                } catch (InterruptedException ex){</span>
+<span class="nc" id="L1014">                    logger.debug(&quot;Interrupted&quot;, ex);</span>
+<span class="nc" id="L1015">                }</span>
+
+<span class="nc" id="L1017">                byte[] data = readPage(0);</span>
+
+                //let's update state with this info
+<span class="nc" id="L1020">                System.arraycopy(data, 0, state, 0, 8);</span>
+
+                // save off the voltage in our state's holdindg area
+<span class="nc" id="L1023">                state [24 + channel * 2]     = data [4];</span>
+<span class="nc" id="L1024">                state [24 + channel * 2 + 1] = data [3];</span>
+<span class="nc" id="L1025">            } else {</span>
+<span class="nc" id="L1026">                throw new OneWireException(address, &quot;OneWireContainer26-Device not found&quot;);</span>
+            }
+        }
+<span class="nc" id="L1029">    }</span>
+
+    /**
+     * This method is used to perform voltage conversion on all specified
+     * channels.  The method &lt;CODE&gt;getVoltage()&lt;/CODE&gt; can be used to read the result
+     * of the conversion. This A/D must support multi-channel read
+     * &lt;CODE&gt;canMultiChannelRead()&lt;/CODE&gt; if there are more then 1 channel is specified.
+     *
+     * @param doConvert  channels
+     *                    to perform conversion on
+     * @param state  current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @throws OneWireIOException Error writing data
+     * @throws OneWireException Could not find part
+     */
+    @Override
+    public void doADConvert(boolean[] doConvert, byte[] state) throws OneWireIOException, OneWireException {
+<span class="nc" id="L1047">        throw new OneWireException(address, &quot;This device cannot do multi-channel reads&quot;);</span>
+    }
+
+    /**
+     * This method is used to read the voltage values.  Must
+     * be used after a &lt;CODE&gt;doADConvert()&lt;/CODE&gt; method call.  Also must
+     * include the last valid state from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method
+     * and this A/D must support multi-channel read &lt;CODE&gt;canMultiChannelRead()&lt;/CODE&gt;
+     * if there are more then 1 channel.
+     *
+     * @param state current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @return voltage values for all channels
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     */
+    @Override
+    public double[] getADVoltage(byte[] state) throws OneWireIOException, OneWireException {
+<span class="nc" id="L1067">        throw new OneWireException(address, &quot;This device cannot do multi-channel reads&quot;);</span>
+    }
+
+    /**
+     * This method is used to read a channels voltage value.  Must
+     * be used after a &lt;CODE&gt;doADConvert()&lt;/CODE&gt; method call.  Also must
+     * include the last valid state from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     * Note, if more then one channel is to be read then it is more
+     * efficient to use the &lt;CODE&gt;getVoltage()&lt;/CODE&gt; method that returns all
+     * channel values.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param state current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @return   voltage value for the specified
+     *                  channel
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     */
+    @Override
+    public double getADVoltage(int channel, byte[] state) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1092">        double result = 0;</span>
+
+<span class="nc bnc" id="L1094" title="All 2 branches missed.">        if(channel == CHANNEL_VSENSE) {</span>
+<span class="nc" id="L1095">            result = ((state [6] &lt;&lt; 8) | (state [5] &amp; 0x0ff))/4096d;</span>
+        } else {
+<span class="nc" id="L1097">            result = (((state [24 + channel*2] &lt;&lt; 8) &amp; 0x00300) |</span>
+                    (state [24 + channel*2 + 1] &amp; 0x0ff))
+                    / 100.0d;
+        }
+
+<span class="nc" id="L1102">        return result;</span>
+    }
+
+    //--------
+    //-------- A/D 'get' Methods
+    //--------
+
+    /**
+     * This method is used to extract the alarm voltage value of the
+     * specified channel from the provided state buffer.  The
+     * state buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param alarmType desired alarm, &lt;CODE&gt;ALARM_HIGH (1)
+     *               or ALARM_LOW (0)&lt;/CODE&gt;
+     * @param state current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @return alarm_value in volts
+     *
+     * @throws OneWireException Device does not support A/D alarms
+     */
+    @Override
+    public double getADAlarm(int channel, int alarmType, byte[] state) throws OneWireException {
+<span class="nc" id="L1127">        throw new OneWireException(address, &quot;This device does not have A/D alarms&quot;);</span>
+    }
+
+    /**
+     * This method is used to extract the alarm enable value of the
+     * specified channel from the provided state buffer.  The state
+     * buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param alarmType desired alarm, &lt;CODE&gt;ALARM_HIGH (1)
+     *               or ALARM_LOW (0)&lt;/CODE&gt;
+     * @param state current state of the state
+     *               returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @return true if specified alarm is enabled
+     *
+     * @throws OneWireException Device does not support A/D alarms
+     */
+    @Override
+    public boolean getADAlarmEnable(int channel, int alarmType, byte[] state) throws OneWireException {
+<span class="nc" id="L1148">        throw new OneWireException(address, &quot;This device does not have A/D alarms&quot;);</span>
+    }
+
+    /**
+     * This method is used to check the alarm event value of the
+     * specified channel from the provided state buffer.  The
+     * state buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param alarmType desired alarm, &lt;CODE&gt;ALARM_HIGH (1)
+     *               or ALARM_LOW (0)&lt;/CODE&gt;
+     * @param state current state of the state
+                    returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @return true if specified alarm occurred
+     *
+     * @throws OneWireException Device does not support A/D alarms
+     */
+    @Override
+    public boolean hasADAlarmed(int channel, int alarmType, byte[] state) throws OneWireException {
+<span class="nc" id="L1169">        throw new OneWireException(address, &quot;This device does not have A/D alarms&quot;);</span>
+    }
+
+    /**
+     * This method is used to extract the conversion resolution of the
+     * specified channel from the provided state buffer expressed in
+     * volts.  The state is retrieved from the
+     * &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param state current state of the state
+     *               returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @return resolution of channel in volts
+     */
+    @Override
+    public double getADResolution(int channel, byte[] state) {
+
+        //this is easy, its always 0.01 V = 10 mV
+<span class="nc" id="L1189">        return 0.01;</span>
+    }
+
+    /**
+     * This method is used to extract the input voltage range of the
+     * specified channel from the provided state buffer.  The state
+     * buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param state current state of the state
+     *                  returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @return input voltage range
+     */
+    @Override
+    public double getADRange(int channel, byte[] state) {
+
+<span class="nc bnc" id="L1207" title="All 2 branches missed.">        if(channel==CHANNEL_VSENSE) {</span>
+<span class="nc" id="L1208">            return .250;</span>
+        } else {
+<span class="nc" id="L1210">            return 10.23;</span>
+        }
+    }
+
+    //--------
+    //-------- A/D 'set' Methods
+    //--------
+
+    /**
+     * This method is used to set the alarm voltage value of the
+     * specified channel in the provided state buffer.  The
+     * state buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     * The method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; must be called to finalize these
+     * changes to the device.  Note that multiple 'set' methods can
+     * be called before one call to &lt;CODE&gt;writeDevice()&lt;/CODE&gt;.
+     *
+     * @param channel  channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param alarmType desired alarm, &lt;CODE&gt;ALARM_HIGH (1)
+     *               or ALARM_LOW (0)&lt;/CODE&gt;
+     * @param alarm  alarm value (will be reduced to 8 bit resolution)
+     * @param state  current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @throws OneWireException Device does not support A/D alarms
+     */
+    @Override
+    public void setADAlarm(int channel, int alarmType, double alarm, byte[] state) throws OneWireException {
+<span class="nc" id="L1238">        throw new OneWireException(address, &quot;This device does not have A/D alarms&quot;);</span>
+    }
+
+    /**
+     * This method is used to set the alarm enable value of the
+     * specified channel in the provided state buffer.  The
+     * state buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     * The method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; must be called to finalize these
+     * changes to the device.  Note that multiple 'set' methods can
+     * be called before one call to &lt;CODE&gt;writeDevice()&lt;/CODE&gt;.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param alarmType desired alarm, &lt;CODE&gt;ALARM_HIGH (1)
+     *               or ALARM_LOW (0)&lt;/CODE&gt;
+     * @param alarmEnable alarm enable value
+     * @param state current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     *
+     * @throws OneWireException Device does not support A/D alarms
+     */
+    @Override
+    public void setADAlarmEnable(int channel, int alarmType, boolean alarmEnable, byte[] state) throws OneWireException {
+<span class="nc" id="L1261">        throw new OneWireException(address, &quot;This device does not have AD alarms&quot;);</span>
+    }
+
+    /**
+     * This method is used to set the conversion resolution value for the
+     * specified channel in the provided state buffer.  The
+     * state buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     * The method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; must be called to finalize these
+     * changes to the device.  Note that multiple 'set' methods can
+     * be called before one call to &lt;CODE&gt;writeDevice()&lt;/CODE&gt;.
+     *
+     * @param channel  channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param resolution resolution to use in volts
+     * @param state current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     */
+    @Override
+    public void setADResolution(int channel, double resolution, byte[] state) {
+
+        //but you can't select the resolution for this part!!!!
+        //just make it an airball
+<span class="nc" id="L1283">    }</span>
+
+    /**
+     * This method is used to set the input range for the
+     * specified channel in the provided state buffer.  The
+     * state buffer is retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     * The method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; must be called to finalize these
+     * changes to the device.  Note that multiple 'set' methods can
+     * be called before one call to &lt;CODE&gt;writeDevice()&lt;/CODE&gt;.
+     *
+     * @param channel channel in the range
+     *                  &lt;CODE&gt;[0 to (getNumberChannels() - 1)]&lt;/CODE&gt;
+     * @param range maximum volt range, use
+     *                &lt;CODE&gt;getRanges()&lt;/CODE&gt; method to get available ranges
+     * @param state current state of the
+     *               device returned from &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     */
+    @Override
+    public void setADRange(int channel, double range, byte[] state) {
+
+        //you can't change the ranges here without changing VDD!!!
+        //just make this function call an airball
+<span class="nc" id="L1305">    }</span>
+
+    /**
+     * This method retrieves the 1-Wire device sensor state.  This state is
+     * returned as a byte array.  Pass this byte array to the static query
+     * and set methods.  If the device state needs to be changed then call
+     * the &lt;CODE&gt;writeDevice()&lt;/CODE&gt; to finalize the one or more change.
+     *
+     * @return 1-Wire device's state
+     *
+     * @throws OneWireIOException Error reading data
+     * @throws OneWireException Could not find part
+     *
+     * @deprecated Use {@link #readDevice(byte[])} instead, it doesn't allocate memory.
+     */
+    @Deprecated
+    @Override
+    public byte[] readDevice () throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1324">        byte[] state = new byte [28];</span>
+
+<span class="nc" id="L1326">        readDevice(state);</span>
+
+<span class="nc" id="L1328">        return state;</span>
+    }
+
+    @Override
+    public void readDevice(byte[] state) throws OneWireIOException, OneWireException {
+
+        //should return the first three pages
+        //and then 6 extra bytes, 2 for channel 1 voltage and
+        //2 for channel 2 voltage
+
+<span class="nc bnc" id="L1338" title="All 2 branches missed.">        for (int i = 0; i &lt; 3; i++) {</span>
+
+<span class="nc" id="L1340">            byte[] pg = readPage(i);</span>
+
+<span class="nc" id="L1342">            System.arraycopy(pg, 0, state, i * 8, 8);</span>
+        }
+
+        //the last four bytes are used this way...
+        //the current voltage reading is kept in page 0,
+        //but if a new voltage reading is asked for we move it to the
+        //end so it can be there in case it is asked for again,
+        //so we kind of weasel around this whole ADcontainer thing
+
+        /* here's a little map
+           byte[24] VDD high byte
+           byte[25] VDD low byte
+           byte[26] VAD high byte
+           byte[27] VAD low byte
+         */
+<span class="nc" id="L1357">    }</span>
+
+    /**
+     * This method write the 1-Wire device sensor state that
+     * have been changed by the 'set' methods.  It knows which registers have
+     * changed by looking at the bitmap fields appended to the state
+     * data.
+     *
+     * @param  state device's state
+     *
+     * @throws OneWireIOException Error writting data
+     * @throws OneWireException Could not find part
+     */
+    @Override
+    public void writeDevice(byte[] state) throws OneWireIOException, OneWireException {
+<span class="nc" id="L1372">        writePage(0, state, 0);</span>
+<span class="nc" id="L1373">        writePage(1, state, 8);</span>
+<span class="nc" id="L1374">    }</span>
+
+    //--------
+    //-------- Temperature Feature methods
+    //--------
+
+    /**
+     * Query to see if this temperature measuring device has high/low
+     * trip alarms.
+     *
+     * @return true if has high/low trip alarms
+     */
+    @Override
+    public boolean hasTemperatureAlarms () {
+<span class="nc" id="L1388">        return false;</span>
+    }
+
+    /**
+     * Query to see if this device has selectable resolution.
+     *
+     * @return true if device has selectable resolution
+     */
+    @Override
+    public boolean hasSelectableTemperatureResolution () {
+<span class="nc" id="L1398">        return false;</span>
+    }
+
+    /**
+     * Query to get an array of available resolutions in degrees C.
+     *
+     * @return available resolutions in degrees C
+     */
+    @Override
+    public double[] getTemperatureResolutions() {
+
+<span class="nc" id="L1409">        return new double[] { RESOLUTION_TEMPERATURE };</span>
+    }
+
+    /**
+     * Query to get the high/low resolution in degrees C.
+     *
+     * @return high/low resolution resolution in degrees C
+     *
+     * @throws OneWireException Device does not have temperature alarms
+     */
+    @Override
+    public double getTemperatureAlarmResolution() throws OneWireException {
+<span class="nc" id="L1421">        throw new OneWireException(address, &quot;This device does not have temperature alarms&quot;);</span>
+    }
+
+    /**
+     * Query to get the maximum temperature in degrees C.
+     *
+     * @return maximum temperature in degrees C
+     */
+    @Override
+    public double getMaxTemperature() {
+<span class="nc" id="L1431">        return 125.0;</span>
+    }
+
+    /**
+     * Query to get the minimum temperature in degrees C.
+     *
+     * @return minimum temperature in degrees C
+     */
+    @Override
+    public double getMinTemperature() {
+
+<span class="nc" id="L1442">        return -55.0;</span>
+    }
+
+    //--------
+    //-------- Temperature I/O Methods
+    //--------
+
+    /**
+     * Perform an temperature conversion.  Use this state information
+     * to calculate the conversion time.
+     *
+     * @param state device state
+     *
+     * @throws OneWireIOException Error writting data
+     * @throws OneWireException Could not find part
+     */
+    @Override
+    public void doTemperatureConvert(byte[] state) throws OneWireIOException, OneWireException {
+
+        byte[] data;   // hold page
+
+<span class="nc bnc" id="L1463" title="All 2 branches missed.">        if (doSpeedEnable) {</span>
+<span class="nc" id="L1464">            doSpeed();</span>
+        }
+
+<span class="nc bnc" id="L1467" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+
+            // perform the temperature conversion
+<span class="nc" id="L1470">            adapter.putByte(CONVERT_TEMP_COMMAND);</span>
+
+            try {
+<span class="nc" id="L1473">                Thread.sleep(10);</span>
+<span class="nc" id="L1474">            } catch (InterruptedException ex) {</span>
+<span class="nc" id="L1475">                logger.debug(&quot;Interrupted&quot;, ex);</span>
+<span class="nc" id="L1476">            }</span>
+
+<span class="nc" id="L1478">            data      = readPage(0);</span>
+<span class="nc" id="L1479">            state [2] = data [2];</span>
+<span class="nc" id="L1480">            state [1] = data [1];</span>
+        } else {
+<span class="nc" id="L1482">            throw new OneWireException(address, &quot;OneWireContainer26-Device not found&quot;);</span>
+        }
+<span class="nc" id="L1484">    }</span>
+
+    //--------
+    //-------- Temperature 'get' Methods
+    //--------
+
+    /**
+     * This method extracts the Temperature Value in degrees C from the
+     * state data retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state device state
+     *
+     * @return temperature in degrees C from the last &lt;CODE&gt;doTemperature()&lt;/CODE&gt;
+     */
+    @Override
+    public double getTemperature(byte[] state) {
+<span class="nc" id="L1500">        double temp = (( short ) ((state [2] &lt;&lt; 8) | (state [1] &amp; 0x0ff)) &gt;&gt; 3) * RESOLUTION_TEMPERATURE;</span>
+
+<span class="nc" id="L1502">        return temp;</span>
+    }
+
+    /**
+     * This method extracts the specified Alarm value in degrees C from the
+     * state data retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param alarmType alarm trip type &lt;CODE&gt;ALARM_HIGH (1)
+     *               or ALARM_LOW (0)&lt;/CODE&gt;
+     * @param state device state
+     *
+     * @return alarm trip temperature in degrees C
+     *
+     * @throws OneWireException Device does not have temperature alarms
+     */
+    @Override
+    public double getTemperatureAlarm(int alarmType, byte[] state) throws OneWireException {
+<span class="nc" id="L1519">        throw new OneWireException(address, &quot;This device does not have temperature alarms&quot;);</span>
+    }
+
+    /**
+     * This method extracts the current resolution in degrees C from the
+     * state data retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state device state
+     *
+     * @return temperature resolution in degrees C
+     */
+    @Override
+    public double getTemperatureResolution (byte[] state) {
+<span class="nc" id="L1532">        return RESOLUTION_TEMPERATURE;</span>
+    }
+
+    //--------
+    //-------- Temperature 'set' Methods
+    //--------
+
+    /**
+     * This method sets the alarm value in degrees C in the
+     * provided state data.  Use the method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; with
+     * this data to finalize the change to the device.
+     *
+     * @param alarmType alarm type &lt;CODE&gt;ALARM_HIGH (1)
+     *               or ALARM_LOW (0)&lt;/CODE&gt;
+     * @param alarmValue trip value in degrees C
+     * @param state device state
+     *
+     * @throws OneWireException Device does not have temperature alarms
+     */
+    @Override
+    public void setTemperatureAlarm(int alarmType, double alarmValue, byte[] state) throws OneWireException, OneWireIOException {
+<span class="nc" id="L1553">        throw new OneWireException(address, &quot;This device does not have temperature alarms&quot;);</span>
+    }
+
+    /**
+     * This method sets the current resolution in degrees C in the
+     * provided state data.   Use the method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; with
+     * this data to finalize the change to the device.
+     *
+     * @param resolution temperature resolution in degrees C
+     * @param state device state
+     *
+     * @throws OneWireIOException Error writting data
+     * @throws OneWireException Could not find part
+     */
+    @Override
+    public void setTemperatureResolution(double resolution, byte[] state) throws OneWireException, OneWireIOException {
+
+        //airball, only one resolution!!!
+<span class="nc" id="L1571">        throw new OneWireException(address, &quot;One resolution available only: &quot; + RESOLUTION_TEMPERATURE);</span>
+    }
+
+    //--------
+    //-------- Clock Feature methods
+    //--------
+
+    /**
+     * Query to see if the clock has an alarm feature.
+     *
+     * @return true if real-time-clock has an alarm
+     */
+    @Override
+    public boolean hasClockAlarm() {
+<span class="nc" id="L1585">        return false;</span>
+    }
+
+    /**
+     * Query to see if the clock can be disabled.  See
+     * the methods &lt;CODE&gt;isClockRunning()&lt;/CODE&gt; and &lt;CODE&gt;setClockRunEnable()&lt;/CODE&gt;.
+     *
+     * @return true if the clock can be enabled and
+     * disabled
+     */
+    @Override
+    public boolean canDisableClock() {
+<span class="nc" id="L1597">        return false;</span>
+    }
+
+    /**
+     * Query to get the clock resolution in milliseconds
+     *
+     * @return clock resolution in milliseconds.
+     */
+    @Override
+    public long getClockResolution() {
+<span class="nc" id="L1607">        return 1000;</span>
+    }
+
+    //--------
+    //-------- Clock 'get' Methods
+    //--------
+
+    /**
+     * This method extracts the Clock Value in milliseconds from the
+     * state data retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state  device state.
+     *
+     * @return time in milliseconds that have occurred since 1970.
+     */
+    @Override
+    public long getClock(byte[] state) {
+<span class="nc" id="L1624">        return getTime(state, 8) * 1000;</span>
+    }
+
+    /**
+     * This method extracts the Clock Alarm Value from the provided
+     * state data retrieved from the &lt;CODE&gt;readDevice()&lt;/CODE&gt;
+     * method.
+     *
+     * @param state device state
+     *
+     * @return time in milliseconds that have the clock alarm is set to.
+     *
+     * @throws OneWireException Device does not have clock alarm.
+     */
+    @Override
+    public long getClockAlarm(byte[] state) throws OneWireException {
+<span class="nc" id="L1640">        throw new OneWireException(address, &quot;This device does not have a clock alarm!&quot;);</span>
+    }
+
+    /**
+     * This method checks if the Clock Alarm flag has been set
+     * from the state data retrieved from the
+     * &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state device state
+     *
+     * @return true if clock is alarming
+     */
+    @Override
+    public boolean isClockAlarming(byte[] state) {
+<span class="nc" id="L1654">        return false;</span>
+    }
+
+    /**
+     * This method checks if the Clock Alarm is enabled
+     * from the provided state data retrieved from the
+     * &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state device state
+     *
+     * @return true if clock alarm is enabled
+     */
+    @Override
+    public boolean isClockAlarmEnabled(byte[] state) {
+<span class="nc" id="L1668">        return false;</span>
+    }
+
+    /**
+     * This method checks if the device's oscilator is enabled.  The clock
+     * will not increment if the clock is not enabled.
+     * This value is read from the provided state data retrieved from the
+     * &lt;CODE&gt;readDevice()&lt;/CODE&gt; method.
+     *
+     * @param state device state
+     *
+     * @return true if clock is running
+     */
+    @Override
+    public boolean isClockRunning(byte[] state) {
+<span class="nc" id="L1683">        return true;</span>
+    }
+
+    //--------
+    //-------- Clock 'set' Methods
+    //--------
+
+    /**
+     * This method sets the Clock time in the provided state data
+     * Use the method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; with
+     * this data to finalize the change to the device.
+     *
+     * @param time new clock setting in milliseconds
+     * @param state device state
+     */
+    @Override
+    public synchronized void setClock(long time, byte[] state) {
+
+<span class="nc" id="L1701">        time       = time / 1000;   //convert to seconds</span>
+<span class="nc" id="L1702">        state [8]  = ( byte ) time;</span>
+<span class="nc" id="L1703">        state [9]  = ( byte ) (time &gt;&gt; 8);</span>
+<span class="nc" id="L1704">        state [10] = ( byte ) (time &gt;&gt; 16);</span>
+<span class="nc" id="L1705">        state [11] = ( byte ) (time &gt;&gt; 24);</span>
+<span class="nc" id="L1706">    }</span>
+
+    /**
+     * This method sets the Clock Alarm in the provided state
+     * data.  Use the method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; with
+     * this data to finalize the change to the device.
+     *
+     * @param time new clock setting in mlliseconds
+     * @param state device state
+     *
+     * @throws OneWireException Device does not support clock alarm
+     */
+    @Override
+    public synchronized void setClockAlarm(long time, byte[] state) throws OneWireException {
+<span class="nc" id="L1720">        throw new OneWireException(address, &quot;This device does not have a clock alarm!&quot;);</span>
+    }
+
+    /**
+     * This method sets the oscillator enable to the specified
+     * value. Use the method &lt;CODE&gt;writeDevice()&lt;/CODE&gt; with this
+     * data to finalize the change to the device.
+     *
+     * @param runEnable true to enable clock oscillator
+     * @param state device state
+     *
+     * @throws OneWireException Device does not support disabled clock
+     */
+    @Override
+    public void setClockRunEnable(boolean runEnable, byte[] state) throws OneWireException {
+<span class="nc bnc" id="L1735" title="All 2 branches missed.">        if (!runEnable) {</span>
+<span class="nc" id="L1736">            throw new OneWireException(address, &quot;This device's clock cannot be disabled!&quot;);</span>
+        }
+<span class="nc" id="L1738">    }</span>
+
+    /**
+     * This method sets the Clock Alarm enable. Use the method
+     * &lt;CODE&gt;writeDevice()&lt;/CODE&gt; with this data to finalize the
+     * change to the device.
+     *
+     * @param  alarmEnable - true to enable clock alarm
+     * @param state device state
+     *
+     * @throws OneWireException Device does not support clock alarm
+     */
+    @Override
+    public void setClockAlarmEnable(boolean alarmEnable, byte[] state) throws OneWireException {
+<span class="nc" id="L1752">        throw new OneWireException(address, &quot;This device does not have a clock alarm!&quot;);</span>
+    }
+
+    //--------
+    //-------- Humidity Feature methods
+    //--------
+
+    /**
+     * Checks to see if humidity value given is a 'relative' humidity value.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this &lt;code&gt;HumidityContainer&lt;/code&gt;
+     *         provides a relative humidity reading
+     *
+     * @see    #getHumidityResolution
+     * @see    #getHumidityResolutions
+     * @see    #setHumidityResolution
+     */
+    @Override
+    public boolean isRelative() {
+<span class="nc" id="L1771">        return true;</span>
+    }
+
+    /**
+     * Checks to see if this Humidity measuring device has high/low
+     * trip alarms.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this &lt;code&gt;HumidityContainer&lt;/code&gt;
+     *         has high/low trip alarms
+     *
+     * @see    #getHumidityAlarm
+     * @see    #setHumidityAlarm
+     */
+    @Override
+    public boolean hasHumidityAlarms() {
+<span class="nc" id="L1786">        return false;</span>
+    }
+
+    /**
+     * Checks to see if this device has selectable Humidity resolution.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this &lt;code&gt;HumidityContainer&lt;/code&gt;
+     *         has selectable Humidity resolution
+     *
+     * @see    #getHumidityResolution
+     * @see    #getHumidityResolutions
+     * @see    #setHumidityResolution
+     */
+    @Override
+    public boolean hasSelectableHumidityResolution() {
+<span class="nc" id="L1801">        return false;</span>
+    }
+
+    /**
+     * Get an array of available Humidity resolutions in percent humidity (0 to 100).
+     *
+     * @return byte array of available Humidity resolutions in percent with
+     *         minimum resolution as the first element and maximum resolution
+     *         as the last element.
+     *
+     * @see    #hasSelectableHumidityResolution
+     * @see    #getHumidityResolution
+     * @see    #setHumidityResolution
+     */
+    @Override
+    public double[] getHumidityResolutions() {
+
+<span class="nc" id="L1818">        return new double[] { RESOLUTION_HUMIDIY };</span>
+    }
+
+    /**
+     * Gets the Humidity alarm resolution in percent.
+     *
+     * @return Humidity alarm resolution in percent for this 1-wire device
+     *
+     * @throws OneWireException         Device does not support Humidity
+     *                                  alarms
+     *
+     * @see    #hasHumidityAlarms
+     * @see    #getHumidityAlarm
+     * @see    #setHumidityAlarm
+     *
+     */
+    @Override
+    public double getHumidityAlarmResolution() throws OneWireException {
+<span class="nc" id="L1836">        throw new OneWireException(address, &quot;This device does not have a humidity alarm!&quot;);</span>
+    }
+
+    //--------
+    //-------- Humidity I/O Methods
+    //--------
+
+    /**
+     * Performs a Humidity conversion.
+     *
+     * @param  state byte array with device state information
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from a 1-Wire device.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    @Override
+    public synchronized void doHumidityConvert(byte[] state) throws OneWireIOException, OneWireException {
+        // do temp convert
+<span class="nc" id="L1858">        doTemperatureConvert(state);</span>
+
+        // do VDD for supply voltage
+<span class="nc" id="L1861">        doADConvert(CHANNEL_VDD,state);</span>
+
+        // do VAD for sensor voltage
+<span class="nc" id="L1864">        doADConvert(CHANNEL_VAD,state);</span>
+<span class="nc" id="L1865">    }</span>
+
+    //--------
+    //-------- Humidity 'get' Methods
+    //--------
+
+    /**
+     * Gets the humidity expressed as a percent value (0.0 to 100.0) of humidity.
+     *
+     * @param  state byte array with device state information
+     * @return humidity expressed as a percent
+     *
+     * @see    #hasSelectableHumidityResolution
+     * @see    #getHumidityResolution
+     * @see    #setHumidityResolution
+     */
+    @Override
+    public double getHumidity(byte[] state) {
+
+<span class="nc" id="L1884">        double temp=0,vdd=0,vad=0,rh=0;</span>
+
+        try {
+            // read the temperature
+<span class="nc" id="L1888">            temp = getTemperature(state);</span>
+
+            // read the supply voltage
+<span class="nc" id="L1891">            vdd = getADVoltage(CHANNEL_VDD,state);</span>
+
+            // read the sample voltage
+<span class="nc" id="L1894">            vad = getADVoltage(CHANNEL_VAD,state);</span>
+<span class="nc" id="L1895">        } catch (OneWireException ex) {</span>
+            // know from this implementatin that this will never happen
+
+<span class="nc" id="L1898">            logger.error(&quot;Yeah, right, it will never happen... returning zero humidity&quot;, ex);</span>
+
+<span class="nc" id="L1900">            return 0.0;</span>
+<span class="nc" id="L1901">        }</span>
+
+        // do calculation and check for out of range values
+<span class="nc bnc" id="L1904" title="All 2 branches missed.">        if (vdd != 0) {</span>
+<span class="nc" id="L1905">            rh = (((vad/vdd) - 0.16)/0.0062)/(1.0546 - 0.00216 * temp);</span>
+        }
+
+<span class="nc bnc" id="L1908" title="All 2 branches missed.">        if (rh &lt; 0.0) {</span>
+<span class="nc" id="L1909">            rh = 0.0;</span>
+<span class="nc bnc" id="L1910" title="All 2 branches missed.">        } else if (rh &gt; 100.0) {</span>
+<span class="nc" id="L1911">            rh = 100.0;</span>
+        }
+
+<span class="nc" id="L1914">        return rh;</span>
+    }
+
+    /**
+     * Gets the current Humidity resolution in percent from the
+     * &lt;code&gt;state&lt;/code&gt; data retrieved from the &lt;code&gt;readDevice()&lt;/code&gt;
+     * method.
+     *
+     * @param  state byte array with device state information
+     *
+     * @return Humidity resolution in percent for this 1-wire device
+     *
+     * @see    #hasSelectableHumidityResolution
+     * @see    #getHumidityResolutions
+     * @see    #setHumidityResolution
+     */
+    @Override
+    public double getHumidityResolution(byte[] state) {
+<span class="nc" id="L1932">        return RESOLUTION_HUMIDIY;</span>
+    }
+
+    /**
+     * Gets the specified Humidity alarm value in percent from the
+     * &lt;code&gt;state&lt;/code&gt; data retrieved from the
+     * &lt;code&gt;readDevice()&lt;/code&gt; method.
+     *
+     * @param  alarmType valid value: &lt;code&gt;ALARM_HIGH&lt;/code&gt; or
+     *                   &lt;code&gt;ALARM_LOW&lt;/code&gt;
+     * @param  state     byte array with device state information
+     *
+     * @return Humidity alarm trip values in percent for this 1-wire device
+     *
+     * @throws OneWireException         Device does not support Humidity
+     *                                  alarms
+     *
+     * @see    #hasHumidityAlarms
+     * @see    #setHumidityAlarm
+     */
+    @Override
+    public double getHumidityAlarm(int alarmType, byte[] state) throws OneWireException {
+<span class="nc" id="L1954">        throw new OneWireException(address, &quot;This device does not have a humidity alarm!&quot;);</span>
+    }
+
+    //--------
+    //-------- Humidity 'set' Methods
+    //--------
+
+    /**
+     * Sets the Humidity alarm value in percent in the provided
+     * &lt;code&gt;state&lt;/code&gt; data.
+     * Use the method &lt;code&gt;writeDevice()&lt;/code&gt; with
+     * this data to finalize the change to the device.
+     *
+     * @param  alarmType  valid value: &lt;code&gt;ALARM_HIGH&lt;/code&gt; or
+     *                    &lt;code&gt;ALARM_LOW&lt;/code&gt;
+     * @param  alarmValue alarm trip value in percent
+     * @param  state      byte array with device state information
+     *
+     * @throws OneWireException         Device does not support Humidity
+     *                                  alarms
+     *
+     * @see    #hasHumidityAlarms
+     * @see    #getHumidityAlarm
+     */
+    @Override
+    public void setHumidityAlarm(int alarmType, double alarmValue, byte[] state) throws OneWireException {
+<span class="nc" id="L1980">        throw new OneWireException(address, &quot;This device does not have a humidity alarm!&quot;);</span>
+    }
+
+    /**
+     * Sets the current Humidity resolution in percent in the provided
+     * &lt;code&gt;state&lt;/code&gt; data.   Use the method &lt;code&gt;writeDevice()&lt;/code&gt;
+     * with this data to finalize the change to the device.
+     *
+     * @param  resolution Humidity resolution in percent
+     * @param  state      byte array with device state information
+     *
+     * @throws OneWireException         Device does not support selectable
+     *                                  Humidity resolution
+     *
+     * @see    #hasSelectableHumidityResolution
+     * @see    #getHumidityResolution
+     * @see    #getHumidityResolutions
+     */
+    @Override
+    public void setHumidityResolution(double resolution, byte[] state) throws OneWireException {
+<span class="nc" id="L2000">        throw new OneWireException(address, &quot;This device does not have selectable humidity resolution!&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

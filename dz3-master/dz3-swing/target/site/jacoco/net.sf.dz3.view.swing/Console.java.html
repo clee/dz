@@ -1,0 +1,434 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Console.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing</a> &gt; <span class="el_source">Console.java</span></div><h1>Console.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing;
+
+import java.awt.Container;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import javax.swing.JComponent;
+import javax.swing.JFrame;
+import javax.swing.WindowConstants;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.DamperController;
+import net.sf.dz3.device.model.ThermostatController;
+import net.sf.dz3.device.model.Unit;
+import net.sf.dz3.device.model.ZoneController;
+import net.sf.dz3.device.model.impl.ThermostatModel;
+import net.sf.dz3.device.sensor.TemperatureSensor;
+import net.sf.dz3.scheduler.Scheduler;
+import net.sf.dz3.view.Connector;
+import net.sf.dz3.view.ConnectorFactory;
+import net.sf.dz3.view.swing.thermostat.ThermostatFactory;
+import net.sf.dz3.view.swing.thermostat.ZonePanel;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Entry point into the user interface implemented with Swing.
+ *
+ * This object is supposed to be instantiated via Spring configuration file, with objects
+ * that are supposed to be displayed being present in a set passed to the constructor.
+ *
+ * Valid object types are:
+ *
+ * - Sensor ({@link TemperatureSensor temperature}, humidity, pressure);
+ * - {@link ThermostatController};
+ * - {@link ZoneController};
+ * - {@link Unit};
+ * - {@link DamperController},
+ * - {@link Scheduler}.
+ *
+ * All others will be ignored with a log message produced. Panel rendering is happening as a part of
+ * {@link #activate()}.
+ *
+ * {@code init-method=&quot;activate&quot;} attribute must be used in Spring bean definition, otherwise
+ * the panel will not display.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class Console extends Connector&lt;JComponent&gt; {
+
+    private final TemperatureUnit defaultUnit;
+
+    /**
+     * Application main frame.
+     *
+     * Shown in {@link activate()}, destroyed again in {@link #deactivate()} in a way that allows it
+     * to be completely rebuilt from scratch again.
+     */
+    private JFrame mainFrame;
+
+    private ZonePanel zonePanel;
+
+    /**
+     * The scheduler, or {@code null} if one wasn't found.
+     */
+    private Scheduler scheduler;
+
+    /**
+     * Default constructor.
+     *
+     * This one will produce an empty console panel.
+     */
+    public Console() {
+<span class="nc" id="L84">        this(new HashSet&lt;Object&gt;(), &quot;C&quot;);</span>
+<span class="nc" id="L85">    }</span>
+
+    /**
+     * Create an instance and fill it up with objects to display.
+     *
+     * @param initSet Objects to display.
+     */
+    public Console(Set&lt;Object&gt; initSet) {
+<span class="nc" id="L93">        this(initSet, &quot;C&quot;);</span>
+<span class="nc" id="L94">    }</span>
+
+    /**
+     * Create an instance and fill it up with objects to display.
+     *
+     * @param initSet Objects to display.
+     * @param Unit Initial temperature unit to display. Can be either {@code &quot;C.*&quot;} for Celsius, or {@code &quot;F.*&quot;} for Fahrenheit.
+     */
+    public Console(Set&lt;Object&gt; initSet, String unit) {
+
+<span class="nc" id="L104">        super(initSet);</span>
+<span class="nc" id="L105">        this.defaultUnit = TemperatureUnit.resolve(unit);</span>
+
+<span class="nc" id="L107">        register(ThermostatModel.class, new ThermostatFactory(this.defaultUnit));</span>
+<span class="nc" id="L108">    }</span>
+
+    /**
+     * Create an instance and fill it up with objects to display,
+     * using custom factory set.
+     *
+     * @param initSet Objects to display.
+     * @param factorySet Set of {@link ComponentFactory} objects to use for component creation.
+     */
+    public Console(Set&lt;Object&gt; initSet, Set&lt;ConnectorFactory&lt;JComponent&gt;&gt; factorySet) {
+<span class="nc" id="L118">        this(initSet, factorySet, &quot;C&quot;);</span>
+<span class="nc" id="L119">    }</span>
+
+    /**
+     * Create an instance and fill it up with objects to display,
+     * using custom factory set.
+     *
+     * @param initSet Objects to display.
+     * @param factorySet Set of {@link ComponentFactory} objects to use for component creation.
+     * @param Unit Initial temperature unit to display. Can be either {@code &quot;C.*&quot;} for Celsius, or {@code &quot;F.*&quot;} for Fahrenheit.
+     */
+    public Console(Set&lt;Object&gt; initSet, Set&lt;ConnectorFactory&lt;JComponent&gt;&gt; factorySet, String unit) {
+
+<span class="nc" id="L131">        super(initSet, factorySet);</span>
+<span class="nc" id="L132">        this.defaultUnit = TemperatureUnit.resolve(unit);</span>
+<span class="nc" id="L133">    }</span>
+
+
+    /**
+     * Show the console.
+     *
+     * @deprecated Use {@link Connector#activate()} instead.
+     */
+    @Deprecated
+    public synchronized void show() {
+<span class="nc" id="L143">        logger.warn(&quot;use 'init-method=\&quot;activate\&quot;' instead of 'init-method=\&quot;show\&quot;'&quot;);</span>
+<span class="nc" id="L144">        activate();</span>
+<span class="nc" id="L145">    }</span>
+
+    @Override
+    protected void activate2() {
+
+<span class="nc" id="L150">        ThreadContext.push(&quot;activate2&quot;);</span>
+
+        try {
+
+<span class="nc" id="L154">            createFrame();</span>
+
+<span class="nc" id="L156">            mainFrame.setSize(screenSizes[screenSizeOffset].displaySize);</span>
+<span class="nc" id="L157">            mainFrame.setVisible(true);</span>
+
+        } finally {
+<span class="nc" id="L160">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L162">    }</span>
+
+    /**
+     * Figure out whether the scheduler was passed in as an argument, and assign
+     * it to {@link #scheduler} if so.
+     *
+     * Ignore multiple scheduler instances and use only the first one.
+     */
+    private void findScheduler() {
+
+<span class="nc" id="L172">        ThreadContext.push(&quot;findScheduler&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            for (Iterator&lt;Object&gt; i = getInitSet().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L178">                Object initObject = i.next();</span>
+
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (initObject instanceof Scheduler) {</span>
+
+<span class="nc" id="L182">                    this.scheduler = (Scheduler) initObject;</span>
+<span class="nc" id="L183">                    logger.debug(&quot;found&quot;);</span>
+<span class="nc" id="L184">                    return;</span>
+                }
+<span class="nc" id="L186">            }</span>
+
+<span class="nc" id="L188">            logger.warn(&quot;No scheduler was given, is this intentional?&quot;);</span>
+
+        } finally {
+<span class="nc" id="L191">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L193">    }</span>
+
+    /**
+     * Initialize the {@link #mainFrame} and stuff it with components,
+     * but don't make it visible just yet.
+     */
+    private void createFrame() {
+
+<span class="nc" id="L201">        ThreadContext.push(&quot;createFrame&quot;);</span>
+
+        try {
+
+<span class="nc" id="L205">            mainFrame = new JFrame(&quot;DIY Zoning Console&quot;);</span>
+<span class="nc" id="L206">            mainFrame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);</span>
+
+<span class="nc" id="L208">            Container display = mainFrame.getContentPane();</span>
+
+<span class="nc" id="L210">            display.setBackground(ColorScheme.offMap.background);</span>
+
+<span class="nc" id="L212">            GridBagLayout layout = new GridBagLayout();</span>
+<span class="nc" id="L213">            GridBagConstraints cs = new GridBagConstraints();</span>
+
+<span class="nc" id="L215">            display.setLayout(layout);</span>
+
+<span class="nc" id="L217">            zonePanel = new ZonePanel(getComponentMap());</span>
+
+<span class="nc" id="L219">            cs.fill = GridBagConstraints.BOTH;</span>
+<span class="nc" id="L220">            cs.gridx = 0;</span>
+<span class="nc" id="L221">            cs.gridy = 0;</span>
+<span class="nc" id="L222">            cs.gridwidth = GridBagConstraints.REMAINDER;</span>
+<span class="nc" id="L223">            cs.gridheight = GridBagConstraints.REMAINDER;</span>
+<span class="nc" id="L224">            cs.weightx = 1;</span>
+<span class="nc" id="L225">            cs.weighty = 1;</span>
+
+<span class="nc" id="L227">            layout.setConstraints(zonePanel, cs);</span>
+<span class="nc" id="L228">            display.add(zonePanel);</span>
+
+<span class="nc" id="L230">            display.setFocusable(true);</span>
+<span class="nc" id="L231">            display.addKeyListener(new ResizeKeyListener());</span>
+<span class="nc" id="L232">            display.addKeyListener(zonePanel);</span>
+
+        } finally {
+<span class="nc" id="L235">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L237">    }</span>
+
+    @Override
+    protected void deactivate2() {
+
+<span class="nc" id="L242">        throw new UnsupportedOperationException(&quot;Not Implenented&quot;);</span>
+    }
+
+    @JmxAttribute(description = &quot;Is the console currently visible&quot;)
+    public synchronized boolean isVisible() {
+<span class="nc bnc" id="L247" title="All 2 branches missed.">        return mainFrame != null;</span>
+    }
+
+    /**
+     * Show or hide the console.
+     *
+     * @param visible {@code true} if the console needs to be visible, otherwise {@code false}.
+     */
+    public synchronized void setVisible(boolean visible) {
+
+<span class="nc" id="L257">        ThreadContext.push(&quot;setVisible&quot;);</span>
+
+        try {
+
+<span class="nc" id="L261">            logger.info(&quot;requested visible={}&quot;, visible);</span>
+
+<span class="nc bnc" id="L263" title="All 4 branches missed.">            if (visible &amp;&amp; mainFrame != null) {</span>
+
+<span class="nc" id="L265">                logger.debug(&quot;Already visible&quot;);</span>
+<span class="nc" id="L266">                return;</span>
+            }
+
+<span class="nc bnc" id="L269" title="All 4 branches missed.">            if (!visible &amp;&amp; mainFrame == null) {</span>
+
+<span class="nc" id="L271">                logger.debug(&quot;Already hidden&quot;);</span>
+<span class="nc" id="L272">                return;</span>
+            }
+
+<span class="nc bnc" id="L275" title="All 2 branches missed.">            if (visible) {</span>
+<span class="nc" id="L276">                activate();</span>
+            } else {
+<span class="nc" id="L278">                deactivate();</span>
+            }
+
+        } finally {
+<span class="nc" id="L282">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L284">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L292">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="nc" id="L294">                getClass().getSimpleName(),</span>
+<span class="nc" id="L295">                Integer.toHexString(hashCode()),</span>
+                &quot;Swing Console&quot;);
+    }
+
+    private static final String FONT_NAME = &quot;Lucida Bright&quot;;
+
+<span class="nc" id="L301">    private final Font font20 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 20);</span>
+<span class="nc" id="L302">    private final Font font24 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 24);</span>
+<span class="nc" id="L303">    @SuppressWarnings(&quot;unused&quot;)</span>
+    private final Font font30 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 30);
+<span class="nc" id="L305">    private final Font font36 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 36);</span>
+<span class="nc" id="L306">    @SuppressWarnings(&quot;unused&quot;)</span>
+    private final Font fontBold36 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 36);
+<span class="nc" id="L308">    private final Font fontBold48 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 48);</span>
+<span class="nc" id="L309">    private final Font fontBold72 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 72);</span>
+<span class="nc" id="L310">    private final Font fontBold96 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 96);</span>
+<span class="nc" id="L311">    private final Font fontBold120 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 120);</span>
+<span class="nc" id="L312">    private final Font fontBold144 = new Font(FONT_NAME, Font.ROMAN_BASELINE, 144);</span>
+
+    /**
+     * Possible screen sizes.
+     */
+<span class="nc" id="L317">    private ScreenDescriptor[] screenSizes = {</span>
+            new ScreenDescriptor(&quot;QVGA&quot;, new Dimension(240, 320), fontBold72, fontBold48, font20),
+            new ScreenDescriptor(&quot;WQVGA&quot;, new Dimension(240, 400), fontBold72, fontBold48, font20),
+            new ScreenDescriptor(&quot;FWQVGA&quot;, new Dimension(240, 432), fontBold72, fontBold48, font20),
+            new ScreenDescriptor(&quot;HVGA&quot;, new Dimension(320, 480), fontBold96, fontBold72, font24),
+            new ScreenDescriptor(&quot;WVGA800&quot;, new Dimension(480, 800), fontBold144, fontBold120, font36),
+            new ScreenDescriptor(&quot;WVGA854&quot;, new Dimension(480, 854), fontBold144, fontBold120, font36)
+    };
+
+    /**
+     * Offset into {@link #screenSizes}, default is 5 (WVGA854).
+     */
+<span class="nc" id="L329">    private int screenSizeOffset = 5;</span>
+
+<span class="nc" id="L331">    private class ResizeKeyListener implements KeyListener {</span>
+
+
+        @Override
+        public void keyPressed(KeyEvent e) {
+
+<span class="nc" id="L337">            ThreadContext.push(&quot;keyPressed&quot;);</span>
+
+            try {
+
+<span class="nc bnc" id="L341" title="All 3 branches missed.">                switch (e.getKeyChar()) {</span>
+
+                case '-':
+
+<span class="nc" id="L345">                    reduce();</span>
+<span class="nc" id="L346">                    break;</span>
+
+                case '+':
+
+<span class="nc" id="L350">                    enlarge();</span>
+<span class="nc" id="L351">                    break;</span>
+
+                default:
+
+                    // Not our key, do nothing
+                }
+
+            } finally {
+<span class="nc" id="L359">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L361">        }</span>
+
+        /**
+         * Cycle display size to next smaller (and possibly roll under).
+         */
+        private void reduce() {
+<span class="nc" id="L367">            int sizeOffset = screenSizeOffset - 1;</span>
+
+<span class="nc bnc" id="L369" title="All 2 branches missed.">            sizeOffset = sizeOffset &lt; 0 ? screenSizes.length - 1 : sizeOffset;</span>
+<span class="nc" id="L370">            screenSizeOffset = sizeOffset;</span>
+
+<span class="nc" id="L372">            setScreenSize(screenSizes[screenSizeOffset]);</span>
+<span class="nc" id="L373">        }</span>
+
+        /**
+         * Cycle display size to next bigger (and possibly roll over).
+         */
+        private void enlarge() {
+<span class="nc" id="L379">            int sizeOffset = screenSizeOffset + 1;</span>
+
+<span class="nc bnc" id="L381" title="All 2 branches missed.">            sizeOffset = sizeOffset &gt;= screenSizes.length ? 0 : sizeOffset;</span>
+<span class="nc" id="L382">            screenSizeOffset = sizeOffset;</span>
+
+<span class="nc" id="L384">            setScreenSize(screenSizes[screenSizeOffset]);</span>
+<span class="nc" id="L385">        }</span>
+
+        @Override
+        public void keyReleased(KeyEvent e) {
+
+            // Do nothing
+<span class="nc" id="L391">        }</span>
+
+        @Override
+        public void keyTyped(KeyEvent e) {
+
+            // Do nothing
+<span class="nc" id="L397">        }</span>
+
+        private void setScreenSize(ScreenDescriptor screenDescriptor) {
+
+<span class="nc" id="L401">            ThreadContext.push(&quot;setScreenSize&quot;);</span>
+
+            try {
+
+<span class="nc" id="L405">                logger.info(&quot;Setting {} ({}x{})&quot;,</span>
+                        screenDescriptor.name,
+<span class="nc" id="L407">                        screenDescriptor.displaySize.width,</span>
+<span class="nc" id="L408">                        screenDescriptor.displaySize.height);</span>
+
+<span class="nc" id="L410">                zonePanel.setSize(screenDescriptor);</span>
+<span class="nc" id="L411">                mainFrame.setSize(screenDescriptor.displaySize);</span>
+<span class="nc" id="L412">                mainFrame.invalidate();</span>
+
+            } finally {
+<span class="nc" id="L415">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L417">        }</span>
+
+    }
+
+    @Override
+    protected Map&lt;String, Object&gt; createContext() {
+
+<span class="nc" id="L424">        Map&lt;String, Object&gt; context = new TreeMap&lt;&gt;();</span>
+
+<span class="nc" id="L426">        findScheduler();</span>
+
+<span class="nc" id="L428">        context.put(&quot;scheduler&quot;, scheduler);</span>
+<span class="nc" id="L429">        context.put(&quot;screen descriptor&quot;, screenSizes[screenSizeOffset]);</span>
+
+<span class="nc" id="L431">        return context;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

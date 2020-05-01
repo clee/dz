@@ -1,0 +1,782 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireContainer29.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.container</a> &gt; <span class="el_source">OneWireContainer29.java</span></div><h1>OneWireContainer29.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.container;
+
+import java.util.Enumeration;
+import java.util.Vector;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+
+/**
+ * &lt;P&gt; 1-Wire&amp;#174 container for a Single Addressable Switch, DS2408.  This container
+ * encapsulates the functionality of the 1-Wire family type &lt;B&gt;29&lt;/B&gt; (hex)&lt;/P&gt;
+ *
+ * &lt;H3&gt; Features &lt;/H3&gt;
+ * &lt;UL&gt;
+ *   &lt;LI&gt; Eight channels of programmable I/O with open-drain outputs
+ *   &lt;LI&gt; Logic level sensing of the PIO pin can be sensed
+ *   &lt;LI&gt; Multiple DS2408's can be identified on a common 1-Wire bus and operated
+ *        independently.
+ *   &lt;LI&gt; Supports 1-Wire Conditional Search command with response controlled by
+ *        programmable PIO conditions
+ *   &lt;LI&gt; Supports Overdrive mode which boosts communication speed up to 142k bits
+ *        per second.
+ * &lt;/UL&gt;
+ *
+ * &lt;H3&gt; Usage &lt;/H3&gt;
+ *
+ *
+ * @see com.dalsemi.onewire.container.OneWireSensor
+ * @see com.dalsemi.onewire.container.SwitchContainer
+ * @see com.dalsemi.onewire.container.OneWireContainer
+ *
+ *  @version    1.00, 01 Jun 2002
+ *  @author     JPE
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class OneWireContainer29 extends OneWireContainer implements SwitchContainer {
+
+    //--------
+    //-------- Variables
+    //--------
+
+    /**
+     * Status memory bank of the DS2408 for memory map registers
+     */
+    private MemoryBankEEPROMstatus map;
+
+    /**
+     * Status memory bank of the DS2408 for the conditional search
+     */
+    private MemoryBankEEPROMstatus search;
+
+    /**
+     * Reset the activity latches
+     */
+    public static final byte RESET_ACTIVITY_LATCHES = (byte) 0xC3;
+
+    /**
+     * Used for 0xFF array
+     */
+<span class="nc" id="L88">    private byte[] FF = new byte[8];</span>
+
+    //--------
+    //-------- Constructors
+    //--------
+
+    /**
+     * Creates a new &lt;code&gt;OneWireContainer&lt;/code&gt; for communication with a DS2408.
+     * Note that the method &lt;code&gt;setupContainer(com.dalsemi.onewire.adapter.DSPortAdapter,byte[])&lt;/code&gt;
+     * must be called to set the correct &lt;code&gt;DSPortAdapter&lt;/code&gt; device address.
+     *
+     * @see com.dalsemi.onewire.container.OneWireContainer#setupContainer(com.dalsemi.onewire.adapter.DSPortAdapter,byte[]) setupContainer(DSPortAdapter,byte[])
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,byte[]) OneWireContainer29(DSPortAdapter,byte[])
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,long) OneWireContainer29(DSPortAdapter,long)
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,java.lang.String) OneWireContainer29(DSPortAdapter,String)
+     */
+<span class="nc" id="L104">    public OneWireContainer29() {</span>
+
+<span class="nc" id="L106">        initmem();</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        for(int i=0; i&lt;FF.length; i++) {</span>
+<span class="nc" id="L109">            FF[i] = (byte) 0x0FF;</span>
+        }
+<span class="nc" id="L111">    }</span>
+
+    /**
+     * Creates a new &lt;code&gt;OneWireContainer&lt;/code&gt; for communication with a DS2408.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this 1-Wire device
+     * @param  newAddress        address of this DS2408
+     *
+     * @see #OneWireContainer29()
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,long) OneWireContainer29(DSPortAdapter,long)
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,java.lang.String) OneWireContainer29(DSPortAdapter,String)
+     */
+    public OneWireContainer29(DSPortAdapter sourceAdapter, byte[] newAddress) {
+<span class="nc" id="L125">        super(sourceAdapter, newAddress);</span>
+
+<span class="nc" id="L127">        initmem();</span>
+
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        for(int i=0; i&lt;FF.length; i++) {</span>
+<span class="nc" id="L130">            FF[i] = (byte) 0x0FF;</span>
+        }
+<span class="nc" id="L132">    }</span>
+
+    /**
+     * Creates a new &lt;code&gt;OneWireContainer&lt;/code&gt; for communication with a DS2408.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this 1-Wire device
+     * @param  newAddress        address of this DS2408
+     *
+     * @see #OneWireContainer29()
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,byte[]) OneWireContainer29(DSPortAdapter,byte[])
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,java.lang.String) OneWireContainer29(DSPortAdapter,String)
+     */
+    public OneWireContainer29(DSPortAdapter sourceAdapter, long newAddress) {
+<span class="nc" id="L146">        super(sourceAdapter, newAddress);</span>
+
+<span class="nc" id="L148">        initmem();</span>
+
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        for(int i=0; i&lt;FF.length; i++)</span>
+<span class="nc" id="L151">            FF[i] = (byte) 0x0FF;</span>
+<span class="nc" id="L152">    }</span>
+
+    /**
+     * Creates a new &lt;code&gt;OneWireContainer&lt;/code&gt; for communication with a DS2408.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this 1-Wire device
+     * @param  newAddress        address of this DS2408
+     *
+     * @see #OneWireContainer29()
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,byte[]) OneWireContainer29(DSPortAdapter,byte[])
+     * @see #OneWireContainer29(com.dalsemi.onewire.adapter.DSPortAdapter,long) OneWireContainer29(DSPortAdapter,long)
+     */
+    public OneWireContainer29(DSPortAdapter sourceAdapter, String newAddress) {
+<span class="nc" id="L166">        super(sourceAdapter, newAddress);</span>
+
+<span class="nc" id="L168">        initmem();</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        for(int i=0; i&lt;FF.length; i++) {</span>
+<span class="nc" id="L171">            FF[i] = (byte) 0x0FF;</span>
+        }
+<span class="nc" id="L173">    }</span>
+
+    //--------
+    //-------- Methods
+    //--------
+
+    /**
+     * Gets the Dallas Semiconductor part number of the iButton
+     * or 1-Wire Device as a &lt;code&gt;java.lang.String&lt;/code&gt;.
+     * For example &quot;DS1992&quot;.
+     *
+     * @return iButton or 1-Wire device name
+     */
+    @Override
+    public String getName() {
+<span class="nc" id="L188">        return &quot;DS2408&quot;;</span>
+    }
+
+    /**
+     * Gets an enumeration of memory bank instances that implement one or more
+     * of the following interfaces:
+     * {@link com.dalsemi.onewire.container.MemoryBank MemoryBank},
+     * {@link com.dalsemi.onewire.container.PagedMemoryBank PagedMemoryBank},
+     * and {@link com.dalsemi.onewire.container.OTPMemoryBank OTPMemoryBank}.
+     * @return &lt;CODE&gt;Enumeration&lt;/CODE&gt; of memory banks
+     */
+    @Override
+    public Enumeration&lt;MemoryBank&gt; getMemoryBanks() {
+
+<span class="nc" id="L202">        Vector&lt;MemoryBank&gt; bank_vector = new Vector&lt;MemoryBank&gt;(5);</span>
+
+<span class="nc" id="L204">        bank_vector.addElement(map);</span>
+<span class="nc" id="L205">        bank_vector.addElement(search);</span>
+
+<span class="nc" id="L207">        return bank_vector.elements();</span>
+    }
+
+    /**
+     * Retrieves the alternate Dallas Semiconductor part numbers or names.
+     * A 'family' of MicroLAN devices may have more than one part number
+     * depending on packaging.  There can also be nicknames such as
+     * &quot;Crypto iButton&quot;.
+     *
+     * @return  the alternate names for this iButton or 1-Wire device
+     */
+    @Override
+    public String getAlternateNames() {
+<span class="nc" id="L220">        return &quot;8-Channel Addressable Switch&quot;;</span>
+    }
+
+    /**
+     * Gets a short description of the function of this iButton
+     * or 1-Wire Device type.
+     *
+     * @return device description
+     */
+    @Override
+    public String getDescription() {
+<span class="nc" id="L231">        return &quot;1-Wire 8-Channel Addressable Switch&quot;;</span>
+    }
+
+    //--------
+    //-------- Switch Feature methods
+    //--------
+
+    /**
+     * Gets the number of channels supported by this switch.
+     * Channel specific methods will use a channel number specified
+     * by an integer from [0 to (&lt;code&gt;getNumberChannels(byte[])&lt;/code&gt; - 1)].  Note that
+     * all devices of the same family will not necessarily have the
+     * same number of channels.
+     *
+     * @param state current state of the device returned from &lt;code&gt;readDevice()&lt;/code&gt;
+     *
+     * @return the number of channels for this device
+     *
+     * @see com.dalsemi.onewire.container.OneWireSensor#readDevice()
+     */
+    @Override
+    public int getNumberChannels(byte[] state) {
+        // check the 88h byte bits 6 and 7
+        // 00 - 4 channels
+        // 01 - 5 channels
+        // 10 - 8 channels
+        // 11 - 16 channels, which hasn't been implemented yet
+<span class="nc" id="L258">        return 8;</span>
+    }
+
+    /**
+     * Checks if the channels of this switch are 'high side'
+     * switches.  This indicates that when 'on' or &lt;code&gt;true&lt;/code&gt;, the switch output is
+     * connect to the 1-Wire data.  If this method returns  &lt;code&gt;false&lt;/code&gt;
+     * then when the switch is 'on' or &lt;code&gt;true&lt;/code&gt;, the switch is connected
+     * to ground.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if the switch is a 'high side' switch,
+     *         &lt;code&gt;false&lt;/code&gt; if the switch is a 'low side' switch
+     *
+     * @see #getLatchState(int,byte[])
+     */
+    @Override
+    public boolean isHighSideSwitch() {
+<span class="nc" id="L275">        return false;</span>
+    }
+
+    /**
+     * Checks if the channels of this switch support
+     * activity sensing.  If this method returns &lt;code&gt;true&lt;/code&gt; then the
+     * method &lt;code&gt;getSensedActivity(int,byte[])&lt;/code&gt; can be used.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if channels support activity sensing
+     *
+     * @see #getSensedActivity(int,byte[])
+     * @see #clearActivity()
+     */
+    @Override
+    public boolean hasActivitySensing() {
+<span class="nc" id="L290">        return true;</span>
+    }
+
+    /**
+     * Checks if the channels of this switch support
+     * level sensing.  If this method returns &lt;code&gt;true&lt;/code&gt; then the
+     * method &lt;code&gt;getLevel(int,byte[])&lt;/code&gt; can be used.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if channels support level sensing
+     *
+     * @see #getLevel(int,byte[])
+     */
+    @Override
+    public boolean hasLevelSensing() {
+<span class="nc" id="L304">        return true;</span>
+    }
+
+    /**
+     * Checks if the channels of this switch support
+     * 'smart on'. Smart on is the ability to turn on a channel
+     * such that only 1-Wire device on this channel are awake
+     * and ready to do an operation.  This greatly reduces
+     * the time to discover the device down a branch.
+     * If this method returns &lt;code&gt;true&lt;/code&gt; then the
+     * method &lt;code&gt;setLatchState(int,boolean,boolean,byte[])&lt;/code&gt;
+     * can be used with the &lt;code&gt;doSmart&lt;/code&gt; parameter &lt;code&gt;true&lt;/code&gt;.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if channels support 'smart on'
+     *
+     * @see #setLatchState(int,boolean,boolean,byte[])
+     */
+    @Override
+    public boolean hasSmartOn() {
+<span class="nc" id="L323">        return false;</span>
+    }
+
+    /**
+     * Checks if the channels of this switch require that only one
+     * channel is on at any one time.  If this method returns &lt;code&gt;true&lt;/code&gt; then the
+     * method &lt;code&gt;setLatchState(int,boolean,boolean,byte[])&lt;/code&gt;
+     * will not only affect the state of the given
+     * channel but may affect the state of the other channels as well
+     * to insure that only one channel is on at a time.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if only one channel can be on at a time.
+     *
+     * @see #setLatchState(int,boolean,boolean,byte[])
+     */
+    @Override
+    public boolean onlySingleChannelOn() {
+<span class="nc" id="L340">        return false;</span>
+    }
+
+    //--------
+    //-------- Switch 'get' Methods
+    //--------
+
+    /**
+     * Checks the sensed level on the indicated channel.
+     * To avoid an exception, verify that this switch
+     * has level sensing with the  &lt;code&gt;hasLevelSensing()&lt;/code&gt;.
+     * Level sensing means that the device can sense the logic
+     * level on its PIO pin.
+     *
+     * @param channel channel to execute this operation, in the range [0 to (&lt;code&gt;getNumberChannels(byte[])&lt;/code&gt; - 1)]
+     * @param state current state of the device returned from &lt;code&gt;readDevice()&lt;/code&gt;
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if level sensed is 'high' and &lt;code&gt;false&lt;/code&gt; if level sensed is 'low'
+     *
+     * @see com.dalsemi.onewire.container.OneWireSensor#readDevice()
+     * @see #hasLevelSensing()
+     */
+    @Override
+    public boolean getLevel(int channel, byte[] state) {
+<span class="nc" id="L364">        byte  level = (byte) (0x01 &lt;&lt; channel);</span>
+<span class="nc bnc" id="L365" title="All 2 branches missed.">        return ((state[0] &amp; level) == level);</span>
+    }
+
+    /**
+     * Checks the latch state of the indicated channel.
+     *
+     * @param channel channel to execute this operation, in the range [0 to (&lt;code&gt;getNumberChannels(byte[])&lt;/code&gt; - 1)]
+     * @param state current state of the device returned from &lt;code&gt;readDevice()&lt;/code&gt;
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if channel latch is 'on'
+     * or conducting and &lt;code&gt;false&lt;/code&gt; if channel latch is 'off' and not
+     * conducting.  Note that the actual output when the latch is 'on'
+     * is returned from the &lt;code&gt;isHighSideSwitch()&lt;/code&gt; method.
+     *
+     * @see com.dalsemi.onewire.container.OneWireSensor#readDevice()
+     * @see #isHighSideSwitch()
+     * @see #setLatchState(int,boolean,boolean,byte[])
+     */
+    @Override
+    public boolean getLatchState(int channel, byte[] state) {
+<span class="nc" id="L385">        byte latch = (byte) (0x01 &lt;&lt; channel);</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">        return ((state [1] &amp; latch) == latch);</span>
+    }
+
+    /**
+     * Checks if the indicated channel has experienced activity.
+     * This occurs when the level on the PIO pins changes.  To clear
+     * the activity that is reported, call &lt;code&gt;clearActivity()&lt;/code&gt;.
+     * To avoid an exception, verify that this device supports activity
+     * sensing by calling the method &lt;code&gt;hasActivitySensing()&lt;/code&gt;.
+     *
+     * @param channel channel to execute this operation, in the range [0 to (&lt;code&gt;getNumberChannels(byte[])&lt;/code&gt; - 1)]
+     * @param state current state of the device returned from &lt;code&gt;readDevice()&lt;/code&gt;
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if activity was detected and &lt;code&gt;false&lt;/code&gt; if no activity was detected
+     *
+     * @throws OneWireException if this device does not have activity sensing
+     *
+     * @see #hasActivitySensing()
+     * @see #clearActivity()
+     */
+    @Override
+    public boolean getSensedActivity(int channel, byte[] state) throws OneWireException {
+<span class="nc" id="L408">        byte activity = (byte) (0x01 &lt;&lt; channel);</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">        return ((state[2] &amp; activity) == activity);</span>
+    }
+
+    /**
+     * Clears the activity latches the next time possible.  For
+     * example, on a DS2406/07, this happens the next time the
+     * status is read with &lt;code&gt;readDevice()&lt;/code&gt;.
+     *
+     * @throws OneWireException if this device does not support activity sensing
+     *
+     * @see com.dalsemi.onewire.container.OneWireSensor#readDevice()
+     * @see #getSensedActivity(int,byte[])
+     */
+    @Override
+    public void clearActivity() throws OneWireException {
+
+<span class="nc" id="L425">        adapter.select(address);</span>
+<span class="nc" id="L426">        byte[] buffer = new byte[9];</span>
+
+<span class="nc" id="L428">        buffer[0] = RESET_ACTIVITY_LATCHES;</span>
+<span class="nc" id="L429">        System.arraycopy(FF,0,buffer,1,8);</span>
+
+<span class="nc" id="L431">        adapter.dataBlock(buffer, 0, 9);</span>
+
+<span class="nc bnc" id="L433" title="All 4 branches missed.">        if((buffer[1] != (byte) 0xAA) &amp;&amp; (buffer[1] != (byte) 0x55)) {</span>
+<span class="nc" id="L434">            throw new OneWireException(address, &quot;Sense Activity was not cleared.&quot;);</span>
+        }
+<span class="nc" id="L436">    }</span>
+
+    //--------
+    //-------- Switch 'set' Methods
+    //--------
+
+    /**
+     * Sets the latch state of the indicated channel.
+     * The method &lt;code&gt;writeDevice()&lt;/code&gt; must be called to finalize
+     * changes to the device.  Note that multiple 'set' methods can
+     * be called before one call to &lt;code&gt;writeDevice()&lt;/code&gt;.
+     *
+     * @param channel channel to execute this operation, in the range [0 to (&lt;code&gt;getNumberChannels(byte[])&lt;/code&gt; - 1)]
+     * @param latchState &lt;code&gt;true&lt;/code&gt; to set the channel latch 'on'
+     *     (conducting) and &lt;code&gt;false&lt;/code&gt; to set the channel latch 'off' (not
+     *     conducting).  Note that the actual output when the latch is 'on'
+     *     is returned from the &lt;code&gt;isHighSideSwitch()&lt;/code&gt; method.
+     * @param doSmart If latchState is 'on'/&lt;code&gt;true&lt;/code&gt; then doSmart indicates
+     *                  if a 'smart on' is to be done.  To avoid an exception
+     *                  check the capabilities of this device using the
+     *                  &lt;code&gt;hasSmartOn()&lt;/code&gt; method.
+     * @param state current state of the device returned from &lt;code&gt;readDevice()&lt;/code&gt;
+     *
+     * @see #hasSmartOn()
+     * @see #getLatchState(int,byte[])
+     * @see com.dalsemi.onewire.container.OneWireSensor#writeDevice(byte[])
+     */
+    @Override
+    public void setLatchState(int channel, boolean latchState, boolean doSmart, byte[] state) {
+        
+<span class="nc" id="L466">        byte latch = (byte) (0x01 &lt;&lt; channel);</span>
+
+<span class="nc bnc" id="L468" title="All 2 branches missed.">        if (latchState) {</span>
+<span class="nc" id="L469">            state[1] = (byte) (state[1] | latch);</span>
+        } else {
+<span class="nc" id="L471">            state[1] = (byte) (state[1] &amp; ~latch);</span>
+        }
+<span class="nc" id="L473">    }</span>
+
+    /**
+     * Sets the latch state for all of the channels.
+     * The method &lt;code&gt;writeDevice()&lt;/code&gt; must be called to finalize
+     * changes to the device.  Note that multiple 'set' methods can
+     * be called before one call to &lt;code&gt;writeDevice()&lt;/code&gt;.
+     *
+     * @param set the state to set all of the channels, in the range [0 to (&lt;code&gt;getNumberChannels(byte[])&lt;/code&gt; - 1)]
+     * @param state current state of the device returned from &lt;code&gt;readDevice()&lt;/code&gt;
+     *
+     * @see #getLatchState(int,byte[])
+     * @see com.dalsemi.onewire.container.OneWireSensor#writeDevice(byte[])
+     */
+    public void setLatchState(byte set, byte[] state) {
+<span class="nc" id="L488">        state[1] = (byte) set;</span>
+<span class="nc" id="L489">    }</span>
+
+    /**
+     * Retrieves the 1-Wire device sensor state.  This state is
+     * returned as a byte array.  Pass this byte array to the 'get'
+     * and 'set' methods.  If the device state needs to be changed then call
+     * the 'writeDevice' to finalize the changes.
+     *
+     * @return 1-Wire device sensor state
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from a 1-Wire device.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     *         
+     * @deprecated Use {@link #readDevice(byte[])} instead, it doesn't allocate memory.
+     */
+    @Override
+    public byte[] readDevice() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L511">        byte[] state = new byte [3];</span>
+        
+<span class="nc" id="L513">        readDevice(state);</span>
+
+<span class="nc" id="L515">        return state;</span>
+    }
+
+    @Override
+    public void readDevice(byte[] state) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L521">        System.arraycopy(FF,0,state,0,3);</span>
+<span class="nc" id="L522">        map.read(0,false,state,0,3);</span>
+<span class="nc" id="L523">    }</span>
+
+    /**
+     * Retrieves the 1-Wire device register mask.  This register is
+     * returned as a byte array.  Pass this byte array to the 'get'
+     * and 'set' methods.  If the device register mask needs to be changed then call
+     * the 'writeRegister' to finalize the changes.
+     *
+     * @return 1-Wire device register mask
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from a 1-Wire device.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    public byte[] readRegister() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L542">        byte[] register = new byte[3];</span>
+
+<span class="nc" id="L544">        search.read(0,false,register,0,3);</span>
+
+<span class="nc" id="L546">        return register;</span>
+    }
+
+    /**
+     * Writes the 1-Wire device sensor state that
+     * have been changed by 'set' methods.  Only the state registers that
+     * changed are updated.  This is done by referencing a field information
+     * appended to the state data.
+     *
+     * @param  state 1-Wire device sensor state
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from a 1-Wire device.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    @Override
+    public void writeDevice(byte[] state) throws OneWireIOException, OneWireException {
+<span class="nc" id="L566">        map.write(1,state,1,1);</span>
+<span class="nc" id="L567">    }</span>
+
+    /**
+     * Writes the 1-Wire device register mask that
+     * have been changed by 'set' methods.
+     *
+     * @param  register 1-Wire device sensor state
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from a 1-Wire device.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    public void writeRegister(byte[] register) throws OneWireIOException, OneWireException {
+<span class="nc" id="L583">        search.write(0,register,0,3);</span>
+<span class="nc" id="L584">    }</span>
+
+    /**
+     * Turns the Reset mode on/off.
+     *
+     * @param  set if 'TRUE' the reset mode will be set or 'FALSE' to turn it off.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from a 1-Wire device.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    public void setResetMode(byte[] register, boolean set) throws OneWireIOException, OneWireException {
+        
+<span class="nc bnc" id="L600" title="All 4 branches missed.">        if (set &amp;&amp; ((register[2] &amp; 0x04) == 0x04)) {</span>
+<span class="nc" id="L601">            register[2] = (byte) (register[2] &amp; (byte) 0xFB);</span>
+<span class="nc bnc" id="L602" title="All 4 branches missed.">        } else if ((!set) &amp;&amp; ((register[2] &amp; (byte) 0x04) == (byte) 0x00)) {</span>
+<span class="nc" id="L603">            register[2] = (byte) (register[2] | (byte) 0x04);</span>
+        }
+<span class="nc" id="L605">    }</span>
+
+    /**
+     * Retrieves the state of the VCC pin.  If the pin is powered 'TRUE' is
+     * returned else 'FALSE' is returned if the pin is grounded.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if VCC is powered and &lt;code&gt;false&lt;/code&gt; if it is
+     *         grounded.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from a 1-Wire device.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    public boolean getVCC(byte[] register) throws OneWireIOException, OneWireException {
+        
+<span class="nc bnc" id="L623" title="All 2 branches missed.">        if((register[2] &amp; (byte) 0x80) == (byte) 0x80) {</span>
+<span class="nc" id="L624">            return true;</span>
+        }
+
+<span class="nc" id="L627">        return false;</span>
+    }
+
+    /**
+     * Checks if the Power On Reset if on and if so clears it.
+     *
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     */
+    public void clearPowerOnReset(byte[] register) {
+<span class="nc bnc" id="L637" title="All 2 branches missed.">        if ((register[2] &amp; (byte) 0x08) == (byte) 0x08) {</span>
+<span class="nc" id="L638">            register[2] = (byte) ((byte) register[2] &amp; (byte) 0xF7);</span>
+        }
+<span class="nc" id="L640">    }</span>
+
+    /**
+     * Checks if the 'or' Condition Search is set and if not sets it.
+     *
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     */
+    public void orConditionalSearch(byte[] register) {
+<span class="nc bnc" id="L649" title="All 2 branches missed.">        if ((register[2] &amp; (byte) 0x02) == (byte) 0x02) {</span>
+<span class="nc" id="L650">            register[2] = (byte) ((byte) register[2] &amp; (byte) 0xFD);</span>
+        }
+<span class="nc" id="L652">    }</span>
+
+    /**
+     * Checks if the 'and' Conditional Search is set and if not sets it.
+     *
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     */
+    public void andConditionalSearch(byte[] register) {
+<span class="nc bnc" id="L661" title="All 2 branches missed.">        if ((register[2] &amp; (byte) 0x02) != (byte) 0x02) {</span>
+<span class="nc" id="L662">            register[2] = (byte) ((byte) register[2] | (byte) 0x02);</span>
+        }
+<span class="nc" id="L664">    }</span>
+
+    /**
+     * Checks if the 'PIO' Conditional Search is set for input and if not sets it.
+     *
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     */
+    public void pioConditionalSearch(byte[] register) {
+<span class="nc bnc" id="L673" title="All 2 branches missed.">        if ((register[2] &amp; (byte) 0x01) == (byte) 0x01) {</span>
+<span class="nc" id="L674">            register[2] = (byte) ((byte) register[2] &amp; (byte) 0xFE);</span>
+        }
+<span class="nc" id="L676">    }</span>
+
+    /**
+     * Checks if the activity latches are set for Conditional Search and if not sets it.
+     *
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     */
+    public void activityConditionalSearch(byte[] register) {
+<span class="nc bnc" id="L685" title="All 2 branches missed.">        if ((register[2] &amp; (byte) 0x01) != (byte) 0x01) {</span>
+<span class="nc" id="L686">            register[2] = (byte) ((byte) register[2] | (byte) 0x01);</span>
+        }
+<span class="nc" id="L688">    }</span>
+
+    /**
+     * Sets the channel passed to the proper state depending on the set parameter for
+     * responding to the Conditional Search.
+     *
+     * @param channel  current channel to set
+     * @param set      whether to turn the channel on/off for Conditional Search
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     */
+    public void setChannelMask(int channel, boolean set, byte[] register) {
+<span class="nc" id="L700">        byte mask = (byte) (0x01 &lt;&lt; channel);</span>
+
+<span class="nc bnc" id="L702" title="All 2 branches missed.">        if (set) {</span>
+<span class="nc" id="L703">            register[0] = (byte) ((byte) register[0] | (byte) mask);</span>
+        } else {
+<span class="nc" id="L705">            register[0] = (byte) ((byte) register[0] &amp; (byte) ~mask);</span>
+        }
+<span class="nc" id="L707">    }</span>
+
+    /**
+     * Sets the channel passed to the proper state depending on the set parameter for
+     * the correct polarity in the Conditional Search.
+     *
+     * @param channel  current channel to set
+     * @param set      whether to turn the channel on/off for polarity
+     *                 Conditional Search
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     */
+    public void setChannelPolarity(int channel, boolean set, byte[] register) {
+
+<span class="nc" id="L721">        byte polarity = (byte) (0x01 &lt;&lt; channel);</span>
+
+<span class="nc bnc" id="L723" title="All 2 branches missed.">        if(set) {</span>
+<span class="nc" id="L724">            register[1] = (byte) ((byte) register[1] | (byte) polarity);</span>
+        } else {
+<span class="nc" id="L726">            register[1] = (byte) ((byte) register[1] &amp; (byte) ~polarity);</span>
+        }
+<span class="nc" id="L728">    }</span>
+
+    /**
+     * Retrieves the information if the channel is masked for the Conditional Search.
+     *
+     * @param channel  current channel to set
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if the channel is masked and &lt;code&gt;false&lt;/code&gt; other wise.
+     */
+    public boolean getChannelMask(int channel, byte[] register) {
+<span class="nc" id="L740">        byte mask = (byte) (0x01 &lt;&lt; channel);</span>
+
+<span class="nc bnc" id="L742" title="All 2 branches missed.">        return ((register[0] &amp; mask) == mask);</span>
+    }
+
+    /**
+     * Retrieves the polarity of the channel for the Conditional Search.
+     *
+     * @param channel  current channel to set
+     * @param register current register for conditional search, which
+     *                 if returned from &lt;code&gt;readRegister()&lt;/code&gt;
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if the channel is masked and &lt;code&gt;false&lt;/code&gt; other wise.
+     */
+    public boolean getChannelPolarity(int channel, byte[] register) {
+<span class="nc" id="L755">        byte polarity = (byte) (0x01 &lt;&lt; channel);</span>
+
+<span class="nc bnc" id="L757" title="All 2 branches missed.">        return ((register[1] &amp; polarity) == polarity);</span>
+    }
+
+    /**
+     * Initialize the memory banks and data associated with each.
+     */
+    private void initmem() {
+
+        // Memory map registers
+<span class="nc" id="L766">        map = new MemoryBankEEPROMstatus(this);</span>
+<span class="nc" id="L767">        map.bankDescription      = &quot;Memory mapped register of pin logic state, port output &quot; +</span>
+        &quot;latch logic state and activity latch logic state.&quot;;
+<span class="nc" id="L769">        map.startPhysicalAddress = 136;</span>
+<span class="nc" id="L770">        map.size                 = 3;</span>
+<span class="nc" id="L771">        map.readOnly             = true;</span>
+
+        // Conditional Search
+<span class="nc" id="L774">        search = new MemoryBankEEPROMstatus(this);</span>
+<span class="nc" id="L775">        search.bankDescription   = &quot;Conditional search bit mask, polarity bit mask and &quot; +</span>
+        &quot;control register.&quot;;
+<span class="nc" id="L777">        search.startPhysicalAddress = 139;</span>
+<span class="nc" id="L778">        search.size                 = 3;</span>
+<span class="nc" id="L779">        search.readWrite            = true;</span>
+<span class="nc" id="L780">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

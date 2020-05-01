@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="net.sf.dz3.device.sensor.impl.onewire.OwapiDeviceFactory2020Test" tests="2" skipped="0" failures="0" errors="0" timestamp="2020-05-23T06:55:50" hostname="cx" time="1.368">
+  <properties/>
+  <testcase name="createInstance" classname="net.sf.dz3.device.sensor.impl.onewire.OwapiDeviceFactory2020Test" time="0.836"/>
+  <testcase name="isKnown" classname="net.sf.dz3.device.sensor.impl.onewire.OwapiDeviceFactory2020Test" time="0.531"/>
+  <system-out><![CDATA[Stable Library
+=========================================
+Native lib Version = RXTX-2.2pre2
+Java lib Version   = RXTX-2.1-7
+WARNING:  RXTX Version mismatch
+	Jar version = RXTX-2.1-7
+	native lib Version = RXTX-2.2pre2
+?[36m23:55:51,261 DEBUG OwapiDeviceFactory2020 Test worker [] adapters: {DS9097U Unknown Port (USerialAdapter-getPortName, port not selected)=[/dev/ttyS0, /dev/ttyUSB0], NetAdapter Not Connected=[]}
+?[m?[32m23:55:51,265 INFO OwapiDeviceFactory2020 Test worker [] adapter: DS9097U
+?[m?[36m23:55:51,573 DEBUG OwapiDeviceFactory2020 Test worker [uMasterReset] reset: PRESENCE
+?[m?[36m23:55:51,574 DEBUG OwapiDeviceFactory2020 Test worker [uMasterReset] speed: REGULAR
+?[m?[33m23:55:51,577 WARN OwapiDeviceFactory2020 Test worker [uMasterReset] powerOff()
+?[m?[36m23:55:51,578 DEBUG BusAdapter Test worker [uMasterReset] awaiting shutdown
+?[m?[36m23:55:51,580 DEBUG Marker pool-2-thread-1 [browse] marker@656c0228#7984f17c: (browse) started
+?[m?[36m23:55:51,581 DEBUG Marker pool-2-thread-1 [browse, browse/path] marker@656c0228#68cd046a: (browse/path) started
+?[m?[36m23:55:51,582 DEBUG BusAdapter pool-2-thread-1 [browse, browse/path] path: DS9097U_/dev/ttyUSB0/
+?[m?[36m23:55:51,589 DEBUG BusAdapter pool-2-thread-1 [browse, browse/path] reset: PRESENCE
+?[m?[36m23:55:51,705 DEBUG BusAdapter pool-2-thread-1 [browse, browse/path] found: DS9097U_/dev/ttyUSB0/ 440000018879AF09 (DS1982)
+?[m?[36m23:55:51,716 DEBUG Marker pool-2-thread-1 [browse, browse/path] marker@656c0228#68cd046a: (browse/path) completed in 125 ms (0:00:00.125)
+?[m?[36m23:55:51,717 DEBUG BusAdapter pool-2-thread-1 [browse] 440000018879AF09: DS1982 DS9097U_/dev/ttyUSB0/
+?[m?[36m23:55:51,717 DEBUG Marker pool-2-thread-1 [browse] marker@656c0228#7984f17c: (browse) completed in 137 ms (0:00:00.137)
+?[m?[32m23:55:51,718 INFO BusAdapter$1 pool-2-thread-1 [] good bye
+?[m?[32m23:55:51,718 INFO BusAdapter Test worker [uMasterReset] shut down.
+?[m]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

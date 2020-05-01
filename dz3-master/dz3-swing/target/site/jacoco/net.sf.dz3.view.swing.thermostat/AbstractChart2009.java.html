@@ -1,0 +1,569 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractChart2009.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing.thermostat</a> &gt; <span class="el_source">AbstractChart2009.java</span></div><h1>AbstractChart2009.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing.thermostat;
+
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.RenderingHints;
+import java.awt.Stroke;
+import java.awt.geom.Line2D;
+import java.awt.geom.Rectangle2D;
+import java.time.Clock;
+import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import net.sf.dz3.controller.DataSet;
+import net.sf.jukebox.util.Interval;
+
+/**
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+<span class="nc bnc" id="L30" title="All 2 branches missed.">public abstract class AbstractChart2009 extends AbstractChart {</span>
+
+    private static final long serialVersionUID = -8584582539155161184L;
+
+<span class="nc" id="L34">    private static final Stroke strokeSingle = new BasicStroke();</span>
+<span class="nc" id="L35">    private static final Stroke strokeDouble = new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 10.0f, null, 0.0f);</span>
+
+<span class="nc" id="L37">    protected final transient Logger logger = LogManager.getLogger(getClass());</span>
+
+<span class="nc" id="L39">    protected final transient SortedMap&lt;String, DataSet&lt;TintedValue&gt;&gt; channel2dsValue = new TreeMap&lt;&gt;();</span>
+<span class="nc" id="L40">    protected final transient SortedMap&lt;String, DataSet&lt;Double&gt;&gt; channel2dsSetpoint = new TreeMap&lt;&gt;();</span>
+
+    /**
+     * Grid color.
+     *
+     * Default is dark gray.
+     */
+<span class="nc" id="L47">    protected static final Color gridColor = Color.darkGray;</span>
+
+    /**
+     * Clock used.
+     */
+    private final Clock clock;
+
+    /**
+     * Chart length, in milliseconds.
+     */
+    protected final long chartLengthMillis;
+
+    /**
+     * Dead timeout, in milliseconds.
+     *
+     * It is possible that the data readings don't come for a long time, in this
+     * case the chart becomes funny - there will be interruptions at the right,
+     * but when the data becomes available quite a bit longer, there'll be a
+     * change in appearance - what should have been a horizontal line with a
+     * step, will become a slightly sloped line. In order to avoid this, the
+     * gaps longer than the dead timeout will be painted differently.
+     *
+     * Default is one minute.
+     */
+    protected static final long DEAD_TIMEOUT = 1000L * 60;
+
+    /**
+     * Horizontal grid spacing.
+     *
+     * Vertical grid lines will be painted every &lt;code&gt;timeSpacing&lt;/code&gt;
+     * milliseconds. Default is 30 minutes.
+     */
+    protected static final long SPACING_TIME = 1000L * 60 * 30;
+
+    /**
+     * Vertical grid spacing.
+     *
+     * Horizontal grid lines will be painted every &lt;code&gt;valueSpacing&lt;/code&gt;
+     * units. Default is 1.0.
+     */
+    protected static final double SPACING_VALUE = 1.0;
+
+    /**
+     * How much space to leave between the chart and the edge.
+     */
+    protected static final double PADDING = 0.2;
+
+    /**
+     * Maximum known data value.
+     */
+<span class="nc" id="L97">    protected Double dataMax = null;</span>
+
+    /**
+     * Minimum known data value.
+     */
+<span class="nc" id="L102">    protected Double dataMin = null;</span>
+
+    /**
+     * Timestamp on {@link #dataMin} or {@link #dataMax}, whichever is younger.
+     *
+     * @see #adjustVerticalLimits(double)
+     */
+<span class="nc" id="L109">    private Long minmaxTime = null;</span>
+
+    /**
+     * Amount of extra time to wait before {@link #recalculateVerticalLimits()
+     * recalculating} the limits.
+     *
+     * Chances are, new min/max values will be pretty close to old, so unless
+     * this value is used, recalculation will be happening more often than
+     * necessary.
+     */
+    protected static final double MINMAX_OVERHEAD = 1.1;
+
+<span class="nc" id="L121">    protected static final Color SIGNAL_COLOR_LOW = Color.GREEN;</span>
+<span class="nc" id="L122">    protected static final Color SIGNAL_COLOR_HIGH = Color.RED;</span>
+<span class="nc" id="L123">    protected static final Color SETPOINT_COLOR = Color.YELLOW;</span>
+
+<span class="nc" id="L125">    public AbstractChart2009(Clock clock, long chartLengthMillis) {</span>
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if (chartLengthMillis &lt; 1000 * 10) {</span>
+<span class="nc" id="L128">            throw new IllegalArgumentException(&quot;Unreasonably short chart length &quot; + chartLengthMillis + &quot;ms&quot;);</span>
+        }
+
+<span class="nc" id="L131">        this.clock = clock;</span>
+<span class="nc" id="L132">        this.chartLengthMillis = chartLengthMillis;</span>
+<span class="nc" id="L133">    }</span>
+
+    @Override
+    public synchronized void paintComponent(Graphics g) {
+
+        // VT: NOTE: Consider replacing this with a Marker - careful, though, this is a time sensitive path
+<span class="nc" id="L139">        long startTime = clock.instant().toEpochMilli();</span>
+
+        // Draw background
+<span class="nc" id="L142">        super.paintComponent(g);</span>
+
+<span class="nc" id="L144">        Graphics2D g2d = (Graphics2D) g;</span>
+<span class="nc" id="L145">        Dimension boundary = getSize();</span>
+<span class="nc" id="L146">        Insets insets = getInsets();</span>
+
+<span class="nc" id="L148">        paintBackground(g2d, boundary, insets);</span>
+
+<span class="nc" id="L150">        long now = clock.instant().toEpochMilli();</span>
+<span class="nc" id="L151">        double xScale = (double) (boundary.width - insets.left - insets.right) / (double) chartLengthMillis;</span>
+<span class="nc" id="L152">        long xOffset = now - chartLengthMillis;</span>
+
+<span class="nc" id="L154">        paintTimeGrid(g2d, boundary, insets, now, xScale, xOffset);</span>
+
+        // VT: FIXME: Ugly hack.
+<span class="nc" id="L157">        checkWidth(boundary);</span>
+
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (!isDataAvailable()) {</span>
+<span class="nc" id="L160">            return;</span>
+        }
+
+<span class="nc" id="L163">        double yScale = (boundary.height - insets.bottom - insets.top) / (dataMax - dataMin + PADDING * 2);</span>
+<span class="nc" id="L164">        double yOffset = dataMax + PADDING;</span>
+
+<span class="nc" id="L166">        paintValueGrid(g2d, boundary, insets, now, xScale, xOffset, yScale, yOffset);</span>
+
+<span class="nc" id="L168">        paintCharts(g2d, boundary, insets, now, xScale, xOffset, yScale, yOffset);</span>
+
+<span class="nc" id="L170">        logger.info(&quot;Painted in {}ms&quot;, (clock.instant().toEpochMilli() - startTime));</span>
+<span class="nc" id="L171">    }</span>
+
+    protected abstract void checkWidth(Dimension boundary);
+
+    @SuppressWarnings(&quot;squid:S1126&quot;)
+    protected final boolean isDataAvailable() {
+
+        // VT: NOTE: squid:S1126 - following this rule will hurt readability, so no.
+
+<span class="nc bnc" id="L180" title="All 6 branches missed.">        if (channel2dsValue.isEmpty() || dataMax == null || dataMin == null) {</span>
+
+            // No data consumed yet
+<span class="nc" id="L183">            return false;</span>
+        }
+
+<span class="nc" id="L186">        return true;</span>
+
+    }
+
+    @SuppressWarnings(&quot;squid:S107&quot;)
+    protected final void paintCharts(
+            Graphics2D g2d, Dimension boundary, Insets insets, long now,
+            double xScale, long xOffset, double yScale, double yOffset) {
+
+        // VT: NOTE: squid:S107 - following this rule will hurt performance, so no.
+
+<span class="nc" id="L197">        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);</span>
+
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        for (Iterator&lt;Entry&lt;String, DataSet&lt;TintedValue&gt;&gt;&gt; iv = channel2dsValue.entrySet().iterator(); iv.hasNext(); ) {</span>
+
+            // VT: FIXME: Implement depth ordering
+
+<span class="nc" id="L203">            Entry&lt;String, DataSet&lt;TintedValue&gt;&gt; entry = iv.next();</span>
+<span class="nc" id="L204">            String channel = entry.getKey();</span>
+<span class="nc" id="L205">            DataSet&lt;TintedValue&gt; dsValues = entry.getValue();</span>
+<span class="nc" id="L206">            DataSet&lt;Double&gt; dsSetpoints = channel2dsSetpoint.get(channel);</span>
+
+<span class="nc" id="L208">            paintChart(g2d, boundary, insets, now, xScale, xOffset, yScale, yOffset, channel, dsValues, dsSetpoints);</span>
+<span class="nc" id="L209">        }</span>
+<span class="nc" id="L210">    }</span>
+
+    /**
+     * VT: NOTE: squid:S107 - following this rule will hurt performance, so no.
+     */
+    @SuppressWarnings(&quot;squid:S107&quot;)
+    protected abstract void paintChart(
+            Graphics2D g2d, Dimension boundary, Insets insets, long now,
+            double xScale, long xOffset, double yScale, double yOffset,
+            String channel, DataSet&lt;TintedValue&gt; dsValues, DataSet&lt;Double&gt; dsSetpoints);
+
+    private void paintBackground(Graphics2D g2d, Dimension boundary, Insets insets) {
+
+<span class="nc" id="L223">        g2d.setPaint(getBackground());</span>
+
+<span class="nc" id="L225">        Rectangle2D.Double background = new Rectangle2D.Double(</span>
+                insets.left, insets.top,
+                (double)boundary.width - insets.right - insets.left,
+                (double)boundary.height - insets.bottom - insets.top);
+
+<span class="nc" id="L230">        g2d.fill(background);</span>
+<span class="nc" id="L231">    }</span>
+
+    private void paintTimeGrid(Graphics2D g2d, Dimension boundary, Insets insets, long now, double xScale, long xOffset) {
+
+<span class="nc" id="L235">        BasicStroke originalStroke = (BasicStroke) g2d.getStroke();</span>
+
+<span class="nc" id="L237">        g2d.setPaint(gridColor);</span>
+
+<span class="nc" id="L239">        float[] gridDash = { 2, 2 };</span>
+
+<span class="nc" id="L241">        BasicStroke gridStroke = new BasicStroke(</span>
+<span class="nc" id="L242">                originalStroke.getLineWidth(), originalStroke.getEndCap(),</span>
+<span class="nc" id="L243">                originalStroke.getLineJoin(),</span>
+<span class="nc" id="L244">                originalStroke.getMiterLimit(), gridDash,</span>
+<span class="nc" id="L245">                originalStroke.getDashPhase());</span>
+
+<span class="nc" id="L247">        g2d.setStroke(gridStroke);</span>
+
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        for (long timeOffset = now - SPACING_TIME; timeOffset &gt; now - chartLengthMillis; timeOffset -= SPACING_TIME) {</span>
+
+<span class="nc" id="L251">            double gridX = (timeOffset - xOffset) * xScale + insets.left;</span>
+
+<span class="nc" id="L253">            drawGradientLine(g2d,</span>
+                    gridX, insets.top,
+                    gridX, (double)boundary.height - insets.bottom - 1,
+<span class="nc" id="L256">                    getBackground(), Color.GRAY.darker().darker(), false);</span>
+        }
+
+<span class="nc" id="L259">        g2d.setStroke(originalStroke);</span>
+<span class="nc" id="L260">    }</span>
+
+    @SuppressWarnings(&quot;squid:S107&quot;)
+    private void paintValueGrid(
+            Graphics2D g2d, Dimension boundary, Insets insets, long now,
+            double xScale, long xOffset, double yScale, double yOffset) {
+
+        // VT: NOTE: squid:S107 - following this rule will hurt performance, so no.
+
+<span class="nc" id="L269">        BasicStroke originalStroke = (BasicStroke) g2d.getStroke();</span>
+
+<span class="nc" id="L271">        g2d.setPaint(gridColor);</span>
+
+<span class="nc" id="L273">        float[] gridDash = { 2, 2 };</span>
+
+<span class="nc" id="L275">        BasicStroke gridStroke = new BasicStroke(</span>
+<span class="nc" id="L276">                originalStroke.getLineWidth(), originalStroke.getEndCap(),</span>
+<span class="nc" id="L277">                originalStroke.getLineJoin(),</span>
+<span class="nc" id="L278">                originalStroke.getMiterLimit(), gridDash,</span>
+<span class="nc" id="L279">                originalStroke.getDashPhase());</span>
+
+        // The zero line gets painted with the default stroke
+
+<span class="nc" id="L283">        g2d.setStroke(originalStroke);</span>
+
+<span class="nc" id="L285">        double gridY = yOffset * yScale + insets.top;</span>
+
+<span class="nc" id="L287">        Line2D gridLine = new Line2D.Double(</span>
+                insets.left,
+                gridY,
+                (double)boundary.width - insets.right - 1,
+                gridY);
+
+<span class="nc" id="L293">        g2d.draw(gridLine);</span>
+
+        // All the rest of the grid lines get painted with a dashed line
+
+<span class="nc" id="L297">        g2d.setStroke(gridStroke);</span>
+
+<span class="nc" id="L299">        double valueOffset = 0;</span>
+<span class="nc" id="L300">        double halfWidth = (boundary.width - insets.right - 1) / 2d;</span>
+
+<span class="nc bnc" id="L302" title="All 2 branches missed.">        for (valueOffset = SPACING_VALUE; valueOffset &lt; dataMax + PADDING; valueOffset += SPACING_VALUE) {</span>
+
+<span class="nc" id="L304">            gridY = (yOffset - valueOffset) * yScale + insets.top;</span>
+
+<span class="nc" id="L306">            drawGradientLine(g2d,</span>
+                    insets.left, gridY,
+                    halfWidth, gridY,
+<span class="nc" id="L309">                    Color.GRAY.darker().darker(), getBackground(),</span>
+                    false);
+
+<span class="nc" id="L312">            drawGradientLine(g2d,</span>
+                    halfWidth, gridY,
+                    (double)boundary.width - insets.right - 1, gridY,
+<span class="nc" id="L315">                    getBackground(), Color.GRAY.darker().darker(),</span>
+                    false);
+        }
+
+<span class="nc bnc" id="L319" title="All 2 branches missed.">        for (valueOffset = -SPACING_VALUE; valueOffset &gt; dataMin - PADDING; valueOffset -= SPACING_VALUE) {</span>
+
+<span class="nc" id="L321">            gridY = (yOffset - valueOffset) * yScale + insets.top;</span>
+
+<span class="nc" id="L323">            drawGradientLine(g2d,</span>
+                    insets.left, gridY,
+                    halfWidth, gridY,
+<span class="nc" id="L326">                    getBackground(), Color.GRAY.darker().darker(),</span>
+                    false);
+
+<span class="nc" id="L329">            drawGradientLine(g2d,</span>
+                    halfWidth, gridY,
+                    (double)boundary.width - insets.right - 1, gridY,
+<span class="nc" id="L332">                    getBackground(), Color.GRAY.darker().darker(),</span>
+                    false);
+        }
+
+<span class="nc" id="L336">        g2d.setStroke(originalStroke);</span>
+<span class="nc" id="L337">    }</span>
+
+    /**
+     * Draw the gradient line between given points and given colors.
+     *
+     * @param emphasize {@code true} if this particular line has to stand out.
+     * Exact way of emphasizing is left to the implementation.
+     */
+    @SuppressWarnings(&quot;squid:S107&quot;)
+    protected final void drawGradientLine(
+            Graphics2D g2d,
+            double x0, double y0, double x1, double y1,
+            Color startColor, Color endColor,
+            boolean emphasize) {
+
+        // VT: NOTE: squid:S107 - following this rule will hurt performance, so no.
+
+<span class="nc" id="L354">        GradientPaint gp = new GradientPaint(</span>
+                (int) x0, (int) y0, startColor,
+                (int) x1, (int) y1, endColor);
+<span class="nc" id="L357">        Line2D line = new Line2D.Double(x0, y0, x1, y1);</span>
+
+<span class="nc" id="L359">        g2d.setPaint(gp);</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">        g2d.setStroke(emphasize ? strokeDouble : strokeSingle);</span>
+<span class="nc" id="L361">        g2d.draw(line);</span>
+<span class="nc" id="L362">    }</span>
+
+<span class="nc" id="L364">    private static Color[] signalCache = new Color[256];</span>
+
+    /**
+     * Convert signal from -1 to +1 to color from low color to high color.
+     *
+     * @param signal Signal to convert to color.
+     * @param low Color corresponding to -1 signal value.
+     * @param high Color corresponding to +1 signal value.
+     * @return
+     */
+    protected final Color signal2color(double signal, Color low, Color high) {
+
+<span class="nc bnc" id="L376" title="All 2 branches missed.">        signal = signal &gt; 1 ? 1: signal;</span>
+<span class="nc bnc" id="L377" title="All 2 branches missed.">        signal = signal &lt; -1 ? -1 : signal;</span>
+<span class="nc" id="L378">        signal = (signal + 1) / 2;</span>
+
+<span class="nc" id="L380">        int index = (int) (signal * 255);</span>
+
+<span class="nc" id="L382">        synchronized (signalCache) {</span>
+
+<span class="nc" id="L384">            Color result = signalCache[index];</span>
+
+<span class="nc bnc" id="L386" title="All 2 branches missed.">            if ( result == null) {</span>
+
+<span class="nc" id="L388">                float[] hsbLow = resolve(low);</span>
+<span class="nc" id="L389">                float[] hsbHigh = resolve(high);</span>
+
+<span class="nc" id="L391">                float h = transform(signal, hsbLow[0], hsbHigh[0]);</span>
+<span class="nc" id="L392">                float s = transform(signal, hsbLow[1], hsbHigh[1]);</span>
+<span class="nc" id="L393">                float b = transform(signal, hsbLow[2], hsbHigh[2]);</span>
+
+<span class="nc" id="L395">                result = new Color(Color.HSBtoRGB(h, s, b));</span>
+<span class="nc" id="L396">                signalCache[index] = result;</span>
+            }
+
+<span class="nc" id="L399">            return result;</span>
+        }
+    }
+
+    private static class RGB2HSB {
+
+        public final int rgb;
+        public final float[] hsb;
+
+<span class="nc" id="L408">        public RGB2HSB(int rgb, float[] hsb) {</span>
+
+<span class="nc" id="L410">            this.rgb = rgb;</span>
+<span class="nc" id="L411">            this.hsb = hsb;</span>
+<span class="nc" id="L412">        }</span>
+    }
+
+    /**
+     * Cache medium for {@link #resolve()}.
+     *
+     * According to &quot;worse is better&quot; rule, there's no error checking against
+     * the array size - too expensive. In all likelihood, this won't grow beyond 2 entries.
+     */
+<span class="nc" id="L421">    private static RGB2HSB[] rgb2hsb = new RGB2HSB[16];</span>
+
+    /**
+     * Resolve a possibly cached {@link Color#RGBtoHSB(int, int, int, float[])} result,
+     * or compute it and store it for later retrieval if it hasn't been done.
+     *
+     * @param color Color to transform.
+     * @return Transformation result.
+     */
+    private float[] resolve(Color color) {
+
+<span class="nc" id="L432">        int rgb = color.getRGB();</span>
+<span class="nc" id="L433">        int offset = 0;</span>
+
+<span class="nc bnc" id="L435" title="All 4 branches missed.">        for (; offset &lt; rgb2hsb.length &amp;&amp; rgb2hsb[offset] != null; offset++) {</span>
+
+<span class="nc bnc" id="L437" title="All 2 branches missed.">            if (rgb == rgb2hsb[offset].rgb) {</span>
+
+<span class="nc" id="L439">                return rgb2hsb[offset].hsb;</span>
+            }
+        }
+
+<span class="nc" id="L443">        synchronized (rgb2hsb) {</span>
+
+            // VT: NOTE: Not the cleanest solution. It is possible that someone has just tried to do the same thing
+            // and we'll end up writing the same value twice, but oh well, it's the same value in an array of size 16
+
+<span class="nc" id="L448">            rgb2hsb[offset] = new RGB2HSB(rgb, Color.RGBtoHSB(color.getRed(), color.getGreen(), color.getBlue(), null));</span>
+<span class="nc" id="L449">        }</span>
+
+<span class="nc" id="L451">        logger.info(&quot;RGB2HSB offset={}&quot;, offset );</span>
+
+<span class="nc" id="L453">        return rgb2hsb[offset].hsb;</span>
+    }
+
+    /**
+     * Get the point between the start and end values corresponding to the value of the signal.
+     *
+     * @param signal Signal value, from -1 to +1.
+     * @param start Start point.
+     * @param end End point.
+     *
+     * @return Desired position between the start and end points.
+     */
+    private float transform(double signal, float start, float end) {
+
+<span class="nc bnc" id="L467" title="All 4 branches missed.">        assert(signal &lt;= 1);</span>
+<span class="nc bnc" id="L468" title="All 4 branches missed.">        assert(signal &gt;= -1);</span>
+
+<span class="nc" id="L470">        return (float) (start + signal * (end - start));</span>
+    }
+
+    /**
+     * Adjust the vertical limits, if necessary.
+     *
+     * @param timestamp Value timestamp.
+     * @param value Incoming data element.
+     * @param setpoint Incoming setpoint.
+     *
+     * @see #dataMax
+     * @see #dataMin
+     */
+    @SuppressWarnings(&quot;squid:S2629&quot;)
+    protected final void adjustVerticalLimits(long timestamp, double value, double setpoint) {
+
+<span class="nc bnc" id="L486" title="All 4 branches missed.">        if ((minmaxTime != null) &amp;&amp; (timestamp - minmaxTime &gt; chartLengthMillis * MINMAX_OVERHEAD)) {</span>
+
+            // VT: NOTE: squid:S2629 - give me a break, this will happen once in more than three hours
+
+<span class="nc" id="L490">            logger.info(&quot;minmax too old ({}), recalculating&quot;, Interval.toTimeInterval(timestamp - minmaxTime));</span>
+
+            // Total recalculation is required
+
+<span class="nc" id="L494">            recalculateVerticalLimits();</span>
+        }
+
+        // Treating minmaxTime like this still allows for lopsided chart if a long up or down trend continues,
+        // but we probably do want to know about that, so let's just make a note and ignore it for the moment
+
+<span class="nc bnc" id="L500" title="All 4 branches missed.">        if (dataMax == null || value &gt; dataMax) {</span>
+
+<span class="nc" id="L502">            dataMax = value;</span>
+<span class="nc" id="L503">            minmaxTime = timestamp;</span>
+        }
+
+<span class="nc bnc" id="L506" title="All 4 branches missed.">        if (dataMin == null || value &lt; dataMin) {</span>
+
+<span class="nc" id="L508">            dataMin = value;</span>
+<span class="nc" id="L509">            minmaxTime = timestamp;</span>
+        }
+
+        // By this time, dataMin and dataMax are no longer nulls
+
+<span class="nc bnc" id="L514" title="All 2 branches missed.">        if (setpoint &gt; dataMax) {</span>
+
+<span class="nc" id="L516">            dataMax = setpoint;</span>
+<span class="nc" id="L517">            minmaxTime = timestamp;</span>
+        }
+
+<span class="nc bnc" id="L520" title="All 2 branches missed.">        if (setpoint &lt; dataMin) {</span>
+
+<span class="nc" id="L522">            dataMin = setpoint;</span>
+<span class="nc" id="L523">            minmaxTime = timestamp;</span>
+        }
+<span class="nc" id="L525">    }</span>
+
+    /**
+     * Calculate {@link #dataMin} and {@link #dataMax} based on all values available in {@link #channel2dsValue}.
+     */
+    @SuppressWarnings(&quot;squid:S2629&quot;)
+    private synchronized void recalculateVerticalLimits() {
+
+<span class="nc" id="L533">        long startTime = clock.instant().toEpochMilli();</span>
+
+<span class="nc" id="L535">        dataMin = null;</span>
+<span class="nc" id="L536">        dataMax = null;</span>
+
+<span class="nc bnc" id="L538" title="All 2 branches missed.">        for (Iterator&lt;DataSet&lt;TintedValue&gt;&gt; i = channel2dsValue.values().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L540">            DataSet&lt;TintedValue&gt; ds = i.next();</span>
+
+<span class="nc bnc" id="L542" title="All 2 branches missed.">            for (Iterator&lt;Entry&lt;Long, TintedValue&gt;&gt; i2 = ds.entryIterator(); i2.hasNext(); ) {</span>
+
+<span class="nc" id="L544">                Entry&lt;Long, TintedValue&gt; entry = i2.next();</span>
+<span class="nc" id="L545">                Long timestamp = entry.getKey();</span>
+<span class="nc" id="L546">                TintedValue tv = entry.getValue();</span>
+
+<span class="nc bnc" id="L548" title="All 4 branches missed.">                if (dataMax == null || tv.value &gt; dataMax) {</span>
+
+<span class="nc" id="L550">                    dataMax = tv.value;</span>
+<span class="nc" id="L551">                    minmaxTime = timestamp;</span>
+                }
+
+<span class="nc bnc" id="L554" title="All 4 branches missed.">                if (dataMin == null || tv.value &lt; dataMin) {</span>
+
+<span class="nc" id="L556">                    dataMin = tv.value;</span>
+<span class="nc" id="L557">                    minmaxTime = timestamp;</span>
+                }
+<span class="nc" id="L559">            }</span>
+<span class="nc" id="L560">        }</span>
+
+<span class="nc" id="L562">        logger.info(&quot;Recalculated in {}ms&quot;, (clock.instant().toEpochMilli() - startTime));</span>
+
+        // VT: NOTE: squid:S2629 - give me a break, this will happen once in more than three hours
+
+<span class="nc" id="L566">        logger.info(&quot;New minmaxTime set to + {}&quot;, Interval.toTimeInterval(clock.instant().toEpochMilli() - minmaxTime));</span>
+<span class="nc" id="L567">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

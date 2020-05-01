@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PID_Controller.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller.pid</a> &gt; <span class="el_source">PID_Controller.java</span></div><h1>PID_Controller.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller.pid;
+
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.jmx.JmxAttribute;
+
+/**
+ * Classical PID - Proportional, Integral, Derivative controller.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class PID_Controller extends AbstractPidController implements PidControllerConfiguration {
+
+    /**
+     * Integral data set.
+     */
+    private IntegralSet integralSet;
+
+    /**
+     * Differential data set.
+     */
+    private DifferentialSet differentialSet;
+
+    /**
+     * Create the configured instance.
+     *
+     * @param P Proportional weight.
+     * @param I Integral weight.
+     * @param Ispan Integral timespan, milliseconds.
+     * @param D Derivative weight.
+     * @param Dspan Derivative timespan, milliseconds.
+     * @param saturationLimit Anti-windup control value. The controller is
+     * considered saturated if the output absolute value is greater than this.
+     * Zero means no anti-windup will be provided.
+     */
+    public PID_Controller(final double setpoint, final double P, final double I, final long Ispan, final double D, final long Dspan,
+            final double saturationLimit) {
+
+<span class="fc" id="L38">	super(setpoint, P, I, D, saturationLimit);</span>
+
+<span class="fc" id="L40">        this.integralSet = new SlidingIntegralSet(Ispan);</span>
+<span class="fc" id="L41">        this.differentialSet = new NaiveDifferentialSet(Dspan);</span>
+<span class="fc" id="L42">    }</span>
+
+    @Override
+    @JmxAttribute(description = &quot;Proportional component time span&quot;)
+    public void setIspan(long iSpan) {
+
+      // VT: FIXME: This will reset the existing set and screw things up
+<span class="nc bnc" id="L49" title="All 2 branches missed.">      if (getI() != 0) {</span>
+<span class="nc" id="L50">          integralSet = new SlidingIntegralSet(iSpan);</span>
+      }
+<span class="nc" id="L52">      statusChanged();</span>
+<span class="nc" id="L53">    }</span>
+
+    @Override
+    @JmxAttribute(description = &quot;Derivative component time span&quot;)
+    public void setDspan(long dSpan) {
+
+      // VT: FIXME: This will reset the existing set and screw things up
+<span class="nc bnc" id="L60" title="All 2 branches missed.">      if (getD() != 0) {</span>
+<span class="nc" id="L61">          differentialSet = new NaiveDifferentialSet(dSpan);</span>
+      }
+<span class="nc" id="L63">      statusChanged();</span>
+<span class="nc" id="L64">    }</span>
+
+    @Override
+    protected double getIntegral(DataSample&lt;Double&gt; lastKnownSignal, DataSample&lt;Double&gt;  pv, double error) {
+
+<span class="fc" id="L69">        integralSet.record(getProcessVariable().timestamp, error);</span>
+
+<span class="fc" id="L71">        return integralSet.getIntegral();</span>
+    }
+
+    @Override
+    protected double getDerivative(DataSample&lt;Double&gt; lastKnownSignal, DataSample&lt;Double&gt;  pv, double error) {
+
+<span class="fc" id="L77">        differentialSet.record(getProcessVariable().timestamp, error);</span>
+
+<span class="fc" id="L79">        return differentialSet.getDifferential();</span>
+    }
+
+    @Override
+    protected void setpointChanged() {
+
+        // Do absolutely nothing
+<span class="nc" id="L86">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnitSignal.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model</a> &gt; <span class="el_source">UnitSignal.java</span></div><h1>UnitSignal.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model;
+
+import java.io.Serializable;
+
+/**
+ * Representation of HVAC state in a form suitable for consumption by signal listeners.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2010
+ */
+public class UnitSignal implements Serializable {
+
+    private static final long serialVersionUID = -8751463335825205628L;
+    
+    public final double demand;
+    public final boolean running;
+    public final long uptime;
+    
+<span class="fc" id="L18">    public UnitSignal(double demand, boolean running, long uptime) {</span>
+        
+<span class="fc" id="L20">        this.demand = demand;</span>
+<span class="fc" id="L21">        this.running = running;</span>
+<span class="fc" id="L22">        this.uptime = uptime;</span>
+        
+<span class="pc bpc" id="L24" title="3 of 4 branches missed.">        if (!running &amp;&amp; uptime &gt; 0) {</span>
+<span class="nc" id="L25">            throw new IllegalArgumentException(&quot;non-zero uptime (&quot; + uptime + &quot;) and not running?&quot;);</span>
+        }
+        
+        // VT: NOTE: May need to check the reverse condition: (running &amp;&amp; uptime == 0).
+        //
+        // May be a bit dangerousbecause running must be set to true and immediately
+        // passed down with uptime still zero
+<span class="fc" id="L32">    }</span>
+    
+    @Override
+    public String toString() {
+        
+<span class="fc" id="L37">        StringBuilder sb = new StringBuilder();</span>
+        
+<span class="fc" id="L39">        sb.append(&quot;(demand=&quot;).append(demand);</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        sb.append(&quot;, &quot;).append(running ? &quot;running&quot; : &quot;off&quot;);</span>
+<span class="fc" id="L41">        sb.append(&quot;, uptime=&quot;).append(uptime);</span>
+<span class="fc" id="L42">        sb.append(&quot;)&quot;);</span>
+        
+<span class="fc" id="L44">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

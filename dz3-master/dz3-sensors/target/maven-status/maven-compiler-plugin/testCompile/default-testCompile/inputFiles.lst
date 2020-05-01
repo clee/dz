@@ -1,0 +1,5 @@
+/home/vt/dev/dz/dz3-master/dz3-sensors/src/test/java/net/sf/dz3/device/sensor/AnalogConverterLM34Test.java
+/home/vt/dev/dz/dz3-master/dz3-sensors/src/test/java/net/sf/dz3/device/sensor/impl/MedianFilterTest.java
+/home/vt/dev/dz/dz3-master/dz3-sensors/src/test/java/net/sf/dz3/device/sensor/AnalogConverterTMP36Test.java
+/home/vt/dev/dz/dz3-master/dz3-sensors/src/test/java/net/sf/dz3/device/sensor/impl/tcp/server/SensorServerTest.java
+/home/vt/dev/dz/dz3-master/dz3-sensors/src/test/java/net/sf/dz3/device/sensor/impl/ShellSensorTest.java

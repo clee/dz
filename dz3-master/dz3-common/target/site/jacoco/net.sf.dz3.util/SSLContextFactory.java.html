@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SSLContextFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Common Components</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.util</a> &gt; <span class="el_source">SSLContextFactory.java</span></div><h1>SSLContextFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.util;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+
+/**
+ * A utility class to simplify creation of {@link SSLContext SSLContext}.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+<span class="nc" id="L19">public class SSLContextFactory {</span>
+
+    /**
+     * Create an SSL context object with default options. The SSL context is
+     * created with a protocol {@code TLS}, keystore located at
+     * {@code ~/.keystore}, and a given keystore password.
+     * 
+     * @param password Keystore password.
+     * @return The SSL context.
+     * @throws SSLException if there was an SSL related problem.
+     */
+    public static SSLContext createContext(String password) throws SSLException {
+
+<span class="nc" id="L32">        return createContext(&quot;TLS&quot;, System.getProperty(&quot;user.home&quot;) + File.separator + &quot;.keystore&quot;, password);</span>
+    }
+
+    /**
+     * Create an SSL context object.
+     * 
+     * @param protocol Secure protocol. Values that are known to work are:
+     * {@code SSLv3}, {@code TLS}.
+     * @param keyStoreName Keystore file name.
+     * @param password Keystore password.
+     * @return The SSL context.
+     * @throws SSLException If there was an SSL related problem.
+     */
+    public static SSLContext createContext(String protocol, String keyStoreName, String password) throws SSLException {
+
+        try {
+
+<span class="nc" id="L49">            SecureRandom random = SecureRandom.getInstance(&quot;SHA1PRNG&quot;, &quot;SUN&quot;);</span>
+<span class="nc" id="L50">            SSLContext ctx = SSLContext.getInstance(protocol);</span>
+
+<span class="nc bnc" id="L52" title="All 2 branches missed.">            if (password == null) {</span>
+
+                // Whatever...
+
+<span class="nc" id="L56">                password = &quot;&quot;;</span>
+            }
+
+<span class="nc" id="L59">            char[] passwordArray = new char[password.length()];</span>
+
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            for (int idx = 0; idx &lt; password.length(); idx++) {</span>
+
+<span class="nc" id="L63">                passwordArray[idx] = password.charAt(idx);</span>
+            }
+
+<span class="nc" id="L66">            FileInputStream keyStoreFile = new FileInputStream(keyStoreName);</span>
+<span class="nc" id="L67">            KeyStore ks = KeyStore.getInstance(&quot;JKS&quot;);</span>
+
+<span class="nc" id="L69">            ks.load(keyStoreFile, null);</span>
+
+<span class="nc" id="L71">            String keyManagementAlgorithm = &quot;SunX509&quot;;</span>
+<span class="nc" id="L72">            KeyManagerFactory km = KeyManagerFactory.getInstance(keyManagementAlgorithm);</span>
+<span class="nc" id="L73">            km.init(ks, passwordArray);</span>
+
+<span class="nc" id="L75">            KeyManager[] keyManagerSet = km.getKeyManagers();</span>
+
+<span class="nc bnc" id="L77" title="All 2 branches missed.">            for (int i = 0; i &lt; keyManagerSet.length; i++) {</span>
+
+                // System.err.println(&quot;KeyManager &quot; + keyManagerSet[i]);
+            }
+
+<span class="nc" id="L82">            TrustManagerFactory tmFactory = TrustManagerFactory.getInstance(keyManagementAlgorithm);</span>
+
+<span class="nc" id="L84">            tmFactory.init(ks);</span>
+
+<span class="nc" id="L86">            TrustManager[] trustManagerSet = tmFactory.getTrustManagers();</span>
+
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            for (int i = 0; i &lt; trustManagerSet.length; i++) {</span>
+
+                // System.err.println(&quot;TrustManager &quot; + trustManagerSet[i]);
+            }
+
+<span class="nc" id="L93">            ctx.init(keyManagerSet, trustManagerSet, random);</span>
+
+<span class="nc" id="L95">            return ctx;</span>
+
+<span class="nc" id="L97">        } catch (Throwable t) {</span>
+
+<span class="nc" id="L99">            SSLException ex = new SSLException(&quot;Can't create secure connection (SSLContext)&quot;);</span>
+
+<span class="nc" id="L101">            ex.initCause(t);</span>
+
+<span class="nc" id="L103">            throw ex;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

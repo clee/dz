@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InfluxDbLogger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">InfluxDB Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.influxdb.v1</a> &gt; <span class="el_source">InfluxDbLogger.java</span></div><h1>InfluxDbLogger.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.influxdb.v1;
+
+import java.io.IOException;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.ThreadContext;
+import org.influxdb.InfluxDB;
+import org.influxdb.InfluxDBFactory;
+import org.influxdb.dto.Point;
+import org.influxdb.dto.Point.Builder;
+import org.influxdb.dto.Query;
+
+import net.sf.jukebox.datastream.logger.impl.AbstractLogger;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+
+/**
+ * Simple InfluxDB logger.
+ *
+ * This class serves the same purpose that {@link InfluxDbConnector} finally
+ * will, but the functionality is straightforward and limited.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2019
+ */
+public class InfluxDbLogger&lt;E extends Number&gt; extends AbstractLogger&lt;E&gt; {
+
+<span class="fc" id="L30">    private final String dbName = &quot;dz&quot;;</span>
+    private final String instance;
+    private final String dbURL;
+    private final String username;
+    private final String password;
+
+    private InfluxDB db;
+<span class="fc" id="L37">    private final Queue&lt;DataSample&lt;E&gt;&gt; queue = new LinkedBlockingQueue&lt;&gt;();</span>
+<span class="fc" id="L38">    private final int QUEUE_MAX = 1024;</span>
+
+    /**
+     * Create an unauthenticated instance.
+     * Using this constructor is discouraged, but convenient.
+     *
+     * @param producers Data producers.
+     * @param instance Unique identifier for an instance this logger represents. This value would usually correspond
+     * to a host a DZ instance runs on.
+     * @param dbURL InfluxDB URL to connect to.
+     */
+    public InfluxDbLogger(
+            Set&lt;DataSource&lt;E&gt;&gt; producers,
+            String instance,
+            String dbURL) {
+<span class="nc" id="L53">        this(producers, instance, dbURL, null, null);</span>
+<span class="nc" id="L54">    }</span>
+
+    /**
+     * Create an instance.
+     *
+     * @param producers Data producers.
+     * @param instance Unique identifier for an instance this logger represents. This value would usually correspond
+     * to a host a DZ instance runs on.
+     * @param dbURL InfluxDB URL to connect to.
+     * @param username InfluxDB username. Use {@code null} for unauthenticated access}.
+     * @param password InfluxDB password. Use {@code null} for unauthenticated access}.
+     */
+    public InfluxDbLogger(
+            Set&lt;DataSource&lt;E&gt;&gt; producers,
+            String instance,
+            String dbURL,
+            String username,
+            String password) {
+<span class="fc" id="L72">        super(producers);</span>
+
+<span class="fc" id="L74">        this.instance = instance;</span>
+<span class="fc" id="L75">        this.dbURL = dbURL;</span>
+<span class="fc" id="L76">        this.username = username;</span>
+<span class="fc" id="L77">        this.password = password;</span>
+<span class="fc" id="L78">    }</span>
+
+    @Override
+    protected void consume(String signature, DataSample&lt;E&gt; value) {
+<span class="fc" id="L82">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">            if (queue.size() &lt; QUEUE_MAX) {</span>
+
+                // The cost of doing this all this time is negligible
+
+<span class="fc" id="L90">                queue.add(value);</span>
+
+            } else {
+<span class="nc" id="L93">                logger.error(&quot;QUEUE_MAX=&quot; + QUEUE_MAX + &quot; exceeded, skipping sample: &quot; + value);</span>
+            }
+
+<span class="fc" id="L96">            synchronized (this) {</span>
+
+                // This happens at startup, when the connection is not yet established,
+                // but the instance is ready to accept samples
+
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">                if (db == null) {</span>
+<span class="nc" id="L102">                    logger.warn(&quot;no connection yet, &quot; + queue.size() + &quot; sample[s] deferred&quot;);</span>
+<span class="nc" id="L103">                    return;</span>
+                }
+<span class="fc" id="L105">            }</span>
+
+            // It is possible for more than one thread to call consume() a the same time
+            // VT: FIXME: It would probably be better to use an ExecutorService for this
+
+<span class="fc" id="L110">            synchronized (this) {</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">                while (!queue.isEmpty()) {</span>
+
+                    try {
+
+<span class="fc" id="L116">                        DataSample&lt;E&gt; sample = queue.peek();</span>
+
+<span class="fc" id="L118">                        Builder b = Point.measurement(&quot;sensor&quot;)</span>
+<span class="fc" id="L119">                                .time(sample.timestamp, TimeUnit.MILLISECONDS)</span>
+<span class="fc" id="L120">                                .tag(&quot;instance&quot;, instance)</span>
+<span class="fc" id="L121">                                .tag(&quot;source&quot;, sample.sourceName)</span>
+<span class="fc" id="L122">                                .tag(&quot;signature&quot;, sample.signature);</span>
+
+                        // These two are mutually exclusive
+
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">                        if (sample.isError()) {</span>
+<span class="nc" id="L127">                            b.addField(&quot;error&quot;, sample.error.toString());</span>
+                        } else {
+<span class="fc" id="L129">                            b.addField(&quot;sample&quot;, sample.sample);</span>
+                        }
+
+<span class="fc" id="L132">                        db.write(b.build());</span>
+
+<span class="fc" id="L134">                        queue.remove();</span>
+
+<span class="nc" id="L136">                    } catch (Throwable t) {</span>
+
+                        // The item we couldn't write is still in the queue
+
+<span class="nc" id="L140">                        logger.warn(&quot;can't write sample, deferring remaining &quot; + queue.size() + &quot; samples for now&quot;, t);</span>
+<span class="nc" id="L141">                        break;</span>
+<span class="fc" id="L142">                    }</span>
+                }
+
+<span class="fc" id="L145">                db.flush();</span>
+<span class="fc" id="L146">            }</span>
+
+        } finally {
+<span class="fc" id="L149">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L151">    }</span>
+
+    @Override
+    protected void createChannel(String name, String signature, long timestamp) throws IOException {
+        // This means nothing for this implementation, other than no more incessant complaining
+<span class="fc" id="L156">        signature2name.put(signature, name);</span>
+<span class="fc" id="L157">    }</span>
+
+    @Override
+    protected void startup() throws Throwable {
+
+<span class="fc" id="L162">        ThreadContext.push(&quot;startup&quot;);</span>
+
+        try {
+
+<span class="fc" id="L166">            connect();</span>
+
+<span class="fc" id="L168">            db.enableBatch();</span>
+<span class="fc" id="L169">            db.query(new Query(&quot;CREATE DATABASE &quot; + dbName));</span>
+<span class="fc" id="L170">            db.setDatabase(dbName);</span>
+
+        } finally {
+<span class="fc" id="L173">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L175">    }</span>
+
+    /**
+     * Connect to the remote in a non-blocking way.
+     */
+    private void connect() {
+
+        InfluxDB db;
+
+        // This section will not block synchronized calls
+
+<span class="pc bpc" id="L186" title="7 of 8 branches missed.">        if (username == null || &quot;&quot;.equals(username) || password == null || &quot;&quot;.equals(password)) {</span>
+<span class="fc" id="L187">            logger.warn(&quot;one of (username, password) is null or missing, connecting unauthenticated - THIS IS A BAD IDEA&quot;);</span>
+<span class="fc" id="L188">            logger.warn(&quot;see https://docs.influxdata.com/influxdb/v1.7/administration/authentication_and_authorization/&quot;);</span>
+<span class="fc" id="L189">            logger.warn(&quot;(username, password) = (&quot; + username + &quot;, &quot; + password + &quot;)&quot;);</span>
+
+<span class="fc" id="L191">            db = InfluxDBFactory.connect(dbURL);</span>
+
+        } else {
+<span class="nc" id="L194">            db = InfluxDBFactory.connect(dbURL, username, password);</span>
+        }
+
+        // This section is short and won't delay other synchronized calls much
+
+<span class="fc" id="L199">        synchronized (this) {</span>
+<span class="fc" id="L200">            this.db = db;</span>
+<span class="fc" id="L201">        }</span>
+<span class="fc" id="L202">    }</span>
+
+    @Override
+    protected void shutdown() throws Throwable {
+
+<span class="fc" id="L207">        ThreadContext.push(&quot;shutdown&quot;);</span>
+
+        try {
+
+<span class="fc" id="L211">            db.close();</span>
+
+        } finally {
+<span class="fc" id="L214">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L216">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

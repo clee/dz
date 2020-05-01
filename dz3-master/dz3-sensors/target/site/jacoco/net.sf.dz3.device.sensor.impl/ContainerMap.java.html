@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContainerMap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl</a> &gt; <span class="el_source">ContainerMap.java</span></div><h1>ContainerMap.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl;
+
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.sensor.DeviceContainer;
+
+/**
+ * Container address2container.
+ * &lt;p&gt;
+ * The key is the device address, the value is a set of {@link DeviceContainer
+ * device containers}.
+ * &lt;p&gt;
+ * This class is introduced to improve reliability of transition between the
+ * version of code where one physical device corresponds to one logical device,
+ * and the version of code where one physical device may correspond to several
+ * logical devices of different types (such as DS2438 posing as both temperature
+ * and humidity container).
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+<span class="nc" id="L29">public class ContainerMap {</span>
+
+<span class="nc" id="L31">    private final Logger logger = LogManager.getLogger(getClass());</span>
+    
+    /**
+     * Device address to device container instance map.
+     */
+<span class="nc" id="L36">    private Map&lt;String, Set&lt;DeviceContainer&gt;&gt; address2container = new TreeMap&lt;String, Set&lt;DeviceContainer&gt;&gt;();</span>
+    
+    /**
+     * Translate logical address into hardware address.
+     * 
+     * @param address Logical address (may include colon and channel address
+     */
+    public String getHardwareAddress(String address) {
+        
+<span class="nc" id="L45">        ThreadContext.push(&quot;getHardwareAddress&quot;);</span>
+        
+        try {
+            
+<span class="nc bnc" id="L49" title="All 2 branches missed.">            if (address == null) {</span>
+<span class="nc" id="L50">                throw new IllegalArgumentException(&quot;address can't be null&quot;);</span>
+            }
+
+<span class="nc bnc" id="L53" title="All 2 branches missed.">            if (address.indexOf(':') == -1) {</span>
+
+<span class="nc" id="L55">                return address;</span>
+
+            }
+
+<span class="nc" id="L59">            logger.debug(&quot;extracting hardware address from channel address&quot;);</span>
+
+            // String channel will do because it can handle integer channel
+            // (but not the other way around)
+<span class="nc" id="L63">            StringChannelAddress channelAddress = new StringChannelAddress(address);</span>
+
+<span class="nc" id="L65">            logger.debug(address + &quot; =&gt; &quot; + channelAddress.hardwareAddress);</span>
+
+<span class="nc" id="L67">            return channelAddress.hardwareAddress;</span>
+
+        } finally {
+<span class="nc" id="L70">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Map the device container to the address. Existing mapping, if any, is not
+     * replaced, but augmented.
+     * 
+     * @param dc Device container to address2container.
+     */
+    public void add(DeviceContainer dc) {
+        
+<span class="nc" id="L82">        ThreadContext.push(&quot;add&quot;);</span>
+        
+        try {
+
+<span class="nc" id="L86">            logger.info(&quot;device: &quot; + dc.getAddress());</span>
+            
+<span class="nc" id="L88">            String address = getHardwareAddress(dc.getAddress());</span>
+<span class="nc" id="L89">            Set&lt;DeviceContainer&gt; s = get(address);</span>
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">            if (s == null) {</span>
+
+<span class="nc" id="L93">                s = new TreeSet&lt;DeviceContainer&gt;();</span>
+
+<span class="nc" id="L95">                address2container.put(address, s);</span>
+            }
+
+<span class="nc" id="L98">            s.add(dc);</span>
+            
+            //dump();
+            
+        } finally {
+<span class="nc" id="L103">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L105">    }</span>
+
+    /**
+     * Get the mapping.
+     * 
+     * @param address Address to get the container for.
+     * @return Set of device containers associated with the given address.
+     */
+    public Set&lt;DeviceContainer&gt; get(String address) {
+        
+<span class="nc" id="L115">        ThreadContext.push(&quot;get(&quot; + address + &quot;)&quot;);</span>
+        
+        try {
+
+<span class="nc" id="L119">            address = getHardwareAddress(address);</span>
+
+<span class="nc" id="L121">            Set&lt;DeviceContainer&gt; found = address2container.get(address);</span>
+            
+<span class="nc bnc" id="L123" title="All 2 branches missed.">            if (found == null) {</span>
+                
+<span class="nc" id="L125">                logger.debug(&quot;Found no devices for hardware address &quot; + address);</span>
+                
+            } else {
+            
+<span class="nc" id="L129">                logger.debug(&quot;Found &quot; + found.size() + &quot; devices for hardware address &quot; + address);</span>
+            }
+            
+            //dump();
+            
+<span class="nc" id="L134">            return found;</span>
+
+        } finally {
+<span class="nc" id="L137">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Remove the mapping.
+     * 
+     * @param address Address to remove the mapping for.
+     * @return Old value associated with the address.
+     */
+    public Set&lt;DeviceContainer&gt; remove(String address) {
+
+<span class="nc" id="L149">        return address2container.remove(address);</span>
+    }
+
+    /**
+     * @return {@code true} if there are no mappings in this container.
+     */
+    public boolean isEmpty() {
+
+<span class="nc" id="L157">        return address2container.isEmpty();</span>
+    }
+
+    /**
+     * @return Iterator on the addresses of devices in this container.
+     */
+    public Iterator&lt;String&gt; iterator() {
+
+<span class="nc" id="L165">        return address2container.keySet().iterator();</span>
+    }
+
+    /**
+     * Check if we have anything for a given address.
+     * 
+     * @param address Address to check.
+     * @return {@code true} if we already know something about this address.
+     */
+    public boolean containsKey(String address) {
+
+<span class="nc" id="L176">        return address2container.containsKey(address);</span>
+    }
+    
+    /**
+     * Get the size of the container map.
+     * 
+     * @return Container size.
+     */
+    public synchronized int size() {
+        
+<span class="nc" id="L186">        return address2container.size();</span>
+    }
+    
+    /**
+     * Dump the contents into the log at debug level.
+     */
+    public void dump() {
+        
+<span class="nc" id="L194">        ThreadContext.push(&quot;dump#&quot; + Integer.toHexString(hashCode()));</span>
+        
+        try {
+            
+<span class="nc" id="L198">            logger.debug(address2container.size() + &quot; addresses&quot;);</span>
+        
+<span class="nc bnc" id="L200" title="All 2 branches missed.">            for (Iterator&lt;String&gt; i = address2container.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L202">                String address = i.next();</span>
+<span class="nc" id="L203">                Set&lt;DeviceContainer&gt; devices = address2container.get(address);</span>
+
+<span class="nc" id="L205">                StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L207">                sb.append(address).append(&quot; &quot;);</span>
+
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                if (devices == null) {</span>
+
+<span class="nc" id="L211">                    sb.append(&quot;NULL???&quot;);</span>
+
+                } else {
+
+<span class="nc" id="L215">                    sb.append(&quot; (&quot; + devices.size() + &quot; devices) &quot;);</span>
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">                    for (Iterator&lt;DeviceContainer&gt; i2 = devices.iterator(); i2.hasNext(); ) {</span>
+
+<span class="nc" id="L219">                        sb.append(i2.next().getAddress());</span>
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                        if (i2.hasNext()) {</span>
+<span class="nc" id="L222">                            sb.append(&quot;, &quot;);</span>
+                        }
+                    }
+                }
+
+<span class="nc" id="L227">                logger.debug(sb.toString());</span>
+<span class="nc" id="L228">            }</span>
+            
+        } finally {
+<span class="nc" id="L231">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L233">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnitSignalSplitter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">UnitSignalSplitter.java</span></div><h1>UnitSignalSplitter.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.UnitSignal;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.logger.model.DataLogger;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+
+/**
+ * Receives a complex {@link UnitSignal} signal and converts it into several simpler
+ * {@link DataSample} signals suitable for consumption by {@link DataLogger}.
+ *
+ * Add this object as a listener to the unit, and add the data logger as a listener to this object,
+ * to record the data stream.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2009-2018
+ */
+public class UnitSignalSplitter implements DataSink&lt;UnitSignal&gt;, DataSource&lt;Double&gt; {
+
+<span class="pc" id="L24">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;Double&gt;();</span>
+
+    /**
+     * Create an instance not attached to anything.
+     */
+<span class="fc" id="L29">    public UnitSignalSplitter() {</span>
+
+<span class="fc" id="L31">    }</span>
+
+    /**
+     * Create an instance attached to a data source.
+     *
+     * @param source Data source to listen to.
+     */
+<span class="nc" id="L38">    public UnitSignalSplitter(DataSource&lt;UnitSignal&gt; source) {</span>
+<span class="nc" id="L39">        source.addConsumer(this);</span>
+<span class="nc" id="L40">    }</span>
+
+    @Override
+    public synchronized void consume(DataSample&lt;UnitSignal&gt; signal) {
+
+<span class="fc" id="L45">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+            {
+                // Whether the unit is currently running
+<span class="fc" id="L51">                String sourceName = signal.sourceName + &quot;.running&quot;;</span>
+<span class="fc" id="L52">                String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">                DataSample&lt;Double&gt; running = new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, signal.sample.running ? 1.0 : 0.0, null);</span>
+<span class="fc" id="L54">                dataBroadcaster.broadcast(running);</span>
+            }
+
+            {
+                // The demand sent to the HVAC hardware driver
+<span class="fc" id="L59">                String sourceName = signal.sourceName + &quot;.demand&quot;;</span>
+<span class="fc" id="L60">                String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+<span class="fc" id="L61">                DataSample&lt;Double&gt; running = new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, signal.sample.demand, null);</span>
+<span class="fc" id="L62">                dataBroadcaster.broadcast(running);</span>
+            }
+
+            {
+                // Uptime recorded for instrumentation purposes
+<span class="fc" id="L67">                String sourceName = signal.sourceName + &quot;.uptime&quot;;</span>
+<span class="fc" id="L68">                String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+<span class="fc" id="L69">                DataSample&lt;Double&gt; running = new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, (double)signal.sample.uptime, null);</span>
+<span class="fc" id="L70">                dataBroadcaster.broadcast(running);</span>
+            }
+
+        } finally {
+<span class="fc" id="L74">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L76">    }</span>
+
+    @Override
+    public void addConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="fc" id="L81">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="fc" id="L82">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L87">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L88">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

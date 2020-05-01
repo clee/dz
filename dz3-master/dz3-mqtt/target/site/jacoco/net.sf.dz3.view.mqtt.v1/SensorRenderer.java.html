@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SensorRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">MQTT Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.mqtt.v1</a> &gt; <span class="el_source">SensorRenderer.java</span></div><h1>SensorRenderer.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.mqtt.v1;
+
+import java.io.StringWriter;
+import java.util.Map;
+
+import javax.json.Json;
+import javax.json.JsonObject;
+import javax.json.JsonObjectBuilder;
+import javax.json.JsonWriter;
+
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+
+/**
+ * Keeps {@link #consume(DataSample) receiving} data notifications and
+ * {@link #emit(UpstreamBlock) stuffing} them into the queue. 
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2019
+ */
+public class SensorRenderer extends QueueFeeder&lt;UpstreamBlock&gt; implements DataSink&lt;Double&gt;, JsonRenderer&lt;DataSample&lt;Double&gt;&gt; {
+
+    private final AnalogSensor source;
+
+    public SensorRenderer(AnalogSensor source, Map&lt;String, Object&gt; context) {
+
+<span class="nc" id="L27">        super(context);</span>
+
+<span class="nc" id="L29">        this.source = source;</span>
+
+<span class="nc" id="L31">        source.addConsumer(this);</span>
+<span class="nc" id="L32">    }</span>
+
+    /**
+     * VT: FIXME: Create {@code MqttRenderer}
+     */
+    private String getTopic() {
+<span class="nc" id="L38">        return &quot;sensor/&quot; + source.getAddress();</span>
+    }
+
+    @Override
+    public void consume(DataSample&lt;Double&gt; signal) {
+<span class="nc" id="L43">        emit(new UpstreamBlock(getTopic(), render(signal)));</span>
+<span class="nc" id="L44">    }</span>
+
+    /**
+     * Render a simple JSON representation.
+     */
+    @Override
+    public String render(DataSample&lt;Double&gt; source) {
+
+<span class="nc" id="L52">        JsonObjectBuilder b = Json.createObjectBuilder();</span>
+
+<span class="nc" id="L54">        b.add(&quot;entityType&quot;, MqttConnector.EntityType.SENSOR.toString());</span>
+<span class="nc" id="L55">        b.add(&quot;timestamp&quot;, source.timestamp);</span>
+<span class="nc" id="L56">        b.add(&quot;name&quot;, source.sourceName);</span>
+<span class="nc" id="L57">        b.add(&quot;signature&quot;, source.signature);</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (!source.isError()) {</span>
+
+<span class="nc" id="L61">            b.add(&quot;signal&quot;, source.sample);</span>
+
+        } else {
+
+<span class="nc" id="L65">            b.add(&quot;error&quot;, source.error.getMessage());</span>
+        }
+
+<span class="nc" id="L68">        JsonObject message = b.build();</span>
+<span class="nc" id="L69">        StringWriter sw = new StringWriter();</span>
+<span class="nc" id="L70">        JsonWriter jw = Json.createWriter(sw);</span>
+
+<span class="nc" id="L72">        jw.writeObject(message);</span>
+<span class="nc" id="L73">        jw.close();</span>
+
+<span class="nc" id="L75">        return sw.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

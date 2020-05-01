@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ServoDamper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">DZ3 Dampers based on Servomaster</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.servomaster</a> &gt; <span class="el_source">ServoDamper.java</span></div><h1>ServoDamper.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.servomaster;
+
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.actuator.impl.AbstractDamper;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+import net.sf.servomaster.device.model.Servo;
+import net.sf.servomaster.device.model.TransitionStatus;
+import net.sf.servomaster.device.model.transform.LimitTransformer;
+import net.sf.servomaster.device.model.transform.LinearTransformer;
+import net.sf.servomaster.device.model.transform.Reverser;
+import net.sf.servomaster.device.model.transition.CrawlTransitionController;
+
+/**
+ * Damper controlled by a RC Servo.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class ServoDamper extends AbstractDamper {
+
+    /**
+     * Servo to control.
+     */
+    private final Servo servo;
+
+    /**
+     * Whether the servo is ordered to crawl.
+     *
+     * Default is {@code true}.
+     */
+    private final boolean crawl;
+
+    /**
+     * Whether the servo is ordered to be reversed.
+     */
+    private final boolean reverse;
+
+    /**
+     * Create an instance with no reversing and no range or limit calibration.
+     *
+     * @param name Human readable name.
+     * @param servo Servo instance to use.
+     */
+    public ServoDamper(String name, Servo servo) {
+<span class="nc" id="L50">        this(name, servo, true, false, null, null);</span>
+<span class="nc" id="L51">    }</span>
+
+    /**
+     * Create an instance with range calibration only.
+     *
+     * @param name Human readable name.
+     * @param servo Servo instance to use.
+     * @param reverse {@code true} if the servo movement should be reversed.
+     * @param rangeCalibration Range calibration object.
+     */
+    public ServoDamper(String name, Servo servo, boolean crawl, boolean reverse, RangeCalibration rangeCalibration) {
+<span class="nc" id="L62">        this(name, servo, crawl, reverse, rangeCalibration, null);</span>
+<span class="nc" id="L63">    }</span>
+
+    /**
+     * Create an instance with limit calibration only.
+     *
+     * @param name Human readable name.
+     * @param servo Servo instance to use.
+     * @param reverse {@code true} if the servo movement should be reversed.
+     * @param limitCalibration Limit calibration object.
+     */
+    public ServoDamper(String name, Servo servo, boolean crawl, boolean reverse, LimitCalibration limitCalibration) {
+<span class="nc" id="L74">        this(name, servo, crawl, reverse, null, limitCalibration);</span>
+<span class="nc" id="L75">    }</span>
+
+    /**
+     * Create an instance.
+     *
+     * Only one of {@code rangeCalibration} and {@code limitCalibration} can be not null at the same time.
+     *
+     * @param name Human readable name.
+     * @param servo Servo instance to use.
+     * @param reverse {@code true} if the servo should be crawling.
+     * @param reverse {@code true} if the servo movement should be reversed.
+     * @param rangeCalibration Range calibration object.
+     * @param limitCalibration Limit calibration object.
+     */
+    public ServoDamper(
+            String name,
+            Servo servo,
+            boolean crawl,
+            boolean reverse,
+            RangeCalibration rangeCalibration,
+            LimitCalibration limitCalibration) {
+
+<span class="nc" id="L97">        super(name);</span>
+
+<span class="nc" id="L99">        this.crawl = crawl;</span>
+<span class="nc" id="L100">        this.reverse = reverse;</span>
+
+<span class="nc" id="L102">        ThreadContext.push(&quot;ServoDamper()&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if (servo == null ) {</span>
+<span class="nc" id="L107">                throw new IllegalArgumentException(&quot;servo can't be null&quot;);</span>
+            }
+
+<span class="nc bnc" id="L110" title="All 4 branches missed.">            if ((rangeCalibration != null) &amp;&amp; (limitCalibration != null)) {</span>
+<span class="nc" id="L111">                throw new IllegalArgumentException(&quot;Range and limit calibration are mutually exclusive - must specify only one&quot;);</span>
+            }
+
+<span class="nc" id="L114">            logger.info(&quot;reverse: &quot; + reverse);</span>
+<span class="nc" id="L115">            logger.info(&quot;range: &quot; + rangeCalibration);</span>
+<span class="nc" id="L116">            logger.info(&quot;limit: &quot; + limitCalibration);</span>
+
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            if (rangeCalibration != null) {</span>
+
+<span class="nc" id="L120">                servo.getMeta().setProperty(&quot;servo/range/min&quot;, Integer.toString(rangeCalibration.min));</span>
+<span class="nc" id="L121">                servo.getMeta().setProperty(&quot;servo/range/max&quot;, Integer.toString(rangeCalibration.max));</span>
+            }
+
+            // Until it is actually done in configuration, let's just install a crawl controller
+            // But only if it is specifically requested (see dz-runner script)
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">            if (crawl) {</span>
+
+<span class="nc" id="L129">                logger.debug(&quot;Will be crawling&quot;);</span>
+<span class="nc" id="L130">                servo.attach(new CrawlTransitionController(), false);</span>
+            }
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">            if (limitCalibration != null) {</span>
+
+<span class="nc" id="L135">                servo = new LimitTransformer(servo, limitCalibration.min, limitCalibration.max);</span>
+            }
+
+<span class="nc bnc" id="L138" title="All 2 branches missed.">            if (reverse) {</span>
+
+<span class="nc" id="L140">                servo = new Reverser(servo);</span>
+            }
+
+            // VT: NOTE: This may not always be the case, there will be
+            // contraptions with angle range other than 0..180. This
+            // will have to be configurable. On the other hand, nobody
+            // complained in five years, so it should be fine as is.
+
+<span class="nc" id="L148">            servo = new LinearTransformer(servo);</span>
+
+<span class="nc" id="L150">            this.servo = servo;</span>
+
+        } finally {
+<span class="nc" id="L153">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L155">    }</span>
+
+    @Override
+    public void moveDamper(double throttle) throws IOException {
+
+<span class="nc" id="L160">        ThreadContext.push(&quot;moveDamper&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            if (Double.compare(servo.getPosition(), throttle) != 0) {</span>
+
+<span class="nc" id="L166">                logger.debug(servo.getName() + &quot;: &quot; + throttle);</span>
+            }
+
+<span class="nc" id="L169">            servo.setPosition(throttle).get();</span>
+
+<span class="nc" id="L171">        } catch (InterruptedException | ExecutionException ex) {</span>
+
+<span class="nc" id="L173">            throw new IOException(&quot;failed to move &quot; + getName(), ex);</span>
+
+        } finally {
+
+<span class="nc" id="L177">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L179">    }</span>
+
+    @JmxAttribute(description = &quot;true if the servo is crawling&quot;)
+    public boolean isCrawling() {
+<span class="nc" id="L183">        return crawl;</span>
+    }
+
+    @JmxAttribute(description = &quot;true if the servo is reversed&quot;)
+    public boolean isReversed() {
+<span class="nc" id="L188">        return reverse;</span>
+    }
+
+    @Override
+    public double getPosition() throws IOException {
+<span class="nc" id="L193">        return servo.getPosition();</span>
+    }
+
+    @Override
+    public Future&lt;TransitionStatus&gt; park() {
+
+<span class="nc" id="L199">        return servo.setPosition(getParkPosition());</span>
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L205">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Servo based damper&quot;,
+<span class="nc" id="L208">                Integer.toHexString(hashCode()),</span>
+                &quot;Controls single servo&quot;);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

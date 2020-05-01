@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InfluxDbConnector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">InfluxDB Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.influxdb.v1</a> &gt; <span class="el_source">InfluxDbConnector.java</span></div><h1>InfluxDbConnector.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.influxdb.v1;
+
+import java.util.Map;
+import java.util.Set;
+
+import net.sf.dz3.view.Connector;
+import net.sf.dz3.view.ConnectorFactory;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * InfluxDB data source.
+ * 
+ * This object is supposed to be instantiated via Spring configuration file, with objects
+ * that are supposed to be rendered being present in a set passed to the constructor.
+ *
+ * See {@code net.sf.dz3.view.swing.Console} for more information.
+ *
+ * {@code init-method=&quot;start&quot;} attribute must be used in Spring bean definition, otherwise
+ * the connector will not work.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2019
+ */
+public class InfluxDbConnector extends Connector&lt;InfluxDbRenderer&gt; {
+
+    public InfluxDbConnector(Set&lt;Object&gt; initSet) {
+<span class="nc" id="L26">        this(initSet, null);</span>
+<span class="nc" id="L27">    }</span>
+
+    public InfluxDbConnector(Set&lt;Object&gt; initSet, Set&lt;ConnectorFactory&lt;InfluxDbRenderer&gt;&gt; factorySet) {
+<span class="nc" id="L30">        super(initSet, factorySet);</span>
+<span class="nc" id="L31">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+<span class="nc" id="L35">        throw new IllegalStateException(&quot;Not Implemented&quot;);</span>
+    }
+
+    @Override
+    protected Map&lt;String, Object&gt; createContext() {
+<span class="nc" id="L40">        throw new IllegalStateException(&quot;Not Implemented&quot;);</span>
+    }
+
+    @Override
+    protected void activate2() {
+
+        try {
+
+<span class="nc" id="L48">            throw new IllegalStateException(&quot;Not Implemented&quot;);</span>
+
+<span class="nc" id="L50">        } catch (Throwable t) {</span>
+
+<span class="nc" id="L52">            throw new IllegalStateException(&quot;failed to start&quot;, t);</span>
+        }
+    }
+
+    @Override
+    protected void deactivate2() {
+<span class="nc" id="L58">        throw new IllegalStateException(&quot;Not Implemented&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

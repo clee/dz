@@ -1,0 +1,17 @@
+diff --git a/dz3-master/pom.xml b/dz3-master/pom.xml
+index cdd6abc..2eaf9d7 100644
+--- a/dz3-master/pom.xml
++++ b/dz3-master/pom.xml
+@@ -95,6 +95,12 @@
+                 <version>4.12</version>
+                 <scope>test</scope>
+             </dependency>
++            <dependency>
++                <groupId>org.mockito</groupId>
++                <artifactId>mockito-core</artifactId>
++                <version>3.3.3</version>
++                <scope>test</scope>
++            </dependency>
+             <dependency>
+                 <groupId>${jukebox.groupId}</groupId>
+                 <artifactId>jukebox-service</artifactId>

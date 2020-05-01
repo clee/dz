@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2020-05-23T06:53:11" hostname="cx" time="2.098">
+  <properties/>
+  <testcase name="nullMap" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="1.182"/>
+  <testcase name="nullMode" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.0"/>
+  <testcase name="nullName" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.001"/>
+  <testcase name="emptyName" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.032"/>
+  <testcase name="createZcSwitch" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.848"/>
+  <testcase name="createZcMap" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.005"/>
+  <testcase name="createSingleSwitch" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.005"/>
+  <testcase name="badMode" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.003"/>
+  <testcase name="createSingleStringMode" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.004"/>
+  <testcase name="createStringMode" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.007"/>
+  <testcase name="emptyMap" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.001"/>
+  <testcase name="nullSwitch" classname="net.sf.dz3.device.actuator.impl.FanPanelInstantiationTest" time="0.001"/>
+  <system-out><![CDATA[?[32m23:53:13,190 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:13,214 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,062 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,063 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,070 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,077 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,081 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,086 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,089 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

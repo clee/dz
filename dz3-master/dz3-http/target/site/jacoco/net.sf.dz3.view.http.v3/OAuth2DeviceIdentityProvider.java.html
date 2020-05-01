@@ -1,0 +1,411 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OAuth2DeviceIdentityProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.v3</a> &gt; <span class="el_source">OAuth2DeviceIdentityProvider.java</span></div><h1>OAuth2DeviceIdentityProvider.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.v3;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.lang.reflect.Type;
+import java.net.URISyntaxException;
+import java.util.Map;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import net.sf.dz3.instrumentation.Marker;
+import net.sf.dz3.view.http.common.HttpClientFactory;
+
+/**
+ * Stateless {@link https://oauth.net/2/device-flow/ OAuth 2.0 Device Flow} identity provider.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+<span class="fc" id="L33">public class OAuth2DeviceIdentityProvider {</span>
+
+<span class="fc" id="L35">    private final Logger logger = LogManager.getLogger(getClass());</span>
+
+<span class="fc" id="L37">    private final HttpClient httpClient = HttpClientFactory.createClient();</span>
+
+    /**
+     * Obtain a client identity with given credentials.
+     *
+     * @param clientId OAuth 2.0 client ID.
+     * @param clientSecret OAuth 2.0 client secret.
+     * @param refreshTokenFile File for the refresh token to be stored to and retrieved from.
+     * @param requesterIdentity Name of the module requesting authentication. Informational only,
+     * but it would be a good idea to make it match the OAuth client name not to confuse the user.
+     *
+     * @return Client identity.
+     */
+    public String getIdentity(String clientId, String clientSecret, File refreshTokenFile, String requesterIdentity) throws IOException, InterruptedException {
+
+<span class="nc" id="L52">        ThreadContext.push(&quot;getIdentity&quot;);</span>
+<span class="nc" id="L53">        Marker m = new Marker(&quot;getIdentity&quot;);</span>
+
+        try {
+
+            // VT: FIXME: Add sanity checks for clientId
+            // VT: FIXME: Add sanity checks for clientSecret
+            // VT: FIXME: Add sanity checks for refreshTokenFileName
+
+<span class="nc" id="L61">            String refreshToken = getString(refreshTokenFile, &quot;refresh token&quot;, true);</span>
+            String accessToken;
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            if (refreshToken == null) {</span>
+
+<span class="nc" id="L66">                accessToken = acquire(httpClient, clientId, clientSecret, refreshTokenFile, requesterIdentity);</span>
+
+            } else {
+
+<span class="nc" id="L70">                accessToken = refresh(httpClient, clientId, clientSecret, refreshToken);</span>
+            }
+
+<span class="nc" id="L73">            return getIdentityByToken(httpClient, accessToken);</span>
+
+        } finally {
+
+<span class="nc" id="L77">            m.close();</span>
+<span class="nc" id="L78">            ThreadContext.pop();</span>
+        }
+
+    }
+
+    public String getIdentity(File clientIdFile, File clientSecretFile, File refreshTokenFile, String requesterIdentity) throws IOException, InterruptedException {
+
+<span class="nc" id="L85">        return getIdentity(</span>
+<span class="nc" id="L86">                getString(clientIdFile, null, false),</span>
+<span class="nc" id="L87">                getString(clientSecretFile, null, false),</span>
+                refreshTokenFile,
+                requesterIdentity);
+    }
+
+    private void storeRefreshToken(File target, String token) throws IOException {
+
+<span class="nc" id="L94">        ThreadContext.push(&quot;storeRefreshToken&quot;);</span>
+
+        try {
+
+<span class="nc" id="L98">            logger.debug(&quot;target: &quot; + target);</span>
+
+            // Create the directory if it doesn't exist
+<span class="nc" id="L101">            File dir = target.getParentFile();</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            if (!dir.exists()) {</span>
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                if (!dir.mkdirs()) {</span>
+<span class="nc" id="L105">                    throw new IOException(&quot;couldn't create &quot; + dir);</span>
+                }
+            }
+
+<span class="nc" id="L109">            PrintWriter pw = new PrintWriter(new FileWriter(target));</span>
+
+<span class="nc" id="L111">            pw.println(token);</span>
+<span class="nc" id="L112">            pw.close();</span>
+
+        } finally {
+<span class="nc" id="L115">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L117">    }</span>
+
+    /**
+     * Read a single string from the given file.
+     *
+     * Used to read {@code client_id}, {@code client_secret}, and {@code refresh_token}.
+     *
+     * @param source File to read the string from.
+     * @param title Title to report in the log if needed.
+     * @param allowMissing {@code true} to return {@code null} in case the file is missing, {@code false} to throw an exception.
+     *
+     * @return The string, or {@code null} if the file doesn't exist and {@code allowMissing} is {@code true}.
+     * @throws IOException if things went sour.
+     * @throws IllegalStateException if the file is missing and {@code allowMissing} is {@code false}.
+     */
+    private String getString(File source, String title, boolean allowMissing) throws IOException {
+
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if (!source.exists()) {</span>
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            if (allowMissing) {</span>
+
+<span class="nc" id="L138">                logger.warn(source + &quot; doesn't exist, assuming no &quot; + title);</span>
+<span class="nc" id="L139">                return null;</span>
+            }
+        }
+
+<span class="nc" id="L143">        try (BufferedReader br = new BufferedReader(new FileReader(source))) {</span>
+
+<span class="nc" id="L145">            return br.readLine();</span>
+        }
+    }
+
+    /**
+     * @return {@code access_token}.
+     */
+    private String acquire(
+            HttpClient httpClient,
+            String clientId,
+            String clientSecret,
+            File refreshTokenFile,
+            String requesterIdentity) throws IOException, InterruptedException {
+
+<span class="nc" id="L159">        ThreadContext.push(&quot;acquire&quot;);</span>
+
+        try {
+
+            // Step 1
+            // https://developers.google.com/identity/protocols/OAuth2ForDevices#step-1-request-device-and-user-codes
+
+<span class="nc" id="L166">            URIBuilder builder = new URIBuilder(&quot;https://accounts.google.com/o/oauth2/device/code&quot;);</span>
+
+<span class="nc" id="L168">            builder.addParameter(&quot;client_id&quot;, clientId);</span>
+<span class="nc" id="L169">            builder.addParameter(&quot;scope&quot;, &quot;email&quot;);</span>
+
+<span class="nc" id="L171">            HttpPost post = new HttpPost(builder.toString());</span>
+
+<span class="nc" id="L173">            post.setHeader(&quot;Content-Type&quot;, &quot;application/x-www-form-urlencoded&quot;);</span>
+
+<span class="nc" id="L175">            HttpResponse rsp = httpClient.execute(post);</span>
+<span class="nc" id="L176">            int rc = rsp.getStatusLine().getStatusCode();</span>
+
+            // Step 2
+            // https://developers.google.com/identity/protocols/OAuth2ForDevices#step-2-handle-the-authorization-server-response
+
+<span class="nc" id="L181">            logger.debug(&quot;RC=&quot; + rc);</span>
+
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            if (rc != 200) {</span>
+
+<span class="nc" id="L185">                logger.error(&quot;HTTP rc=&quot; + rc + &quot;, text follows:&quot;);</span>
+<span class="nc" id="L186">                logger.error(EntityUtils.toString(rsp.getEntity()));</span>
+
+<span class="nc" id="L188">                throw new IllegalStateException(&quot;request failed with HTTP code &quot; + rc + &quot;, see log for details&quot;);</span>
+            }
+
+<span class="nc" id="L191">            String responseJson = EntityUtils.toString(rsp.getEntity());</span>
+<span class="nc" id="L192">            Gson gson = new Gson();</span>
+<span class="nc" id="L193">            Type mapType  = new TypeToken&lt;Map&lt;String,String&gt;&gt;(){}.getType();</span>
+<span class="nc" id="L194">            Map&lt;String,String&gt; responseMap = gson.fromJson(responseJson, mapType);</span>
+
+<span class="nc" id="L196">            logger.debug(&quot;response: &quot; + responseMap);</span>
+
+<span class="nc" id="L198">            String verificationUrl = responseMap.get(&quot;verification_url&quot;);</span>
+<span class="nc" id="L199">            String userCode =  responseMap.get(&quot;user_code&quot;);</span>
+<span class="nc" id="L200">            int interval = Integer.parseInt(responseMap.get(&quot;interval&quot;).toString());</span>
+
+            // VT: FIXME: The loop will break after &quot;expires_in&quot;
+
+            while (true) {
+
+                // Step 3
+                // https://developers.google.com/identity/protocols/OAuth2ForDevices#displayingthecode
+
+                // It will most probably display this URL: https://www.google.com/device
+
+                // VT: NOTE: Let's set the level to &quot;warn&quot; so it stands out
+
+<span class="nc" id="L213">                logger.warn(&quot;OAuth 2.0 login to &quot; + requesterIdentity + &quot;: action required&quot; );</span>
+<span class="nc" id="L214">                logger.warn(&quot;Please go to &quot; + verificationUrl);</span>
+<span class="nc" id="L215">                logger.warn(&quot;and enter this code: &quot; + userCode);</span>
+
+<span class="nc" id="L217">                Thread.sleep(interval * 1000);</span>
+
+                {
+                    // Step 4
+                    // https://developers.google.com/identity/protocols/OAuth2ForDevices#step-4-poll-googles-authorization-server
+
+                    // Step 5 - on a different device
+                    // https://developers.google.com/identity/protocols/OAuth2ForDevices#step-5-user-responds-to-access-request
+
+<span class="nc" id="L226">                    builder = new URIBuilder(&quot;https://www.googleapis.com/oauth2/v4/token&quot;);</span>
+
+<span class="nc" id="L228">                    builder.addParameter(&quot;client_id&quot;, clientId);</span>
+<span class="nc" id="L229">                    builder.addParameter(&quot;client_secret&quot;, clientSecret);</span>
+<span class="nc" id="L230">                    builder.addParameter(&quot;code&quot;, responseMap.get(&quot;device_code&quot;));</span>
+<span class="nc" id="L231">                    builder.addParameter(&quot;grant_type&quot;, &quot;http://oauth.net/grant_type/device/1.0&quot;);</span>
+
+<span class="nc" id="L233">                    post = new HttpPost(builder.toString());</span>
+<span class="nc" id="L234">                    post.setHeader(&quot;Content-Type&quot;, &quot;application/x-www-form-urlencoded&quot;);</span>
+
+<span class="nc" id="L236">                    rsp = httpClient.execute(post);</span>
+<span class="nc" id="L237">                    rc = rsp.getStatusLine().getStatusCode();</span>
+<span class="nc" id="L238">                    String responseBody = EntityUtils.toString(rsp.getEntity());</span>
+
+<span class="nc" id="L240">                    logger.debug(&quot;RC=&quot; + rc);</span>
+
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                    if (rc != 200) {</span>
+
+<span class="nc bnc" id="L244" title="All 2 branches missed.">                        if (rc == 428) {</span>
+
+<span class="nc" id="L246">                            logger.info(&quot;waiting for user response, will retry in &quot; + interval + &quot; seconds&quot;);</span>
+
+                        } else {
+
+                            // VT: NOTE: These are not really expected, but let's hope that the user
+                            // figures out what to with them
+
+<span class="nc" id="L253">                            logger.error(&quot;Unexpected: HTTP rc=&quot; + rc + &quot;, text follows:&quot;);</span>
+<span class="nc" id="L254">                            logger.error(responseBody);</span>
+
+<span class="nc" id="L256">                            logger.warn(&quot;will retry in &quot; + interval + &quot; seconds&quot;);</span>
+                        }
+                    }
+
+<span class="nc" id="L260">                    responseJson = responseBody;</span>
+
+<span class="nc" id="L262">                    logger.debug(&quot;response: &quot; + responseJson);</span>
+
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                    if (rc == 200) {</span>
+<span class="nc" id="L265">                        break;</span>
+                    }
+<span class="nc" id="L267">                }</span>
+            }
+
+            // Step 6
+            // https://developers.google.com/identity/protocols/OAuth2ForDevices#step-6-handle-responses-to-polling-requests
+
+            {
+<span class="nc" id="L274">                responseMap = gson.fromJson(responseJson, mapType);</span>
+
+<span class="nc" id="L276">                String accessToken = responseMap.get(&quot;access_token&quot;);</span>
+<span class="nc" id="L277">                String refreshToken = responseMap.get(&quot;refresh_token&quot;);</span>
+
+                {
+                    // VT: FIXME: Need to improve protocol handling should this become a problem
+
+                    //String expiresIn = responseMap.get(&quot;expires_in&quot;);
+                    //String tokenType = responseMap.get(&quot;token_type&quot;);
+
+                    // Two fields below are not documented un the page above
+
+                    //String scope = responseMap.get(&quot;scope&quot;);
+
+                    // This is JWT: https://stackoverflow.com/questions/8311836/how-to-identify-a-google-oauth2-user/13016081#13016081
+                    // Has the information we need to match HCC Core with HCC Remote.
+
+                    //String idToken = responseMap.get(&quot;id_token&quot;);
+                }
+
+<span class="nc" id="L295">                storeRefreshToken(refreshTokenFile, refreshToken);</span>
+
+<span class="nc" id="L297">                return accessToken;</span>
+            }
+
+<span class="nc" id="L300">        } catch (URISyntaxException ex) {</span>
+
+<span class="nc" id="L302">            throw new IOException(&quot;malformed URI&quot;, ex);</span>
+
+        } finally {
+<span class="nc" id="L305">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * @return {@code access_token}.
+     */
+    private String refresh(HttpClient httpClient, String clientId, String clientSecret, String refreshToken) throws IOException {
+
+<span class="nc" id="L314">        ThreadContext.push(&quot;refresh&quot;);</span>
+
+        try {
+
+<span class="nc" id="L318">            URIBuilder builder = new URIBuilder(&quot;https://www.googleapis.com/oauth2/v4/token&quot;);</span>
+
+<span class="nc" id="L320">            builder.addParameter(&quot;client_id&quot;, clientId);</span>
+<span class="nc" id="L321">            builder.addParameter(&quot;client_secret&quot;, clientSecret);</span>
+<span class="nc" id="L322">            builder.addParameter(&quot;refresh_token&quot;, refreshToken);</span>
+<span class="nc" id="L323">            builder.addParameter(&quot;grant_type&quot;, &quot;refresh_token&quot;);</span>
+
+<span class="nc" id="L325">            HttpPost post = new HttpPost(builder.toString());</span>
+<span class="nc" id="L326">            post.setHeader(&quot;Content-Type&quot;, &quot;application/x-www-form-urlencoded&quot;);</span>
+
+<span class="nc" id="L328">            HttpResponse rsp = httpClient.execute(post);</span>
+<span class="nc" id="L329">            int rc = rsp.getStatusLine().getStatusCode();</span>
+
+<span class="nc" id="L331">            logger.debug(&quot;RC=&quot; + rc);</span>
+
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            if (rc != 200) {</span>
+
+<span class="nc" id="L335">                logger.error(&quot;HTTP rc=&quot; + rc + &quot;, text follows:&quot;);</span>
+<span class="nc" id="L336">                logger.error(EntityUtils.toString(rsp.getEntity()));</span>
+
+<span class="nc" id="L338">                throw new IllegalStateException(&quot;request failed with HTTP code &quot; + rc + &quot;, see log for details&quot;);</span>
+            }
+
+<span class="nc" id="L341">            String responseJson = EntityUtils.toString(rsp.getEntity());</span>
+<span class="nc" id="L342">            Gson gson = new Gson();</span>
+<span class="nc" id="L343">            Type mapType  = new TypeToken&lt;Map&lt;String,String&gt;&gt;(){}.getType();</span>
+<span class="nc" id="L344">            Map&lt;String,String&gt; responseMap = gson.fromJson(responseJson, mapType);</span>
+
+<span class="nc" id="L346">            logger.debug(&quot;response: &quot; + responseMap);</span>
+
+<span class="nc" id="L348">            return responseMap.get(&quot;access_token&quot;);</span>
+
+<span class="nc" id="L350">        } catch (URISyntaxException ex) {</span>
+
+<span class="nc" id="L352">            throw new IOException(&quot;malformed URI&quot;, ex);</span>
+
+        } finally {
+<span class="nc" id="L355">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Retrieve the client identity from the access token.
+     *
+     * @param httpClient Transport to use.
+     * @param accessToken Access token to use.
+     *
+     * @return Client identity.
+     */
+    private String getIdentityByToken(HttpClient httpClient, String accessToken) throws IOException {
+
+<span class="nc" id="L369">        ThreadContext.push(&quot;getIdentityByToken&quot;);</span>
+
+        try {
+
+<span class="nc" id="L373">            HttpPost post = new HttpPost(&quot;https://www.googleapis.com/oauth2/v3/userinfo&quot;);</span>
+
+<span class="nc" id="L375">            post.setHeader(&quot;Content-Type&quot;, &quot;application/x-www-form-urlencoded&quot;);</span>
+<span class="nc" id="L376">            post.setHeader(&quot;Authorization&quot;, &quot;Bearer &quot; + accessToken);</span>
+
+<span class="nc" id="L378">            HttpResponse rsp = httpClient.execute(post);</span>
+<span class="nc" id="L379">            int rc = rsp.getStatusLine().getStatusCode();</span>
+
+<span class="nc" id="L381">            logger.debug(&quot;RC=&quot; + rc);</span>
+
+<span class="nc bnc" id="L383" title="All 2 branches missed.">            if (rc != 200) {</span>
+
+<span class="nc" id="L385">                logger.error(&quot;HTTP rc=&quot; + rc + &quot;, text follows:&quot;);</span>
+<span class="nc" id="L386">                logger.error(EntityUtils.toString(rsp.getEntity()));</span>
+
+<span class="nc" id="L388">                throw new IllegalStateException(&quot;OAuth 2.0 for TV and Limited-Input Device Applications: couldn't finish the sequence&quot;);</span>
+            }
+
+<span class="nc" id="L391">            String responseJson = EntityUtils.toString(rsp.getEntity());</span>
+
+<span class="nc" id="L393">            logger.debug(&quot;response: &quot; + responseJson);</span>
+
+<span class="nc" id="L395">            Gson gson = new Gson();</span>
+<span class="nc" id="L396">            Type mapType  = new TypeToken&lt;Map&lt;String,String&gt;&gt;(){}.getType();</span>
+<span class="nc" id="L397">            Map&lt;String,String&gt; responseMap = gson.fromJson(responseJson, mapType);</span>
+<span class="nc" id="L398">            String email = responseMap.get(&quot;email&quot;);</span>
+
+<span class="nc bnc" id="L400" title="All 4 branches missed.">            if (email == null || &quot;&quot;.equals(email)) {</span>
+<span class="nc" id="L401">                throw new IllegalStateException(&quot;null or empty email, shouldn't have ended up here&quot;);</span>
+            }
+
+<span class="nc" id="L404">            return email;</span>
+
+        } finally {
+<span class="nc" id="L407">            ThreadContext.pop();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

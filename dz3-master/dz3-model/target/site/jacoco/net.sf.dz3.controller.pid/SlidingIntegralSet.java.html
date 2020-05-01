@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SlidingIntegralSet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller.pid</a> &gt; <span class="el_source">SlidingIntegralSet.java</span></div><h1>SlidingIntegralSet.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller.pid;
+
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map.Entry;
+
+import net.sf.dz3.controller.DataSet;
+
+/**
+ * Data set supporting the integration calculation.
+ * &lt;p&gt;
+ * The {@link DataSet#record record()} method from {@link DataSet DataSet} class
+ * is used, however, make sure you record the right values. If this class is
+ * used for the {@link PID_Controller}, it must be fed with controller error,
+ * and anti-windup action must be programmed outside of this class.
+ *
+ * Unlike {@link NaiveIntegralSet} (which has the time complexity of {@code O(n)}), this class
+ * provides {@code O(1)} time complexity.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2015
+ */
+public class SlidingIntegralSet implements IntegralSet {
+
+    /**
+     * The data set. The key is sampling time, the value is sample value.
+     */
+<span class="fc" id="L27">    private LinkedHashMap&lt;Long, Double&gt; dataSet = new LinkedHashMap&lt;Long, Double&gt;();</span>
+
+    private final long integrationTime;
+
+    /**
+     * Last known timestamp. {@code null} if none recorded yet.
+     */
+    private Long lastTimestamp;
+
+    private double lastValue;
+
+    private double lastIntegral;
+
+    /**
+     * Create the instance.
+     *
+     * @param integrationTime Integration time, milliseconds. Data elements older than this are expired.
+     */
+<span class="fc" id="L45">    public SlidingIntegralSet(final long integrationTime) {</span>
+
+<span class="fc" id="L47">        this.integrationTime = integrationTime;</span>
+<span class="fc" id="L48">    }</span>
+
+    /**
+     * Record the sample.
+     *
+     * @param millis Absolute time, milliseconds.
+     * @param value The sample value.
+     */
+    @Override
+    public synchronized void record(final long millis, final Double value) {
+
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L60">            throw new IllegalArgumentException(&quot;null value mustn't propagate here&quot;);</span>
+        }
+
+<span class="pc bpc" id="L63" title="1 of 4 branches missed.">        if (lastTimestamp != null &amp;&amp; lastTimestamp &gt;= millis) {</span>
+
+<span class="nc" id="L65">            throw new IllegalArgumentException(&quot;Data element out of sequence: last key is &quot; + lastTimestamp</span>
+                    + &quot;, key being added is &quot; + millis);
+        }
+
+        double diff;
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (lastTimestamp == null) {</span>
+
+<span class="fc" id="L73">            diff = 0;</span>
+
+        } else {
+
+<span class="fc" id="L77">            diff = ((value + lastValue) / 2) * (millis - lastTimestamp);</span>
+        }
+
+<span class="fc" id="L80">        lastTimestamp = millis;</span>
+<span class="fc" id="L81">        lastValue = value;</span>
+
+<span class="fc" id="L83">        dataSet.put(Long.valueOf(millis), diff);</span>
+
+<span class="fc" id="L85">        lastIntegral += diff;</span>
+
+<span class="fc" id="L87">        expire();</span>
+
+        // System.err.println(&quot;DataSet@&quot; + hashCode() + &quot;: &quot; + dataSet.size());
+<span class="fc" id="L90">    }</span>
+
+    /**
+     * Expire all the data elements older than the last by {@link
+     * #integrationTime integration time}.
+     */
+    private void expire() {
+
+<span class="fc" id="L98">        Long expireBefore = Long.valueOf(lastTimestamp.longValue() - integrationTime);</span>
+
+<span class="fc" id="L100">        Entry&lt;Long, Double&gt; trailer = null;</span>
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        for (Iterator&lt;Entry&lt;Long, Double&gt;&gt; i = dataSet.entrySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">            Entry&lt;Long, Double&gt; entry = trailer != null ? trailer : i.next();</span>
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">            if (entry.getKey() &gt;= expireBefore) {</span>
+
+                // We're done, all other keys will be younger
+<span class="fc" id="L109">                return;</span>
+            }
+
+<span class="fc" id="L112">            i.remove();</span>
+
+<span class="fc" id="L114">            Entry&lt;Long, Double&gt; next = i.next();</span>
+
+<span class="fc" id="L116">            lastIntegral -= next.getValue();</span>
+
+<span class="fc" id="L118">            trailer = next;</span>
+<span class="fc" id="L119">        }</span>
+<span class="fc" id="L120">    }</span>
+
+    /**
+     * Get the integral starting with the first data element available and
+     * ending with the last data element available.
+     * &lt;p&gt;
+     * Integration time must have been taken care of by {@link DataSet#expire
+     * expiration}.
+     *
+     * @return An integral value (of the {@link #lastIntegral}).
+     */
+    @Override
+    public final synchronized double getIntegral() {
+
+<span class="fc" id="L134">        return lastIntegral;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

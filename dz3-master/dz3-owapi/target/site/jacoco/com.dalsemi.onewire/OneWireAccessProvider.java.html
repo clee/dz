@@ -1,0 +1,513 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireAccessProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire</a> &gt; <span class="el_source">OneWireAccessProvider.java</span></div><h1>OneWireAccessProvider.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+// OneWireAccessProvider.java
+package com.dalsemi.onewire;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.util.Enumeration;
+import java.util.Properties;
+import java.util.Vector;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+import com.dalsemi.onewire.adapter.TMEXAdapter;
+
+
+/**
+ * The OneWireAccessProvider class manages the Dallas Semiconductor adapter
+ * class derivatives of &lt;code&gt;DSPortAdapter&lt;/code&gt;. An enumeration of all
+ * available adapters can be accessed through the member function
+ * &lt;code&gt;EnumerateAllAdapters&lt;/code&gt;. This enables an application to be
+ * adapter independent. There are also facilities to get a system appropriate
+ * default adapter/port combination.
+ * &lt;p&gt;
+ * &lt;H3&gt; Usage &lt;/H3&gt;
+ * &lt;DL&gt;
+ * &lt;DD&gt;
+ * &lt;H4&gt; Example 1&lt;/H4&gt;
+ * Get an instance of the default 1-Wire adapter. The adapter will be ready to
+ * use if no exceptions are thrown.
+ *
+ * &lt;PRE&gt; &lt;CODE&gt; try { DSPortAdapter adapter =
+ * OneWireAccessProvider.getDefaultAdapter(); System.out.println(&quot;Adapter: &quot; +
+ * adapter.getAdapterName() + &quot; Port: &quot; + adapter.getPortName()); // use the
+ * adapter ... } catch(Exception e) { System.out.println(&quot;Default adapter not
+ * present: &quot; + e); } &lt;/CODE&gt; &lt;/PRE&gt;
+ *
+ * &lt;/DL&gt;
+ * &lt;DL&gt;
+ * &lt;DD&gt;
+ * &lt;H4&gt; Example 2&lt;/H4&gt;
+ * Enumerate through the available adapters and ports.
+ *
+ * &lt;PRE&gt; &lt;CODE&gt; DSPortAdapter adapter; String port; // get the adapters for
+ * (Enumeration adapter_enum = OneWireAccessProvider.enumerateAllAdapters();
+ * adapter_enum.hasMoreElements(); ) { // cast the enum as a DSPortAdapter
+ * adapter = ( DSPortAdapter ) adapter_enum.nextElement();
+ * System.out.print(&quot;Adapter: &quot; + adapter.getAdapterName() + &quot; with ports: &quot;); //
+ * get the ports for (Enumeration port_enum = adapter.getPortNames();
+ * port_enum.hasMoreElements(); ) { // cast the enum as a String port = ( String )
+ * port_enum.nextElement(); System.out.print(port + &quot; &quot;); }
+ * System.out.println(); } &lt;/CODE&gt; &lt;/PRE&gt;
+ *
+ * &lt;/DL&gt;
+ * &lt;DL&gt;
+ * &lt;DD&gt;
+ * &lt;H4&gt; Example 3&lt;/H4&gt;
+ * Display the default adapter name and port without getting an instance of the
+ * adapter.
+ *
+ * &lt;PRE&gt; &lt;CODE&gt; System.out.println(&quot;Default Adapter: &quot; +
+ * OneWireAccessProvider.getProperty(&quot;onewire.adapter.default&quot;));
+ * System.out.println(&quot;Default Port: &quot; +
+ * OneWireAccessProvider.getProperty(&quot;onewire.port.default&quot;)); &lt;/CODE&gt; &lt;/PRE&gt;
+ *
+ * &lt;/DL&gt;
+ *
+ * @see DSPortAdapter
+ * @version 0.00, 30 August 2000
+ * @author DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class OneWireAccessProvider {
+
+<span class="nc" id="L103">    protected final static Logger logger = LogManager.getLogger(OneWireAccessProvider.class);</span>
+
+    /**
+     * Override adapter variables.
+     */
+<span class="nc" id="L108">    private static boolean useOverrideAdapter = false;</span>
+
+    /**
+     * The override adapter.
+     */
+<span class="nc" id="L113">    private static DSPortAdapter overrideAdapter = null;</span>
+
+    /**
+     * Don't allow anyone to instantiate.
+     */
+    private OneWireAccessProvider() {
+
+    }
+
+    /**
+     * Gets an &lt;code&gt;Enumeration&lt;/code&gt; of all 1-Wire adapter types supported.
+     * Using this enumeration with the port enumeration for each adapter, a
+     * search can be done to find all available hardware adapters.
+     *
+     * @return &lt;code&gt;Enumeration&lt;/code&gt; of &lt;code&gt;DSPortAdapters&lt;/code&gt; in
+     * the system
+     */
+    public synchronized static Enumeration&lt;DSPortAdapter&gt; enumerateAllAdapters() {
+
+<span class="nc" id="L132">        Vector&lt;DSPortAdapter&gt; adaptersFound = new Vector&lt;DSPortAdapter&gt;(3, 1);</span>
+<span class="nc" id="L133">        boolean TMEX_loaded = false;</span>
+<span class="nc" id="L134">        boolean serial_loaded = false;</span>
+
+        // check for override
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        if (useOverrideAdapter) {</span>
+<span class="nc" id="L138">            adaptersFound.addElement(overrideAdapter);</span>
+<span class="nc" id="L139">            return (adaptersFound.elements());</span>
+        }
+
+        // only try native TMEX if on x86 Windows platform
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if ((System.getProperty(&quot;os.arch&quot;).indexOf(&quot;86&quot;) != -1)</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                &amp;&amp; (System.getProperty(&quot;os.name&quot;).indexOf(&quot;Windows&quot;) != -1)) {</span>
+
+            // loop through the TMEX adapters
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            for (int port_type = 0; port_type &lt;= 15; port_type++) {</span>
+
+                // try to load the adapter classes
+                try {
+<span class="nc" id="L151">                    DSPortAdapter adapterInstance = new com.dalsemi.onewire.adapter.TMEXAdapter(port_type);</span>
+
+                    // only add it if it has some ports
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                    if (adapterInstance.getPortNames().hasMoreElements()) {</span>
+<span class="nc" id="L155">                        adaptersFound.addElement(adapterInstance);</span>
+<span class="nc" id="L156">                        TMEX_loaded = true;</span>
+                    }
+<span class="nc" id="L158">                } catch (Throwable t) {</span>
+                    // DRAIN
+<span class="nc" id="L160">                    logger.fatal(&quot;DalSemi ignored this exception&quot;, t);</span>
+<span class="nc" id="L161">                }</span>
+            }
+        }
+
+        // get the pure java adapter
+        try {
+<span class="nc" id="L167">            Class&lt;?&gt; adapterClass = Class.forName(&quot;com.dalsemi.onewire.adapter.USerialAdapter&quot;);</span>
+<span class="nc" id="L168">            DSPortAdapter adapterInstance = (DSPortAdapter) adapterClass.newInstance();</span>
+
+            // check if has any ports (common javax.comm problem)
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            if (!adapterInstance.getPortNames().hasMoreElements()) {</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">                if (!TMEX_loaded) {</span>
+<span class="nc" id="L173">                    logger.warn(&quot;Warning: serial communications API not setup properly, no ports in enumeration &quot;);</span>
+<span class="nc" id="L174">                    logger.warn(&quot;Pure-Java DS9097U adapter will not work, not added to adapter enum&quot;);</span>
+                }
+            } else {
+<span class="nc" id="L177">                adaptersFound.addElement(adapterInstance);</span>
+<span class="nc" id="L178">                serial_loaded = true;</span>
+            }
+<span class="nc" id="L180">        } catch (UnsatisfiedLinkError e) {</span>
+<span class="nc bnc" id="L181" title="All 2 branches missed.">            if (!TMEX_loaded) {</span>
+<span class="nc" id="L182">                logger.warn(&quot;Could not load serial comm API for pure-Java DS9097U adapter.&quot;);</span>
+<span class="nc" id="L183">                logger.warn(&quot;This message can be safely ignored if you are using TMEX Drivers or&quot;);</span>
+<span class="nc" id="L184">                logger.warn(&quot;the NetAdapter to connect to the 1-Wire Network.&quot;);</span>
+            }
+<span class="nc" id="L186">        } catch (NoClassDefFoundError e) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            if (!TMEX_loaded) {</span>
+<span class="nc" id="L188">                logger.warn(&quot;Could not load serial comm API for pure-Java DS9097U adapter: &quot; + e);</span>
+<span class="nc" id="L189">                logger.warn(&quot;This message can be safely ignored if you are using TMEX Drivers or&quot;);</span>
+<span class="nc" id="L190">                logger.warn(&quot;the NetAdapter to connect to the 1-Wire Network.&quot;);</span>
+            }
+<span class="nc" id="L192">        } catch (Exception ex) {</span>
+            // DRAIN
+<span class="nc" id="L194">            logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L195">        }</span>
+
+<span class="nc bnc" id="L197" title="All 4 branches missed.">        if (!TMEX_loaded &amp;&amp; !serial_loaded) {</span>
+<span class="nc" id="L198">            logger.error(&quot;Standard drivers for 1-Wire are not found.&quot;);</span>
+<span class="nc" id="L199">            logger.error(&quot;Please download the latest drivers from http://www.ibutton.com &quot;);</span>
+<span class="nc" id="L200">            logger.error(&quot;Or install RXTX Serial Communications API from http://www.rxtx.org &quot;);</span>
+        }
+
+        // get the network adapter
+        try {
+<span class="nc" id="L205">            Class&lt;?&gt; adapterClass = Class.forName(&quot;com.dalsemi.onewire.adapter.NetAdapter&quot;);</span>
+<span class="nc" id="L206">            DSPortAdapter adapterInstance = (DSPortAdapter) adapterClass.newInstance();</span>
+
+<span class="nc" id="L208">            adaptersFound.addElement(adapterInstance);</span>
+<span class="nc" id="L209">        } catch (NoClassDefFoundError ex) {</span>
+<span class="nc" id="L210">            logger.error(&quot;Warning: Could not load NetAdapter: &quot;, ex);</span>
+<span class="nc" id="L211">        } catch (Exception ex) {</span>
+            // DRAIN
+<span class="nc" id="L213">            logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L214">        }</span>
+
+        // get adapters from property file with keys
+        // 'onewire.register.adapter0-15'
+        
+        // VT: FIXME: Need to see if this is a bug: the nesting of the loop and try/catc seems funky,
+        // the loop will be broken on the first unsuccessful attempt
+        
+<span class="nc" id="L222">        String className = null;</span>
+        
+        try {
+            // loop through the possible registered adapters
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            for (int reg_num = 0; reg_num &lt;= 15; reg_num++) {</span>
+<span class="nc" id="L227">                className = getProperty(&quot;onewire.register.adapter&quot; + reg_num);</span>
+
+                // done if no property by that name
+<span class="nc bnc" id="L230" title="All 2 branches missed.">                if (className == null)</span>
+<span class="nc" id="L231">                    break;</span>
+
+                // add it to the enum
+<span class="nc" id="L234">                Class&lt;?&gt; adapterClass = Class.forName(className);</span>
+<span class="nc" id="L235">                DSPortAdapter adapterInstance = (DSPortAdapter) adapterClass.newInstance();</span>
+<span class="nc" id="L236">                adaptersFound.addElement(adapterInstance);</span>
+            }
+<span class="nc" id="L238">        } catch (UnsatisfiedLinkError e) {</span>
+<span class="nc" id="L239">            logger.warn(&quot;Adapter \&quot;&quot; + className + &quot;\&quot; was registered in &quot;</span>
+                    + &quot;properties file, but the class could not be loaded&quot;);
+<span class="nc" id="L241">        } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L242">            logger.error(&quot;Adapter \&quot;&quot; + className + &quot;\&quot; was registered in properties file, &quot;</span>
+                    + &quot; but the class was not found&quot;);
+<span class="nc" id="L244">        } catch (Exception ex) {</span>
+            // DRAIN
+<span class="nc" id="L246">            logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L247">        }</span>
+
+        // check for no adapters
+<span class="nc bnc" id="L250" title="All 2 branches missed.">        if (adaptersFound.isEmpty())</span>
+<span class="nc" id="L251">            logger.error(&quot;No 1-Wire adapter classes found&quot;);</span>
+        
+<span class="nc" id="L253">        return (adaptersFound.elements());</span>
+    }
+
+    /**
+     * Finds, opens, and verifies the specified adapter on the indicated port.
+     *
+     * @param adapterName string name of the adapter (match to result of call to
+     * getAdapterName() method in DSPortAdapter).
+     * @param portName string name of the port used in the method selectPort()
+     * in DSPortAdapter.
+     * @return &lt;code&gt;DSPortAdapter&lt;/code&gt; if adapter present.
+     * @throws OneWireIOException when communication with the adapter fails.
+     * @throws OneWireException when the port or adapter not present.
+     */
+    public synchronized static DSPortAdapter getAdapter(String adapterName, String portName) throws OneWireIOException,
+    OneWireException {
+
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        if (useOverrideAdapter)</span>
+<span class="nc" id="L271">            return overrideAdapter;</span>
+
+<span class="nc" id="L273">        DSPortAdapter found = null;</span>
+
+
+        // enumerature through available adapters to find the correct one
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        for (Enumeration&lt;DSPortAdapter&gt; e = enumerateAllAdapters(); e.hasMoreElements();) {</span>
+            // cast the enum as a DSPortAdapter
+<span class="nc" id="L279">            DSPortAdapter adapter = e.nextElement();</span>
+
+            // see if this is the type of adapter we want
+<span class="nc bnc" id="L282" title="All 4 branches missed.">            if ((found != null) || (!adapter.getAdapterName().equals(adapterName))) {</span>
+                // not this adapter, then just cleanup
+                try {
+<span class="nc" id="L285">                    adapter.freePort();</span>
+<span class="nc" id="L286">                } catch (Exception ex) {</span>
+                    // DRAIN
+<span class="nc" id="L288">                    logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L289">                }</span>
+<span class="nc" id="L290">                continue;</span>
+            }
+
+            // attempt to open and verify the adapter
+<span class="nc bnc" id="L294" title="All 2 branches missed.">            if (adapter.selectPort(portName)) {</span>
+<span class="nc" id="L295">                adapter.beginExclusive();</span>
+
+                try {
+                    // check for the adapter
+<span class="nc bnc" id="L299" title="All 2 branches missed.">                    if (adapter.adapterDetected())</span>
+<span class="nc" id="L300">                        found = adapter;</span>
+                    else {
+
+                        // close the port just opened
+<span class="nc" id="L304">                        adapter.freePort();</span>
+
+<span class="nc" id="L306">                        throw new OneWireException(&quot;Port found \&quot;&quot; + portName + &quot;\&quot; but Adapter \&quot;&quot; + adapterName</span>
+                                + &quot;\&quot; not detected&quot;);
+                    }
+                } finally {
+<span class="nc" id="L310">                    adapter.endExclusive();</span>
+<span class="nc" id="L311">                }</span>
+            } else
+<span class="nc" id="L313">                throw new OneWireException(&quot;Specified port \&quot;&quot; + portName + &quot;\&quot; could not be selected for adapter \&quot;&quot;</span>
+                        + adapterName + &quot;\&quot;&quot;);
+<span class="nc" id="L315">        }</span>
+
+        // if adapter found then return it
+<span class="nc bnc" id="L318" title="All 2 branches missed.">        if (found != null)</span>
+<span class="nc" id="L319">            return found;</span>
+
+        // adapter by that name not found
+<span class="nc" id="L322">        throw new OneWireException(&quot;Specified adapter name \&quot;&quot; + adapterName + &quot;\&quot; is not known&quot;);</span>
+    }
+
+    /**
+     * Finds, opens, and verifies the default adapter and port. Looks for the
+     * default adapter/port in the following locations:
+     * &lt;p&gt;
+     * &lt;ul&gt;
+     * &lt;li&gt; Use adapter/port in System.properties for onewire.adapter.default,
+     * and onewire.port.default properties tags.&lt;/li&gt;
+     * &lt;li&gt; Use adapter/port from onewire.properties file in current directory
+     * or &lt; java.home &gt;/lib/ (Desktop) or /etc/ (TINI)&lt;/li&gt;
+     * &lt;li&gt; Use smart default
+     * &lt;ul&gt;
+     * &lt;li&gt; Desktop
+     * &lt;ul&gt;
+     * &lt;li&gt; First, TMEX default (Win32 only)
+     * &lt;li&gt; Second, if TMEX not present, then DS9097U/(first serial port)
+     * &lt;/ul&gt;
+     * &lt;li&gt; TINI, TINIExternalAdapter on port serial1
+     * &lt;/ul&gt;
+     * &lt;/ul&gt;
+     *
+     * @return &lt;code&gt;DSPortAdapter&lt;/code&gt; if default adapter present
+     * @throws OneWireIOException when communcation with the adapter fails
+     * @throws OneWireException when the port or adapter not present
+     */
+    public synchronized static DSPortAdapter getDefaultAdapter() throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L351" title="All 2 branches missed.">        if (useOverrideAdapter) {</span>
+<span class="nc" id="L352">            return overrideAdapter;</span>
+        }
+
+<span class="nc" id="L355">        return getAdapter(getProperty(&quot;onewire.adapter.default&quot;), getProperty(&quot;onewire.port.default&quot;));</span>
+    }
+
+    /**
+     * Gets the specified onewire property. Looks for the property in the
+     * following locations:
+     * &lt;p&gt;
+     * &lt;ul&gt;
+     * &lt;li&gt; In System.properties
+     * &lt;li&gt; In onewire.properties file in current directory or &lt; java.home
+     * &gt;/lib/ (Desktop) or /etc/ (TINI)
+     * &lt;li&gt; 'smart' default if property is 'onewire.adapter.default' or
+     * 'onewire.port.default'
+     * &lt;/ul&gt;
+     *
+     * @param propName string name of the property to read
+     * @return &lt;code&gt;String&lt;/code&gt; representing the property value or
+     * &lt;code&gt;null&lt;/code&gt; if it could not be found (&lt;code&gt;onewire.adapter.default&lt;/code&gt;
+     * and &lt;code&gt;onewire.port.default&lt;/code&gt; may return a 'smart' default even
+     * if property not present)
+     */
+    public synchronized static String getProperty(String propName) {
+
+        try {
+<span class="nc bnc" id="L379" title="All 2 branches missed.">            if (useOverrideAdapter) {</span>
+<span class="nc bnc" id="L380" title="All 2 branches missed.">                if (propName.equals(&quot;onewire.adapter.default&quot;))</span>
+<span class="nc" id="L381">                    return overrideAdapter.getAdapterName();</span>
+<span class="nc bnc" id="L382" title="All 2 branches missed.">                if (propName.equals(&quot;onewire.port.default&quot;))</span>
+<span class="nc" id="L383">                    return overrideAdapter.getPortName();</span>
+            }
+<span class="nc" id="L385">        } catch (Exception ex) {</span>
+            // just drain it and let the normal method run...
+<span class="nc" id="L387">            logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L388">        }</span>
+
+<span class="nc" id="L390">        Properties onewire_properties = new Properties();</span>
+<span class="nc" id="L391">        FileInputStream prop_file = null;</span>
+<span class="nc" id="L392">        String ret_str = null;</span>
+        DSPortAdapter adapter_instance;
+        Class&lt;?&gt; adapter_class;
+
+        // try system properties
+        try {
+<span class="nc" id="L398">            ret_str = System.getProperty(propName, null);</span>
+<span class="nc" id="L399">        } catch (Exception e) {</span>
+<span class="nc" id="L400">            ret_str = null;</span>
+<span class="nc" id="L401">        }</span>
+
+        // if defaults not found then try onewire.properties file
+<span class="nc bnc" id="L404" title="All 2 branches missed.">        if (ret_str == null) {</span>
+
+            // loop to attempt to open the onewire.properties file in two
+            // locations
+            // .\onewire.properties or &lt;java.home&gt;\lib\onewire.properties
+<span class="nc" id="L409">            String path = new String(&quot;&quot;);</span>
+
+<span class="nc bnc" id="L411" title="All 2 branches missed.">            for (int i = 0; i &lt;= 1; i++) {</span>
+
+                // attempt to open the onewire.properties file
+                try {
+<span class="nc" id="L415">                    prop_file = new FileInputStream(path + &quot;onewire.properties&quot;);</span>
+<span class="nc" id="L416">                } catch (Exception e) {</span>
+<span class="nc" id="L417">                    prop_file = null;</span>
+<span class="nc" id="L418">                }</span>
+
+                // if open, then try to read value
+<span class="nc bnc" id="L421" title="All 2 branches missed.">                if (prop_file != null) {</span>
+
+                    // attempt to read the onewire.properties
+                    try {
+<span class="nc" id="L425">                        onewire_properties.load(prop_file);</span>
+
+<span class="nc" id="L427">                        ret_str = onewire_properties.getProperty(propName, null);</span>
+<span class="nc" id="L428">                    } catch (Exception e) {</span>
+<span class="nc" id="L429">                        ret_str = null;</span>
+<span class="nc" id="L430">                    }</span>
+                }
+
+                // check to see if we now have the value
+<span class="nc bnc" id="L434" title="All 2 branches missed.">                if (ret_str != null)</span>
+<span class="nc" id="L435">                    break;</span>
+
+                // try the second path
+<span class="nc" id="L438">                path = System.getProperty(&quot;java.home&quot;) + File.separator + &quot;lib&quot; + File.separator;</span>
+            }
+        }
+
+        // if defaults still not found then check TMEX default
+<span class="nc bnc" id="L443" title="All 2 branches missed.">        if (ret_str == null) {</span>
+            try {
+<span class="nc bnc" id="L445" title="All 2 branches missed.">                if (propName.equals(&quot;onewire.adapter.default&quot;))</span>
+<span class="nc" id="L446">                    ret_str = TMEXAdapter.getDefaultAdapterName();</span>
+<span class="nc bnc" id="L447" title="All 2 branches missed.">                else if (propName.equals(&quot;onewire.port.default&quot;))</span>
+<span class="nc" id="L448">                    ret_str = TMEXAdapter.getDefaultPortName();</span>
+
+                // if did not get real string then null out
+<span class="nc bnc" id="L451" title="All 2 branches missed.">                if (ret_str != null) {</span>
+<span class="nc bnc" id="L452" title="All 2 branches missed.">                    if (ret_str.length() &lt;= 0)</span>
+<span class="nc" id="L453">                        ret_str = null;</span>
+                }
+<span class="nc" id="L455">            } catch (Throwable t) {</span>
+                // DRAIN
+<span class="nc" id="L457">                logger.fatal(&quot;DalSemi ignored this exception&quot;, t);</span>
+<span class="nc" id="L458">            }</span>
+
+        }
+
+        // if STILL not found then just pick DS9097U on 'smartDefaultPort'
+<span class="nc bnc" id="L463" title="All 2 branches missed.">        if (ret_str == null) {</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">            if (propName.equals(&quot;onewire.adapter.default&quot;))</span>
+<span class="nc" id="L465">                ret_str = &quot;DS9097U&quot;;</span>
+<span class="nc bnc" id="L466" title="All 2 branches missed.">            else if (propName.equals(&quot;onewire.port.default&quot;)) {</span>
+                try {
+<span class="nc" id="L468">                    adapter_class = Class.forName(&quot;com.dalsemi.onewire.adapter.USerialAdapter&quot;);</span>
+<span class="nc" id="L469">                    adapter_instance = (DSPortAdapter) adapter_class.newInstance();</span>
+
+                    // check if has any ports (common javax.comm problem)
+<span class="nc bnc" id="L472" title="All 2 branches missed.">                    if (adapter_instance.getPortNames().hasMoreElements())</span>
+<span class="nc" id="L473">                        ret_str = adapter_instance.getPortNames().nextElement();</span>
+<span class="nc" id="L474">                } catch (Throwable t) {</span>
+                    // DRAIN
+<span class="nc" id="L476">                    logger.fatal(&quot;DalSemi ignored this exception&quot;, t);</span>
+<span class="nc" id="L477">                }</span>
+            }
+        }
+
+<span class="nc" id="L481">        return ret_str;</span>
+    }
+
+    /**
+     * Sets an overriding adapter. This adapter will be returned from getAdapter
+     * and getDefaultAdapter despite what was requested.
+     *
+     * @param adapter adapter to be the override
+     * @see #getAdapter
+     * @see #getDefaultAdapter
+     * @see #clearUseOverridingAdapter
+     */
+    public synchronized static void setUseOverridingAdapter(DSPortAdapter adapter) {
+
+<span class="nc" id="L495">        useOverrideAdapter = true;</span>
+<span class="nc" id="L496">        overrideAdapter = adapter;</span>
+<span class="nc" id="L497">    }</span>
+
+    /**
+     * Clears the overriding adapter. The operation of getAdapter and
+     * getDefaultAdapter will be returned to normal.
+     *
+     * @see #getAdapter
+     * @see #getDefaultAdapter
+     * @see #setUseOverridingAdapter
+     */
+    public synchronized static void clearUseOverridingAdapter() {
+
+<span class="nc" id="L509">        useOverrideAdapter = false;</span>
+<span class="nc" id="L510">        overrideAdapter = null;</span>
+<span class="nc" id="L511">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

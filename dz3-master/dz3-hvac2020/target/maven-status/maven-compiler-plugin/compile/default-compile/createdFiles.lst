@@ -1,0 +1,7 @@
+net/sf/dz3/device/actuator/HvacUnit2020.class
+net/sf/dz3/device/actuator/impl/AbstractHvacUnit2020.class
+net/sf/dz3/device/actuator/HvacUnit2020$Status.class
+net/sf/dz3/device/actuator/impl/HeatPump$1.class
+net/sf/dz3/device/actuator/impl/FanPanel.class
+net/sf/dz3/device/actuator/impl/HeatPump.class
+net/sf/dz3/device/actuator/impl/FanPanel$1.class

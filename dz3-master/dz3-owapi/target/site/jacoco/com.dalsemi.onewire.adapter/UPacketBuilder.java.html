@@ -1,0 +1,998 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UPacketBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">UPacketBuilder.java</span></div><h1>UPacketBuilder.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+// imports
+import java.util.Enumeration;
+import java.util.Vector;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.dalsemi.onewire.OneWireAccessProvider;
+import com.dalsemi.onewire.utils.Address;
+
+
+/** UPacketBuilder contains the methods to build a communication packet
+ *  to the DS2480 based serial adapter.
+ *
+ *  @version    0.00, 28 Aug 2000
+ *  @author     DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+class UPacketBuilder {
+
+<span class="nc" id="L51">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    //--------
+    //-------- Finals
+    //--------
+    //-------- Misc
+
+    /** Byte operation                                     */
+    public static final int OPERATION_BYTE = 0;
+
+    /** Byte operation                                     */
+    public static final int OPERATION_SEARCH = 1;
+
+    /** Max bytes to stream at once  */
+    public static final char MAX_BYTES_STREAMED = 64;
+
+    //-------- DS9097U function commands
+
+    /** DS9097U function command, single bit               */
+    public static final char FUNCTION_BIT = 0x81;
+
+    /** DS9097U function command, turn search mode on      */
+    public static final char FUNCTION_SEARCHON = 0xB1;
+
+    /** DS9097U function command, turn search mode off     */
+    public static final char FUNCTION_SEARCHOFF = 0xA1;
+
+    /** DS9097U function command, OneWire reset            */
+    public static final char FUNCTION_RESET = 0xC1;
+
+    /** DS9097U function command, 5V pulse imediate        */
+    public static final char FUNCTION_5VPULSE_NOW = 0xED;
+
+    /** DS9097U function command, 12V pulse imediate        */
+    public static final char FUNCTION_12VPULSE_NOW = 0xFD;
+
+    /** DS9097U function command, 5V pulse after next byte */
+    public static final char FUNCTION_5VPULSE_ARM = 0xEF;
+
+    /** DS9097U function command to stop an ongoing pulse  */
+    public static final char FUNCTION_STOP_PULSE = 0xF1;
+
+    //-------- DS9097U bit polarity settings for doing bit operations
+
+    /** DS9097U bit polarity one for function FUNCTION_BIT   */
+    public static final char BIT_ONE = 0x10;
+
+    /** DS9097U bit polarity zero  for function FUNCTION_BIT */
+    public static final char BIT_ZERO = 0x00;
+
+    //-------- DS9097U 5V priming values 
+
+    /** DS9097U 5V prime on for function FUNCTION_BIT    */
+    public static final char PRIME5V_TRUE = 0x02;
+
+    /** DS9097U 5V prime off for function FUNCTION_BIT   */
+    public static final char PRIME5V_FALSE = 0x00;
+
+    //-------- DS9097U command masks 
+
+    /** DS9097U mask to read or write a configuration parameter   */
+    public static final char CONFIG_MASK = 0x01;
+
+    /** DS9097U mask to read the OneWire reset response byte */
+    public static final char RESPONSE_RESET_MASK = 0x03;
+
+    //-------- DS9097U reset results 
+
+    /** DS9097U  OneWire reset result = shorted */
+    public static final char RESPONSE_RESET_SHORT = 0x00;
+
+    /** DS9097U  OneWire reset result = presence */
+    public static final char RESPONSE_RESET_PRESENCE = 0x01;
+
+    /** DS9097U  OneWire reset result = alarm */
+    public static final char RESPONSE_RESET_ALARM = 0x02;
+
+    /** DS9097U  OneWire reset result = no presence */
+    public static final char RESPONSE_RESET_NOPRESENCE = 0x03;
+
+    //-------- DS9097U bit interpretation 
+
+    /** DS9097U mask to read bit operation result   */
+    public static final char RESPONSE_BIT_MASK = 0x03;
+
+    /** DS9097U read bit operation 1 */
+    public static final char RESPONSE_BIT_ONE = 0x03;
+
+    /** DS9097U read bit operation 0 */
+    public static final char RESPONSE_BIT_ZERO = 0x00;
+
+    //--------
+    //-------- Variables
+    //--------
+
+    /**
+     * The current state of the U brick, passed into constructor.
+     */
+    private UAdapterState uState;
+
+    /**
+     * The current current count for the number of return bytes from
+     * the packet being created.
+     */
+    protected int totalReturnLength;
+
+    /**
+     * Current raw send packet before it is added to the packetsVector
+     */
+    protected RawSendPacket packet;
+
+    /**
+     * Vector of raw send packets
+     */
+<span class="nc" id="L165">    protected final Vector&lt;RawSendPacket&gt; packetsVector = new Vector&lt;RawSendPacket&gt;();</span>
+
+    /**
+     * Flag to send only 'bit' commands to the DS2480
+     */
+    protected boolean bitsOnly;
+
+    //--------
+    //-------- Constructors
+    //--------
+
+    /**
+     * Constructs a new u packet builder.
+     *
+     * @param  startUState   the object that contains the U brick state
+     *                        which is reference when creating packets
+     */
+    public UPacketBuilder (UAdapterState startUState)
+<span class="nc" id="L183">    {</span>
+
+        // get a reference to the U state
+<span class="nc" id="L186">        uState = startUState;</span>
+
+        // create the buffer for the data
+<span class="nc" id="L189">        packet = new RawSendPacket();</span>
+
+        // restart the packet to initialize
+<span class="nc" id="L192">        restart();</span>
+
+        // Default on SunOS to bit-banging
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        bitsOnly = (System.getProperty(&quot;os.name&quot;).indexOf(&quot;SunOS&quot;) != -1);</span>
+
+        // check for a bits only property
+<span class="nc" id="L198">        String bits = OneWireAccessProvider.getProperty(&quot;onewire.serial.forcebitsonly&quot;);</span>
+<span class="nc bnc" id="L199" title="All 2 branches missed.">        if (bits != null)</span>
+        {
+<span class="nc bnc" id="L201" title="All 2 branches missed.">            if (bits.indexOf(&quot;true&quot;) != -1)</span>
+<span class="nc" id="L202">                bitsOnly = true;</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">            else if (bits.indexOf(&quot;false&quot;) != -1)</span>
+<span class="nc" id="L204">                bitsOnly = false;</span>
+        }
+<span class="nc" id="L206">    }</span>
+
+    //--------
+    //-------- Packet handling Methods 
+    //--------
+
+    /**
+     * Reset the packet builder to start a new one.
+     */
+    public void restart ()
+    {
+
+        // clear the vector list of packets
+<span class="nc" id="L219">        packetsVector.removeAllElements();</span>
+
+        // truncate the packet to 0 length
+<span class="nc" id="L222">        packet.buffer.setLength(0);</span>
+
+<span class="nc" id="L224">        packet.returnLength = 0;</span>
+
+        // reset the return cound
+<span class="nc" id="L227">        totalReturnLength = 0;</span>
+<span class="nc" id="L228">    }</span>
+
+    /**
+     * Take the current packet and place it into the vector.  This
+     * indicates a place where we need to wait for the results from
+     * DS9097U adapter.
+     */
+    public void newPacket ()
+    {
+
+        // add the packet
+<span class="nc" id="L239">        packetsVector.addElement(packet);</span>
+
+        // get a new packet
+<span class="nc" id="L242">        packet = new RawSendPacket();</span>
+<span class="nc" id="L243">    }</span>
+
+    /**
+     * Retrieve enumeration of raw send packets
+     *
+     * @return  the enumeration of packets
+     */
+    public Enumeration&lt;RawSendPacket&gt; getPackets ()
+    {
+
+        // put the last packet into the vector if it is non zero
+<span class="nc bnc" id="L254" title="All 2 branches missed.">        if (packet.buffer.length() &gt; 0)</span>
+<span class="nc" id="L255">            newPacket();</span>
+
+<span class="nc" id="L257">        return packetsVector.elements();</span>
+    }
+
+    //--------
+    //-------- 1-Wire Network operation append methods 
+    //--------
+
+    /** Add the command to reset the OneWire at the current speed.
+     *
+     *  @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public int oneWireReset ()
+    {
+
+        // set to command mode
+<span class="nc" id="L274">        setToCommandMode();</span>
+
+        // append the reset command at the current speed
+<span class="nc" id="L277">        packet.buffer.append(( char ) (FUNCTION_RESET | uState.uSpeedMode));</span>
+
+        // count this as a return 
+<span class="nc" id="L280">        totalReturnLength++;</span>
+<span class="nc" id="L281">        packet.returnLength++;</span>
+
+        // check if not streaming resets
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if (!uState.streamResets)</span>
+<span class="nc" id="L285">            newPacket();</span>
+
+        // check for 2480 wait on extra bytes packet 
+<span class="nc bnc" id="L288" title="All 6 branches missed.">        if (uState.longAlarmCheck</span>
+                &amp;&amp; ((uState.uSpeedMode == uState.USPEED_REGULAR)
+                        || (uState.uSpeedMode == uState.USPEED_FLEX)))
+<span class="nc" id="L291">            newPacket();</span>
+
+<span class="nc" id="L293">        return totalReturnLength - 1;</span>
+    }
+
+    /**
+     * Append data bytes (read/write) to the packet.
+     *
+     * @param  dataBytesValue  character array of data bytes
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public int dataBytes (char dataBytesValue [])
+    {
+        char byte_value;
+        int i,j;
+
+        // set to data mode
+<span class="nc bnc" id="L311" title="All 2 branches missed.">        if (!bitsOnly)</span>
+<span class="nc" id="L312">            setToDataMode();</span>
+
+<span class="nc" id="L314">        logger.debug(&quot;UPacketbuilder-dataBytes[] length &quot;+ dataBytesValue.length);</span>
+
+        // record the current count location 
+<span class="nc" id="L317">        int ret_value = totalReturnLength;</span>
+
+        // check each byte to see if some need duplication
+<span class="nc bnc" id="L320" title="All 2 branches missed.">        for (i = 0; i &lt; dataBytesValue.length; i++)</span>
+        {
+            // convert the rest to OneWireIOExceptions
+<span class="nc bnc" id="L323" title="All 2 branches missed.">            if (bitsOnly)</span>
+            {
+                // change byte to bits
+<span class="nc" id="L326">                byte_value = dataBytesValue [i];</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">                for (j = 0; j &lt; 8; j++)</span>
+                {
+<span class="nc bnc" id="L329" title="All 2 branches missed.">                    dataBit(((byte_value &amp; 0x01) == 0x01), false);</span>
+<span class="nc" id="L330">                    byte_value &gt;&gt;&gt;= 1;</span>
+                }
+            }
+            else
+            {
+                // append the data
+<span class="nc" id="L336">                packet.buffer.append(dataBytesValue [i]);</span>
+
+<span class="nc" id="L338">                logger.debug(&quot;UPacketbuilder-dataBytes[] byte[&quot;</span>
+<span class="nc" id="L339">                            + Integer.toHexString(( int ) dataBytesValue [i] &amp; 0x00FF)</span>
+                            + &quot;]&quot;);
+
+                // check for duplicates needed for special characters  
+<span class="nc bnc" id="L343" title="All 6 branches missed.">                if ((( char ) (dataBytesValue [i] &amp; 0x00FF) == uState.MODE_COMMAND)</span>
+                        || ((( char ) (dataBytesValue [i] &amp; 0x00FF) == uState.MODE_SPECIAL)
+                                &amp;&amp; (uState.revision == uState.CHIP_VERSION1)))
+                {
+                    // duplicate this data byte
+<span class="nc" id="L348">                    packet.buffer.append(dataBytesValue [i]);</span>
+                }
+
+                // add to the return number of bytes
+<span class="nc" id="L352">                totalReturnLength++;</span>
+<span class="nc" id="L353">                packet.returnLength++;</span>
+
+<span class="nc" id="L355">                logger.debug(&quot;UPacketbuilder-dataBytes[] returnlength &quot;</span>
+                        + packet.returnLength + &quot; bufferLength &quot;
+<span class="nc" id="L357">                        + packet.buffer.length());</span>
+
+                // check for packet too large or not streaming bytes
+<span class="nc bnc" id="L360" title="All 4 branches missed.">                if ((packet.buffer.length() &gt; MAX_BYTES_STREAMED)</span>
+                        ||!uState.streamBytes)
+<span class="nc" id="L362">                    newPacket();</span>
+            }
+        }
+
+<span class="nc" id="L366">        return ret_value;</span>
+    }
+
+    /**
+     * Append data bytes (read/write) to the packet.
+     *
+     * @param  dataBytesValue  byte array of data bytes
+     * @param  off   offset into the array of data to start
+     * @param  len   length of data to send / receive starting at 'off'
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    public int dataBytes (byte[] dataBytesValue, int off, int len)
+    {
+<span class="nc" id="L381">        char[] temp_ch = new char [len];</span>
+
+<span class="nc bnc" id="L383" title="All 2 branches missed.">        for (int i = 0; i &lt; len; i++)</span>
+<span class="nc" id="L384">            temp_ch [i] = ( char ) dataBytesValue [off + i];</span>
+
+<span class="nc" id="L386">        return dataBytes(temp_ch);</span>
+    }
+
+    /**
+     * Append a data byte (read/write) to the packet.
+     *
+     * @param  dataByteValue  data byte to append
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    public int dataByte (char dataByteValue)
+    {
+
+        // contruct a temporary array of characters of lenght 1
+        // to use the dataBytes method
+<span class="nc" id="L402">        char[] temp_char_array = new char [1];</span>
+
+<span class="nc" id="L404">        temp_char_array [0] = dataByteValue;</span>
+
+<span class="nc" id="L406">        logger.debug(&quot;UPacketbuilder-dataBytes [&quot;</span>
+<span class="nc" id="L407">                + Integer.toHexString(( int ) dataByteValue &amp; 0x00FF) + &quot;]&quot;);</span>
+
+<span class="nc" id="L409">        return dataBytes(temp_char_array);</span>
+    }
+
+    /**
+     * Append a data byte (read/write) to the packet.  Do a strong pullup
+     * when the byte is complete
+     *
+     * @param  dataByteValue  data byte to append
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    public int primedDataByte (byte dataByteValue)
+    {
+<span class="nc" id="L423">        int offset, start_offset = 0;</span>
+
+        // create a primed data byte by using bits with last one primed
+<span class="nc bnc" id="L426" title="All 2 branches missed.">        for (int i = 0; i &lt; 8; i++)</span>
+        {
+<span class="nc bnc" id="L428" title="All 4 branches missed.">            offset        = dataBit(((dataByteValue &amp; 0x01) == 0x01), (i == 7));</span>
+<span class="nc" id="L429">            dataByteValue &gt;&gt;&gt;= 1;</span>
+
+        // record the starting offset
+<span class="nc bnc" id="L432" title="All 2 branches missed.">        if (i == 0)</span>
+<span class="nc" id="L433">            start_offset = offset;</span>
+        }
+
+<span class="nc" id="L436">        return start_offset;</span>
+    }
+
+    /**
+     * Append a data bit (read/write) to the packet.
+     *
+     * @param  dataBit   bit to append
+     * @param  strong5V  true if want strong5V after bit
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    public int dataBit (boolean dataBit, boolean strong5V)
+    {
+
+        // set to command mode
+<span class="nc" id="L452">        setToCommandMode();</span>
+
+        // append the bit with polarity and strong5V options
+<span class="nc" id="L455">        packet.buffer.append(( char ) (FUNCTION_BIT | uState.uSpeedMode</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">                | ((dataBit) ? BIT_ONE</span>
+<span class="nc bnc" id="L457" title="All 2 branches missed.">                        : BIT_ZERO) | ((strong5V)</span>
+<span class="nc" id="L458">                                ? PRIME5V_TRUE</span>
+<span class="nc" id="L459">                                        : PRIME5V_FALSE)));</span>
+
+        // add to the return number of bytes
+<span class="nc" id="L462">        totalReturnLength++;</span>
+<span class="nc" id="L463">        packet.returnLength++;</span>
+
+        // check for packet too large or not streaming bits
+<span class="nc bnc" id="L466" title="All 4 branches missed.">        if ((packet.buffer.length() &gt; MAX_BYTES_STREAMED) ||!uState.streamBits)</span>
+<span class="nc" id="L467">            newPacket();</span>
+
+<span class="nc" id="L469">        return (totalReturnLength - 1);</span>
+    }
+
+    /**
+     * Append a search to the packet.  Assume that any reset and search
+     * command have already been appended.  This will add only the search
+     * itself.
+     *
+     * @param  mState OneWire state
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    public int search (OneWireState mState)
+    {
+
+        // set to command mode
+<span class="nc" id="L486">        setToCommandMode();</span>
+
+        // search mode on
+<span class="nc" id="L489">        packet.buffer.append(( char ) (FUNCTION_SEARCHON | uState.uSpeedMode));</span>
+
+        // set to data mode
+<span class="nc" id="L492">        setToDataMode();</span>
+
+        // create the search sequence character array
+<span class="nc" id="L495">        char[] search_sequence = new char [16];</span>
+
+        // get a copy of the current ID
+<span class="nc" id="L498">        char[] id = new char [8];</span>
+
+<span class="nc bnc" id="L500" title="All 2 branches missed.">        for (int i = 0; i &lt; 8; i++)</span>
+<span class="nc" id="L501">            id [i] = ( char ) (mState.ID [i] &amp; 0xFF);</span>
+
+        // clear the string
+<span class="nc bnc" id="L504" title="All 2 branches missed.">        for (int i = 0; i &lt; 16; i++)</span>
+<span class="nc" id="L505">            search_sequence [i] = 0;</span>
+
+<span class="nc" id="L507">        logger.debug(&quot;DEBUG: UPacketbuilder-search [&quot;</span>
+<span class="nc" id="L508">                + Integer.toHexString(( int ) id.length) + &quot;]&quot;);</span>
+
+        // only modify bits if not the first search
+<span class="nc bnc" id="L511" title="All 2 branches missed.">        if (mState.searchLastDiscrepancy != 0xFF)</span>
+        {
+
+            // set the bits in the added buffer
+<span class="nc bnc" id="L515" title="All 2 branches missed.">            for (int i = 0; i &lt; 64; i++)</span>
+            {
+
+                // before last discrepancy (go direction based on ID)
+<span class="nc bnc" id="L519" title="All 2 branches missed.">                if (i &lt; (mState.searchLastDiscrepancy - 1))</span>
+<span class="nc" id="L520">                    bitWrite(search_sequence, (i * 2 + 1), bitRead(id, i));</span>
+
+                // at last discrepancy (go 1's direction)
+<span class="nc bnc" id="L523" title="All 2 branches missed.">                else if (i == (mState.searchLastDiscrepancy - 1))</span>
+<span class="nc" id="L524">                    bitWrite(search_sequence, (i * 2 + 1), true);</span>
+
+                // after last discrepancy so leave zeros
+            }
+        }
+
+        // remember this position
+<span class="nc" id="L531">        int return_position = totalReturnLength;</span>
+
+        // add this sequence
+<span class="nc" id="L534">        packet.buffer.append(search_sequence);</span>
+
+        // set to command mode
+<span class="nc" id="L537">        setToCommandMode();</span>
+
+        // search mode off
+<span class="nc" id="L540">        packet.buffer.append(( char ) (FUNCTION_SEARCHOFF | uState.uSpeedMode));</span>
+
+        // add to the return number of bytes
+<span class="nc" id="L543">        totalReturnLength   += 16;</span>
+<span class="nc" id="L544">        packet.returnLength += 16;</span>
+
+<span class="nc" id="L546">        return return_position;</span>
+    }
+
+    /**
+     * Append a search off to set the current speed.
+     */
+    public void setSpeed ()
+    {
+
+        // set to command mode
+<span class="nc" id="L556">        setToCommandMode();</span>
+
+        // search mode off and change speed
+<span class="nc" id="L559">        packet.buffer.append(( char ) (FUNCTION_SEARCHOFF | uState.uSpeedMode));</span>
+
+        // no return byte
+<span class="nc" id="L562">    }</span>
+
+    //--------
+    //-------- U mode commands 
+    //--------
+
+    /**
+     * Set the U state to command mode.
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public void setToCommandMode ()
+    {
+<span class="nc bnc" id="L574" title="All 2 branches missed.">        if (!uState.inCommandMode)</span>
+        {
+
+            // append the command to switch
+<span class="nc" id="L578">            packet.buffer.append(uState.MODE_COMMAND);</span>
+
+            // switch the state
+<span class="nc" id="L581">            uState.inCommandMode = true;</span>
+        }
+<span class="nc" id="L583">    }</span>
+
+    /**
+     * Set the U state to data mode.
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public void setToDataMode ()
+    {
+<span class="nc bnc" id="L591" title="All 2 branches missed.">        if (uState.inCommandMode)</span>
+        {
+
+            // append the command to switch
+<span class="nc" id="L595">            packet.buffer.append(uState.MODE_DATA);</span>
+
+            // switch the state
+<span class="nc" id="L598">            uState.inCommandMode = false;</span>
+        }
+<span class="nc" id="L600">    }</span>
+
+    /**
+     * Append a get parameter to the packet.
+     *
+     * @param  parameter  parameter to get
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    public int getParameter (int parameter)
+    {
+
+        // set to command mode
+<span class="nc" id="L614">        setToCommandMode();</span>
+
+        // append paramter get
+<span class="nc" id="L617">        packet.buffer.append(( char ) (CONFIG_MASK | parameter &gt;&gt; 3));</span>
+
+        // add to the return number of bytes
+<span class="nc" id="L620">        totalReturnLength++;</span>
+<span class="nc" id="L621">        packet.returnLength++;</span>
+
+        // check for packet too large
+<span class="nc bnc" id="L624" title="All 2 branches missed.">        if (packet.buffer.length() &gt; MAX_BYTES_STREAMED)</span>
+<span class="nc" id="L625">            newPacket();</span>
+
+<span class="nc" id="L627">        return (totalReturnLength - 1);</span>
+    }
+
+    /**
+     * Append a set parameter to the packet.
+     *
+     * @param  parameter       parameter to set
+     * @param  parameterValue  parameter value
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation
+     */
+    public int setParameter (char parameter, char parameterValue)
+    {
+
+        // set to command mode
+<span class="nc" id="L643">        setToCommandMode();</span>
+
+        // append the paramter set with value
+<span class="nc" id="L646">        packet.buffer.append(( char ) ((CONFIG_MASK | parameter)</span>
+                | parameterValue));
+
+        // add to the return number of bytes
+<span class="nc" id="L650">        totalReturnLength++;</span>
+<span class="nc" id="L651">        packet.returnLength++;</span>
+
+        // check for packet too large
+<span class="nc bnc" id="L654" title="All 2 branches missed.">        if (packet.buffer.length() &gt; MAX_BYTES_STREAMED)</span>
+<span class="nc" id="L655">            newPacket();</span>
+
+<span class="nc" id="L657">        return (totalReturnLength - 1);</span>
+    }
+
+    /**
+     * Append a send command to the packet.  This command does not
+     * elicit a response byte.
+     *
+     * @param  command       command to send
+     * @param expectResponse
+     *
+     * @return the number offset in the return packet to get the
+     *          result of this operation (if there is one)
+     */
+    public int sendCommand (char command, boolean expectResponse)
+    {
+
+        // set to command mode
+<span class="nc" id="L674">        setToCommandMode();</span>
+
+        // append the paramter set with value
+<span class="nc" id="L677">        packet.buffer.append(command);</span>
+
+        // check for response
+<span class="nc bnc" id="L680" title="All 2 branches missed.">        if (expectResponse)</span>
+        {
+
+            // add to the return number of bytes
+<span class="nc" id="L684">            totalReturnLength++;</span>
+<span class="nc" id="L685">            packet.returnLength++;</span>
+        }
+
+        // check for packet too large
+<span class="nc bnc" id="L689" title="All 2 branches missed.">        if (packet.buffer.length() &gt; MAX_BYTES_STREAMED)</span>
+<span class="nc" id="L690">            newPacket();</span>
+
+<span class="nc" id="L692">        return (totalReturnLength - 1);</span>
+    }
+
+    //--------
+    //-------- 1-Wire Network result interpretation methods 
+    //--------
+
+    /**
+     * Interpret the block of bytes 
+     *
+     * @param dataByteResponse  
+     * @param responseOffset
+     * @param result
+     * @param offset
+     * @param len
+     */
+    public void interpretDataBytes (char[] dataByteResponse, int responseOffset, 
+            byte[] result, int offset, int len)
+    {
+        char result_byte;
+        int temp_offset, i, j;     
+
+<span class="nc bnc" id="L714" title="All 2 branches missed.">        for (i = 0; i &lt; len; i++)</span>
+        {
+            // convert the rest to OneWireIOExceptions
+<span class="nc bnc" id="L717" title="All 2 branches missed.">            if (bitsOnly)</span>
+            {
+<span class="nc" id="L719">                temp_offset = responseOffset + 8 * i;</span>
+
+<span class="nc" id="L721">                logger.debug(&quot;UPacketbuilder-interpretDataBytes[] responseOffset &quot;</span>
+                        + responseOffset + &quot; offset &quot; + offset + &quot; lenbuf &quot; + dataByteResponse.length);
+
+                // loop through and interpret each bit
+<span class="nc" id="L725">                result_byte = 0;</span>
+<span class="nc bnc" id="L726" title="All 2 branches missed.">                for (j = 0; j &lt; 8; j++)</span>
+                {
+<span class="nc" id="L728">                    result_byte = (char)(result_byte &gt;&gt;&gt; 1);</span>
+
+<span class="nc bnc" id="L730" title="All 2 branches missed.">                    if (interpretOneWireBit(dataByteResponse [temp_offset + j]))</span>
+<span class="nc" id="L731">                        result_byte |= 0x80;</span>
+                }
+
+<span class="nc" id="L734">                result[offset + i] = (byte)(result_byte &amp; 0xFF);</span>
+            }
+            else
+<span class="nc" id="L737">                result[offset + i] = (byte)dataByteResponse[responseOffset + i];</span>
+        }
+<span class="nc" id="L739">    }</span>
+
+    /**
+     * Interpret the reset response byte from a U adapter
+     *
+     * @param  resetResponse  reset response byte from U
+     *
+     * @return the number representing the result of a 1-Wire reset
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public int interpretOneWireReset (char resetResponse)
+    {
+
+        // make sure the response byte structure is correct
+<span class="nc bnc" id="L753" title="All 2 branches missed.">        if ((resetResponse &amp; 0xC0) == 0xC0)</span>
+        {
+
+            // retrieve the chip version and program voltage state
+<span class="nc" id="L757">            uState.revision                =</span>
+                ( char ) (UAdapterState.CHIP_VERSION_MASK &amp; resetResponse);
+<span class="nc bnc" id="L759" title="All 2 branches missed.">            uState.programVoltageAvailable = ((UAdapterState.PROGRAM_VOLTAGE_MASK</span>
+                    &amp; resetResponse) != 0);
+
+<span class="nc" id="L762">            logger.debug(&quot;DEBUG: UPacketbuilder-reset response &quot;</span>
+<span class="nc" id="L763">                    + Integer.toHexString(( int ) resetResponse</span>
+                            &amp; 0x00FF));
+
+            // convert the response byte to the OneWire reset result
+<span class="nc bnc" id="L767" title="All 4 branches missed.">            switch (resetResponse &amp; RESPONSE_RESET_MASK)</span>
+            {
+
+            case RESPONSE_RESET_SHORT :
+<span class="nc" id="L771">                return DSPortAdapter.RESET_SHORT;</span>
+            case RESPONSE_RESET_PRESENCE :
+
+                // if in long alarm check, record this as a non alarm reset
+<span class="nc bnc" id="L775" title="All 2 branches missed.">                if (uState.longAlarmCheck)</span>
+                {
+
+                    // check if can give up checking
+<span class="nc bnc" id="L779" title="All 2 branches missed.">                    if (uState.lastAlarmCount++ &gt; uState.MAX_ALARM_COUNT)</span>
+<span class="nc" id="L780">                        uState.longAlarmCheck = false;</span>
+                }
+
+<span class="nc" id="L783">                return DSPortAdapter.RESET_PRESENCE;</span>
+            case RESPONSE_RESET_ALARM :
+
+                // alarm presense so go into DS2480 long alarm check mode
+<span class="nc" id="L787">                uState.longAlarmCheck = true;</span>
+<span class="nc" id="L788">                uState.lastAlarmCount = 0;</span>
+
+<span class="nc" id="L790">                return DSPortAdapter.RESET_ALARM;</span>
+            case RESPONSE_RESET_NOPRESENCE :
+            default :
+<span class="nc" id="L793">                return DSPortAdapter.RESET_NOPRESENCE;</span>
+            }
+        }
+        else
+<span class="nc" id="L797">            return DSPortAdapter.RESET_NOPRESENCE;</span>
+    }
+
+    /**
+     * Interpret the bit response byte from a U adapter
+     *
+     * @param  bitResponse  bit response byte from U
+     *
+     * @return boolean representing the result of a 1-Wire bit operation
+     */
+    public boolean interpretOneWireBit (char bitResponse)
+    {
+
+        // interpret the bit
+<span class="nc bnc" id="L811" title="All 2 branches missed.">        if ((bitResponse &amp; RESPONSE_BIT_MASK) == RESPONSE_BIT_ONE)</span>
+<span class="nc" id="L812">            return true;</span>
+        else
+<span class="nc" id="L814">            return false;</span>
+    }
+
+    /**
+     * Interpret the search response and set the 1-Wire state accordingly.
+     *
+     * @param  bitResponse  bit response byte from U
+     *
+     * @param mState
+     * @param searchResponse
+     * @param responseOffset
+     *
+     * @return boolean return is true if a valid ID was found when
+     *                 interpreting the search results
+     */
+    public boolean interpretSearch (OneWireState mState,
+            char[] searchResponse, int responseOffset)
+    {
+<span class="nc" id="L832">        char[] temp_id = new char [8];</span>
+
+        // change byte offset to bit offset
+<span class="nc" id="L835">        int bit_offset = responseOffset * 8;</span>
+
+        // set the temp Last Descrep to none
+<span class="nc" id="L838">        int temp_last_descrepancy        = 0xFF;</span>
+<span class="nc" id="L839">        int temp_last_family_descrepancy = 0;</span>
+
+        // interpret the search response sequence
+<span class="nc bnc" id="L842" title="All 2 branches missed.">        for (int i = 0; i &lt; 64; i++)</span>
+        {
+
+            // get the SerialNum bit
+<span class="nc" id="L846">            bitWrite(temp_id, i,</span>
+<span class="nc" id="L847">                    bitRead(searchResponse, (i * 2) + 1 + bit_offset));</span>
+
+            // check LastDiscrepancy
+<span class="nc bnc" id="L850" title="All 2 branches missed.">            if (bitRead(searchResponse, i * 2 + bit_offset)</span>
+<span class="nc bnc" id="L851" title="All 2 branches missed.">                    &amp;&amp;!bitRead(searchResponse, i * 2 + 1 + bit_offset))</span>
+            {
+<span class="nc" id="L853">                temp_last_descrepancy = i + 1;</span>
+
+                // check LastFamilyDiscrepancy
+<span class="nc bnc" id="L856" title="All 2 branches missed.">                if (i &lt; 8)</span>
+<span class="nc" id="L857">                    temp_last_family_descrepancy = i + 1;</span>
+            }
+        }
+
+        // check
+        // 8 bytes
+<span class="nc" id="L863">        byte[] id = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00
+                };
+
+<span class="nc bnc" id="L868" title="All 2 branches missed.">        for (int i = 0; i &lt; 8; i++) {</span>
+<span class="nc" id="L869">            id [i] = ( byte ) temp_id [i];</span>
+        }
+
+        // check results 
+<span class="nc bnc" id="L873" title="All 6 branches missed.">        if ((!Address.isValid(id)) || (temp_last_descrepancy == 63)</span>
+                || (temp_id [0] == 0))
+<span class="nc" id="L875">            return false;</span>
+
+        // successful search
+        else
+        {
+
+            // check for lastone
+<span class="nc bnc" id="L882" title="All 4 branches missed.">            if ((temp_last_descrepancy == mState.searchLastDiscrepancy)</span>
+                    || (temp_last_descrepancy == 0xFF))
+<span class="nc" id="L884">                mState.searchLastDevice = true;</span>
+
+            // copy the ID number to the buffer
+<span class="nc bnc" id="L887" title="All 2 branches missed.">            for (int i = 0; i &lt; 8; i++)</span>
+<span class="nc" id="L888">                mState.ID [i] = ( byte ) temp_id [i];</span>
+
+            // set the count
+<span class="nc" id="L891">            mState.searchLastDiscrepancy       = temp_last_descrepancy;</span>
+<span class="nc" id="L892">            mState.searchFamilyLastDiscrepancy = temp_last_family_descrepancy;</span>
+
+<span class="nc" id="L894">            return true;</span>
+        }
+    }
+
+    /**
+     * Interpret the data response byte from a primed byte operation
+     *
+     * @param primedDataResponse
+     * @param responseOffset
+     *
+     * @return the byte representing the result of a 1-Wire data byte
+     */
+    public byte interpretPrimedByte (char[] primedDataResponse,
+            int responseOffset)
+    {
+<span class="nc" id="L909">        char result_byte = 0;</span>
+
+        // loop through and interpret each bit
+<span class="nc bnc" id="L912" title="All 2 branches missed.">        for (int i = 0; i &lt; 8; i++)</span>
+        {
+<span class="nc" id="L914">            result_byte = (char)(result_byte &gt;&gt;&gt; 1);</span>
+
+<span class="nc bnc" id="L916" title="All 2 branches missed.">            if (interpretOneWireBit(primedDataResponse [responseOffset + i]))</span>
+<span class="nc" id="L917">                result_byte |= 0x80;</span>
+        }
+
+<span class="nc" id="L920">        return (byte)(result_byte &amp; 0xFF);</span>
+    }
+
+    //--------
+    //-------- Misc Utility methods 
+    //--------
+
+    /**
+     * Request the maximum rate to do an operation
+     */
+    public static int getDesiredBaud (int operation, int owSpeed, int maxBaud)
+    {
+<span class="nc" id="L932">        int baud = 9600;</span>
+
+<span class="nc bnc" id="L934" title="All 3 branches missed.">        switch (operation)</span>
+        {
+
+        case OPERATION_BYTE :
+<span class="nc bnc" id="L938" title="All 2 branches missed.">            if (owSpeed == DSPortAdapter.SPEED_OVERDRIVE)</span>
+<span class="nc" id="L939">                baud = 115200;</span>
+            else
+<span class="nc" id="L941">                baud = 9600;</span>
+<span class="nc" id="L942">            break;</span>
+        case OPERATION_SEARCH :
+<span class="nc bnc" id="L944" title="All 2 branches missed.">            if (owSpeed == DSPortAdapter.SPEED_OVERDRIVE)</span>
+<span class="nc" id="L945">                baud = 57600;</span>
+            else
+<span class="nc" id="L947">                baud = 9600;</span>
+            break;
+        }
+
+<span class="nc bnc" id="L951" title="All 2 branches missed.">        if (baud &gt; maxBaud)</span>
+<span class="nc" id="L952">            baud = maxBaud;</span>
+
+<span class="nc" id="L954">        return baud;</span>
+    }
+
+    /**
+     * Bit utility to read a bit in the provided array of chars.
+     *
+     * @param  bitBuffer array of chars where the bit to read is located
+     * @param  address   bit location to read (LSBit of first Byte in bitBuffer
+     *                    is postion 0)
+     *
+     * @return the boolean value of the bit position
+     */
+    public boolean bitRead (char[] bitBuffer, int address)
+    {
+        int byte_number, bit_number;
+
+<span class="nc" id="L970">        byte_number = (address / 8);</span>
+<span class="nc" id="L971">        bit_number  = address - (byte_number * 8);</span>
+
+<span class="nc bnc" id="L973" title="All 2 branches missed.">        return ((( char ) ((bitBuffer [byte_number] &gt;&gt; bit_number) &amp; 0x01))</span>
+                == 0x01);
+    }
+
+    /**
+     * Bit utility to write a bit in the provided array of chars.
+     *
+     * @param  bitBuffer array of chars where the bit to write is located
+     * @param  address   bit location to write (LSBit of first Byte in bitBuffer
+     *                    is postion 0)
+     * @param  newBitState new bit state
+     */
+    public void bitWrite (char[] bitBuffer, int address, boolean newBitState)
+    {
+        int byte_number, bit_number;
+
+<span class="nc" id="L989">        byte_number = (address / 8);</span>
+<span class="nc" id="L990">        bit_number  = address - (byte_number * 8);</span>
+
+<span class="nc bnc" id="L992" title="All 2 branches missed.">        if (newBitState)</span>
+<span class="nc" id="L993">            bitBuffer [byte_number] |= ( char ) (0x01 &lt;&lt; bit_number);</span>
+        else
+<span class="nc" id="L995">            bitBuffer [byte_number] &amp;= ( char ) (~(0x01 &lt;&lt; bit_number));</span>
+<span class="nc" id="L996">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

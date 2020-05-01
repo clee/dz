@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireDeviceContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.onewire</a> &gt; <span class="el_source">OneWireDeviceContainer.java</span></div><h1>OneWireDeviceContainer.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.onewire;
+
+import net.sf.dz3.device.sensor.SensorType;
+import net.sf.dz3.device.sensor.impl.AbstractDeviceContainer;
+
+import com.dalsemi.onewire.container.OneWireContainer;
+
+public class OneWireDeviceContainer extends AbstractDeviceContainer {
+
+    /**
+     * 1-Wire API device container.
+     */
+    public final OneWireContainer container;
+
+    /**
+     * Create an instance.
+     * 
+     * @param container
+     *            1-Wire API device container to base this container on.
+     */
+<span class="nc" id="L21">    public OneWireDeviceContainer(final OneWireContainer container) {</span>
+
+<span class="nc bnc" id="L23" title="All 2 branches missed.">        if (container == null) {</span>
+
+<span class="nc" id="L25">            throw new IllegalArgumentException(&quot;container can't be null&quot;);</span>
+        }
+
+<span class="nc" id="L28">        this.container = container;</span>
+<span class="nc" id="L29">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final String getName() {
+
+<span class="nc" id="L37">        return container.getName();</span>
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final String getAddress() {
+
+<span class="nc" id="L46">        return container.getAddressAsString();</span>
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public SensorType getType() {
+
+<span class="nc" id="L55">        return SensorType.GENERIC;</span>
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final String toString() {
+
+<span class="nc" id="L64">        return container.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

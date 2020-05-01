@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HvacUnit.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Simulator</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.modelhome</a> &gt; <span class="el_source">HvacUnit.java</span></div><h1>HvacUnit.java</h1><pre class="source lang-java linenums">package net.sf.dz3.modelhome;
+
+import net.sf.dz3.device.model.HvacMode;
+
+/**
+ * A generic HVAC unit.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2012
+ */
+public class HvacUnit extends AmbientTemperatureAware {
+    
+    /**
+     * Current HVAC mode.
+     */
+    private HvacMode mode;
+    
+    /**
+     * This unit's output, in watts.
+     * 
+     * @see http://en.wikipedia.org/wiki/Watt
+     */
+    private double capacity;
+    
+    /**
+     * Rate of performance degradation with temperature increase. Units to be defined.
+     */
+    private double heatTolerance;
+    
+    /**
+     * 
+     * @param mode Initial mode.
+     * @param capacity Unit's capacity, in watts (joules per second).
+     * @param heatTolerance see {@link #heatTolerance}
+     * @param ambientTemperature, in °C.
+     */
+    public HvacUnit(HvacMode mode, double capacity, double heatTolerance, double ambientTemperature) {
+<span class="fc" id="L37">        super(ambientTemperature);</span>
+        
+<span class="fc" id="L39">        setMode(mode);</span>
+<span class="fc" id="L40">        setCapacity(capacity);</span>
+<span class="fc" id="L41">        setHeatTolerance(heatTolerance);</span>
+<span class="fc" id="L42">    }</span>
+
+    /**
+     * Set new value for {@link #mode}.
+     * 
+     * @param mode New value for {@link #mode}.
+     */
+    public void setMode(HvacMode mode) {
+        
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        if (mode == null) {</span>
+<span class="nc" id="L52">            throw new IllegalArgumentException(&quot;mode can't be null&quot;);</span>
+        }
+        
+<span class="fc" id="L55">        this.mode = mode;</span>
+<span class="fc" id="L56">    }</span>
+    
+    /**
+     * Set new value for {@link #capacity}.
+     * 
+     * @param mode New value for {@link #capacity}, in watts.
+     */
+    public void setCapacity(double capacity) {
+        
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (capacity &lt;= 0) {</span>
+<span class="nc" id="L66">            throw new IllegalArgumentException(&quot;capacity must be positive&quot;);</span>
+        }
+        
+<span class="fc" id="L69">        this.capacity = capacity;</span>
+<span class="fc" id="L70">    }</span>
+    
+    /**
+     * Set a new value for {@link #heatTolerance}.
+     * 
+     * @param tolerance New value for {@link #heatTolerance}.
+     */
+    public void setHeatTolerance(double tolerance) {
+        
+        // VT: FIXME: Disabled until units are figured out
+//        if (tolerance &lt; 0 || tolerance &gt; 1) {
+//            throw new IllegalArgumentException(&quot;Valid values are 0..1&quot;);
+//        }
+        
+<span class="fc" id="L84">        this.heatTolerance = tolerance;</span>
+<span class="fc" id="L85">    }</span>
+
+    /**
+     * Flow rate that this unit produces.
+     * 
+     * @return Energy produced, in watts (joules per second).
+     */
+    private double getProduction() {
+<span class="fc" id="L93">        return capacity * mode.mode;</span>
+    }
+    
+    /**
+     * Calculate the amount of energy produced in a given time interval.
+     * 
+     * @param internalTemperature Internal temperature at the start of the interval, in °C
+     * @param millis Time interval, in milliseconds.
+     * 
+     * @return Energy produced, in joules.
+     * 
+     * @see http://en.wikipedia.org/wiki/Joule
+     */
+    double produce(double internalTemperature, long millis) {
+        
+<span class="fc" id="L108">        double internal = getProduction() * (millis / 1000);</span>
+<span class="fc" id="L109">        double leak = getAmbientLeak(internalTemperature, heatTolerance) * (millis / 1000);</span>
+        
+<span class="fc" id="L111">        return  internal + leak;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,2488 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>USerialAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">USerialAdapter.java</span></div><h1>USerialAdapter.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+import java.io.IOException;
+import java.util.Enumeration;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.ThreadContext;
+
+import com.dalsemi.onewire.OneWireAccessProvider;
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.utils.Bit;
+import com.dalsemi.onewire.utils.CRC8;
+import com.dalsemi.onewire.utils.Address;
+
+/**
+ * The USerialAdapter class implememts the DSPortAdapter interface for a DS2480
+ * based serial adapter such as the DS9097U-009 or DS9097U-S09.
+ * &lt;p&gt;
+ * Instances of valid USerialAdapter's are retrieved from methods in
+ * {@link OneWireAccessProvider OneWireAccessProvider}.
+ * &lt;P&gt;
+ * The DSPortAdapter methods can be organized into the following categories:
+ * &lt;/P&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Information &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getAdapterName() getAdapterName}
+ * &lt;LI&gt; {@link #getPortTypeDescription() getPortTypeDescription}
+ * &lt;LI&gt; {@link #getClassVersion() getClassVersion}
+ * &lt;LI&gt; {@link #adapterDetected() adapterDetected}
+ * &lt;LI&gt; {@link #getAdapterVersion() getAdapterVersion}
+ * &lt;LI&gt; {@link #getAdapterAddress() getAdapterAddress}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Port Selection &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getPortNames() getPortNames}
+ * &lt;LI&gt; {@link #selectPort(String) selectPort}
+ * &lt;LI&gt; {@link #getPortName() getPortName}
+ * &lt;LI&gt; {@link #freePort() freePort}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Adapter Capabilities &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #canOverdrive() canOverdrive}
+ * &lt;LI&gt; {@link #canHyperdrive() canHyperdrive}
+ * &lt;LI&gt; {@link #canFlex() canFlex}
+ * &lt;LI&gt; {@link #canProgram() canProgram}
+ * &lt;LI&gt; {@link #canDeliverPower() canDeliverPower}
+ * &lt;LI&gt; {@link #canDeliverSmartPower() canDeliverSmartPower}
+ * &lt;LI&gt; {@link #canBreak() canBreak}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Network Semaphore &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #beginExclusive(boolean) beginExclusive}
+ * &lt;LI&gt; {@link #endExclusive() endExclusive}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Device Discovery &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; Selective Search Options
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #targetAllFamilies() targetAllFamilies}
+ * &lt;LI&gt; {@link #targetFamily(int) targetFamily(int)}
+ * &lt;LI&gt; {@link #targetFamily(byte[]) targetFamily(byte[])}
+ * &lt;LI&gt; {@link #excludeFamily(int) excludeFamily(int)}
+ * &lt;LI&gt; {@link #excludeFamily(byte[]) excludeFamily(byte[])}
+ * &lt;LI&gt; {@link #setSearchOnlyAlarmingDevices() setSearchOnlyAlarmingDevices}
+ * &lt;LI&gt; {@link #setNoResetSearch() setNoResetSearch}
+ * &lt;LI&gt; {@link #setSearchAllDevices() setSearchAllDevices}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Search With Automatic 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getAllDeviceContainers() getAllDeviceContainers}
+ * &lt;LI&gt; {@link #getFirstDeviceContainer() getFirstDeviceContainer}
+ * &lt;LI&gt; {@link #getNextDeviceContainer() getNextDeviceContainer}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Search With NO 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #findFirstDevice() findFirstDevice}
+ * &lt;LI&gt; {@link #findNextDevice() findNextDevice}
+ * &lt;LI&gt; {@link #getAddress(byte[]) getAddress(byte[])}
+ * &lt;LI&gt; {@link #getAddressAsLong() getAddressAsLong}
+ * &lt;LI&gt; {@link #getAddressAsString() getAddressAsString}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Manual 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getDeviceContainer(byte[]) getDeviceContainer(byte[])}
+ * &lt;LI&gt; {@link #getDeviceContainer(long) getDeviceContainer(long)}
+ * &lt;LI&gt; {@link #getDeviceContainer(String) getDeviceContainer(String)}
+ * &lt;LI&gt; {@link #getDeviceContainer() getDeviceContainer()}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Network low level access (usually not called directly) &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; Device Selection and Presence Detect
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #isPresent(byte[]) isPresent(byte[])}
+ * &lt;LI&gt; {@link #isPresent(long) isPresent(long)}
+ * &lt;LI&gt; {@link #isPresent(String) isPresent(String)}
+ * &lt;LI&gt; {@link #isAlarming(byte[]) isAlarming(byte[])}
+ * &lt;LI&gt; {@link #isAlarming(long) isAlarming(long)}
+ * &lt;LI&gt; {@link #isAlarming(String) isAlarming(String)}
+ * &lt;LI&gt; {@link #select(byte[]) select(byte[])}
+ * &lt;LI&gt; {@link #select(long) select(long)}
+ * &lt;LI&gt; {@link #select(String) select(String)}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Raw 1-Wire IO
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #reset() reset}
+ * &lt;LI&gt; {@link #putBit(boolean) putBit}
+ * &lt;LI&gt; {@link #getBit() getBit}
+ * &lt;LI&gt; {@link #putByte(int) putByte}
+ * &lt;LI&gt; {@link #getByte() getByte}
+ * &lt;LI&gt; {@link #getBlock(int) getBlock(int)}
+ * &lt;LI&gt; {@link #getBlock(byte[], int) getBlock(byte[], int)}
+ * &lt;LI&gt; {@link #getBlock(byte[], int, int) getBlock(byte[], int, int)}
+ * &lt;LI&gt; {@link #dataBlock(byte[], int, int) dataBlock(byte[], int, int)}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; 1-Wire Speed and Power Selection
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #setPowerDuration(int) setPowerDuration}
+ * &lt;LI&gt; {@link #startPowerDelivery(int) startPowerDelivery}
+ * &lt;LI&gt; {@link #setProgramPulseDuration(int) setProgramPulseDuration}
+ * &lt;LI&gt; {@link #startProgramPulse(int) startProgramPulse}
+ * &lt;LI&gt; {@link #startBreak() startBreak}
+ * &lt;LI&gt; {@link #setPowerNormal() setPowerNormal}
+ * &lt;LI&gt; {@link #setSpeed(int) setSpeed}
+ * &lt;LI&gt; {@link #getSpeed() getSpeed}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Advanced &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt;
+ * {@link #registerOneWireContainerClass(int, Class) registerOneWireContainerClass}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ *
+ * @see OneWireAccessProvider
+ * @see OneWireContainer
+ * @version 0.10, 24 Aug 2001
+ * @author DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class USerialAdapter extends DSPortAdapter {
+
+    // --------
+    // -------- Finals
+    // --------
+
+    /** Family code for the EPROM iButton DS1982 */
+    private static final int ADAPTER_ID_FAMILY = 0x09;
+
+    /** Extended read page command for DS1982 */
+    private static final int EXTENDED_READ_PAGE = 0xC3;
+
+    /** Normal Search, all devices participate */
+    private static final char NORMAL_SEARCH_CMD = 0xF0;
+
+    /** Conditional Search, only 'alarming' devices participate */
+    private static final char ALARM_SEARCH_CMD = 0xEC;
+
+    // --------
+    // -------- Static Variables
+    // --------
+
+    /** Version string for this adapter class */
+<span class="nc" id="L193">    private static String classVersion = &quot;0.10&quot;;</span>
+
+    /** Hashtable to contain SerialService instances */
+    // private static Hashtable serailServiceHash = new Hashtable(4);
+    /** Max baud rate supported by DS9097U */
+    private static int maxBaud;
+
+    // --------
+    // -------- Variables
+    // --------
+
+    /** Reference to the current SerialService */
+    private SerialService serial;
+
+    /** String name of the current opened port */
+    private boolean adapterPresent;
+
+    /** Flag to indicate more than expected byte received in a transaction */
+    //private boolean extraBytesReceived;
+
+    /** U Adapter packet builder */
+    UPacketBuilder uBuild;
+
+    /** State of the OneWire */
+    private OneWireState owState;
+
+    /** U Adapter state */
+    private UAdapterState uState;
+
+    /** Input buffer to hold received data */
+    private StringBuffer inBuffer;
+
+    /**
+     * Constructs a DS9097U serial adapter class.
+     */
+<span class="nc" id="L228">    public USerialAdapter() {</span>
+
+<span class="nc" id="L230">        serial = null;</span>
+<span class="nc" id="L231">        owState = new OneWireState();</span>
+<span class="nc" id="L232">        uState = new UAdapterState(owState);</span>
+<span class="nc" id="L233">        uBuild = new UPacketBuilder(uState);</span>
+<span class="nc" id="L234">        inBuffer = new StringBuffer();</span>
+<span class="nc" id="L235">        adapterPresent = false;</span>
+<span class="nc" id="L236">    }</span>
+
+    @Override
+    protected void finalize() throws Throwable {
+
+<span class="nc" id="L241">        freePort();</span>
+
+<span class="nc" id="L243">        super.finalize();</span>
+<span class="nc" id="L244">    }</span>
+
+    /**
+     * Cleans up the resources used by the thread argument. If another thread
+     * starts communicating with this port, and then goes away, there is no way
+     * to relinquish the port without stopping the process. This method allows
+     * other threads to clean up.
+     *
+     * @param thread that may have used a {@link USerialAdapter}.
+     *
+     * @deprecated Apparently, never used.
+     */
+    @Deprecated
+    public static void cleanUpByThread(Thread thread) {
+
+<span class="nc" id="L259">        LogManager.getLogger(USerialAdapter.class).debug(&quot;CleanUpByThread called: Thread=&quot; + thread);</span>
+<span class="nc" id="L260">        SerialService.cleanUpByThread(thread);</span>
+<span class="nc" id="L261">    }</span>
+
+    /**
+     * Retrieve the name of the port adapter as a string. The 'Adapter' is a
+     * device that connects to a 'port' that allows one to communicate with an
+     * iButton or other 1-Wire device. As example of this is 'DS9097U'.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; representation of the port adapter.
+     */
+    public String getAdapterName() {
+
+<span class="nc" id="L272">        return &quot;DS9097U&quot;;</span>
+    }
+
+    /**
+     * Retrieve a description of the port required by this port adapter. An
+     * example of a 'Port' would 'serial communication port'.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; description of the port type required.
+     */
+    public String getPortTypeDescription() {
+
+<span class="nc" id="L283">        return &quot;serial communication port&quot;;</span>
+    }
+
+    /**
+     * Retrieve a version string for this class.
+     *
+     * @return version string
+     */
+    public String getClassVersion() {
+
+<span class="nc" id="L293">        return classVersion;</span>
+    }
+
+    // --------
+    // -------- Port Selection
+
+    // --------
+
+    /**
+     * Retrieve a list of the platform appropriate port names for this adapter.
+     * A port must be selected with the method 'selectPort' before any other
+     * communication methods can be used. Using a communcation method before
+     * 'selectPort' will result in a &lt;code&gt;OneWireException&lt;/code&gt; exception.
+     *
+     * @return enumeration of type &lt;code&gt;String&lt;/code&gt; that contains the port
+     * names
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public Enumeration&lt;String&gt; getPortNames() {
+
+<span class="nc" id="L313">        return serial.getSerialPortIdentifiers();</span>
+    }
+
+    /**
+     * Specify a platform appropriate port name for this adapter. Note that even
+     * though the port has been selected, it's ownership may be relinquished if
+     * it is not currently held in a 'exclusive' block. This class will then try
+     * to re-aquire the port when needed. If the port cannot be re-aquired ehen
+     * the exception &lt;code&gt;PortInUseException&lt;/code&gt; will be thrown.
+     *
+     * @param newPortName name of the target port, retrieved from getPortNames()
+     * @return &lt;code&gt;true&lt;/code&gt; if the port was aquired, &lt;code&gt;false&lt;/code&gt;
+     * if the port is not available.
+     * @throws OneWireIOException If port does not exist, or unable to
+     * communicate with port.
+     * @throws OneWireException If port does not exist
+     */
+    @Override
+    public boolean selectPort(String newPortName) throws OneWireIOException, OneWireException {
+
+        // find the port reference
+<span class="nc" id="L334">        serial = SerialService.getSerialService(newPortName);</span>
+
+        // check if there is no such port
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        if (serial == null) {</span>
+<span class="nc" id="L338">            throw new OneWireException(&quot;no such port: &quot; + newPortName);</span>
+        }
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L344">            beginLocalExclusive();</span>
+
+            // attempt to open the port
+<span class="nc" id="L347">            serial.openPort();</span>
+
+<span class="nc" id="L349">            return true;</span>
+<span class="nc" id="L350">        } catch (IOException ex) {</span>
+<span class="nc" id="L351">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L355">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Retrieve the name of the selected port as a {@code String}.
+     *
+     * @return {@code String} representation of selected port name.
+     * @throws OneWireException if valid port not yet selected.
+     */
+    @Override
+    public String getPortName() throws OneWireException {
+
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if (serial == null) {</span>
+<span class="nc" id="L369">            throw new OneWireException(&quot;USerialAdapter-getPortName, port not selected&quot;);</span>
+        }
+
+<span class="nc" id="L372">        return serial.getPortName();</span>
+    }
+
+    /**
+     * Free ownership of the selected port if it is currently owned back to the
+     * system. This should only be called if the recently selected port does not
+     * have an adapter or at the end of your application's use of the port.
+     *
+     * @throws OneWireException If port does not exist
+     */
+    public void freePort() throws OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L387">            beginLocalExclusive();</span>
+
+            // attempt to close the port
+<span class="nc" id="L390">            serial.closePort();</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L394">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L396">    }</span>
+
+    // --------
+    // -------- Adapter detection
+    // --------
+
+    /**
+     * Detect adapter presence on the selected port.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if the adapter is confirmed to be connected
+     * to the selected port, &lt;code&gt;false&lt;/code&gt; if the adapter is not
+     * connected.
+     * @throws OneWireIOException
+     * @throws OneWireException
+     */
+    public boolean adapterDetected() throws OneWireIOException, OneWireException {
+
+        boolean rt;
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L418">            beginLocalExclusive();</span>
+<span class="nc" id="L419">            uAdapterPresent();</span>
+
+<span class="nc" id="L421">            rt = uVerify();</span>
+<span class="nc" id="L422">        } catch (OneWireException ex) {</span>
+<span class="nc" id="L423">            logger.debug(&quot;rt=false&quot;, ex);</span>
+<span class="nc" id="L424">            rt = false;</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L428">            endLocalExclusive();</span>
+        }
+
+<span class="nc" id="L431">        return rt;</span>
+    }
+
+    /**
+     * Retrieve the version of the adapter.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; of the adapter version. It will return &quot;&lt;na&gt;&quot;
+     * if the adapter version is not or cannot be known.
+     * @throws OneWireIOException on a 1-Wire communication error such as no
+     * device present. This could be caused by a physical interruption in the
+     * 1-Wire Network due to shorts or a newly arriving 1-Wire device issuing a
+     * 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the
+     * 1-Wire adapter
+     */
+    public String getAdapterVersion() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L448">        String version_string = &quot;DS2480 based adapter&quot;;</span>
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L453">            beginLocalExclusive();</span>
+
+            // only check if the port is aquired
+<span class="nc bnc" id="L456" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // perform a reset to read the version
+<span class="nc bnc" id="L459" title="All 2 branches missed.">                if (uState.revision == 0)</span>
+<span class="nc" id="L460">                    reset();</span>
+
+<span class="nc" id="L462">                version_string = version_string.concat(&quot;, version &quot; + (uState.revision &gt;&gt; 2));</span>
+
+<span class="nc" id="L464">                return version_string;</span>
+            } else
+<span class="nc" id="L466">                throw new OneWireIOException(&quot;USerialAdapter-getAdapterVersion, adapter not present&quot;);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L470">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Retrieve the address of the adapter if it has one.
+     *
+     * @return &lt;code&gt;String&lt;/code&gt; of the adapter address. It will return &quot;&lt;na&gt;&quot;
+     * if the adapter does not have an address. The address is a string
+     * representation of an 1-Wire address.
+     * @throws OneWireIOException on a 1-Wire communication error such as no
+     * device present. This could be caused by a physical interruption in the
+     * 1-Wire Network due to shorts or a newly arriving 1-Wire device issuing a
+     * 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the
+     * 1-Wire adapter
+     * @see Address
+     */
+    public String getAdapterAddress() throws OneWireIOException, OneWireException {
+
+        // get a reference to the current oneWire State
+<span class="nc" id="L491">        OneWireState preserved_mstate = owState;</span>
+
+<span class="nc" id="L493">        owState = new OneWireState();</span>
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L498">            beginLocalExclusive();</span>
+
+            // only check if the port is aquired
+<span class="nc bnc" id="L501" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // set the search to find all of the available DS1982's
+<span class="nc" id="L504">                this.setSearchAllDevices();</span>
+<span class="nc" id="L505">                this.targetAllFamilies();</span>
+<span class="nc" id="L506">                this.targetFamily(ADAPTER_ID_FAMILY);</span>
+
+<span class="nc" id="L508">                Enumeration&lt;OneWireContainer&gt; e = this.getAllDeviceContainers();</span>
+
+                // 8 bytes
+<span class="nc" id="L511">                byte[] address = {</span>
+                        (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                        (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00
+                        };
+
+                // loop through each of the DS1982's to find an adapter ID
+<span class="nc bnc" id="L517" title="All 2 branches missed.">                for (; e.hasMoreElements();) {</span>
+<span class="nc" id="L518">                    OneWireContainer ibutton = e.nextElement();</span>
+
+<span class="nc" id="L520">                    System.arraycopy(ibutton.getAddress(), 0, address, 0, 8);</span>
+
+                    // select this device
+<span class="nc bnc" id="L523" title="All 2 branches missed.">                    if (select(address)) {</span>
+
+                        // create a buffer to read the first page
+                        // 37 bytes
+<span class="nc" id="L527">                        byte[] read_buffer = {</span>
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                                (byte) 0x00
+                                };
+<span class="nc" id="L539">                        int cnt = 0;</span>
+                        int i;
+
+                        // extended read memory command
+<span class="nc" id="L543">                        read_buffer[cnt++] = (byte) EXTENDED_READ_PAGE;</span>
+
+                        // address of first page
+<span class="nc" id="L546">                        read_buffer[cnt++] = 0;</span>
+<span class="nc" id="L547">                        read_buffer[cnt++] = 0;</span>
+
+                        // CRC, data of page and CRC from device
+<span class="nc bnc" id="L550" title="All 2 branches missed.">                        for (i = 0; i &lt; 34; i++)</span>
+<span class="nc" id="L551">                            read_buffer[cnt++] = (byte) 0xFF;</span>
+
+                        // perform CRC8 of the first chunk of known data
+<span class="nc" id="L554">                        int crc8 = CRC8.compute(read_buffer, 0, 3, 0);</span>
+
+                        // send/receive data to 1-Wire
+<span class="nc" id="L557">                        dataBlock(read_buffer, 0, cnt);</span>
+
+                        // check the first CRC
+<span class="nc bnc" id="L560" title="All 2 branches missed.">                        if (CRC8.compute(read_buffer, 3, 1, crc8) == 0) {</span>
+
+                            // compute the next CRC8 with data from device
+<span class="nc bnc" id="L563" title="All 2 branches missed.">                            if (CRC8.compute(read_buffer, 4, 33, 0) == 0) {</span>
+
+                                // now loop to see if all data is 0xFF
+<span class="nc bnc" id="L566" title="All 2 branches missed.">                                for (i = 4; i &lt; 36; i++)</span>
+<span class="nc bnc" id="L567" title="All 2 branches missed.">                                    if ((byte) read_buffer[i] != (byte) 0xFF)</span>
+                                        continue;
+
+                                // must be the one!
+<span class="nc bnc" id="L571" title="All 2 branches missed.">                                if (i == 36)</span>
+<span class="nc" id="L572">                                    return ibutton.getAddressAsString();</span>
+                            }
+                        }
+                    }
+<span class="nc" id="L576">                }</span>
+<span class="nc" id="L577">            } else {</span>
+<span class="nc" id="L578">                throw new OneWireIOException(&quot;USerialAdapter-getAdapterAddress, adapter not present&quot;);</span>
+            }
+<span class="nc" id="L580">        } catch (OneWireException ex) {</span>
+
+            // Drain.
+<span class="nc" id="L583">            logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+            
+        } finally {
+
+            // restore the old state
+<span class="nc" id="L588">            owState = preserved_mstate;</span>
+
+            // release local exclusive use of port
+<span class="nc" id="L591">            endLocalExclusive();</span>
+        }
+
+        // don't know the ID
+<span class="nc" id="L595">        return &quot;&lt;not available&gt;&quot;;</span>
+    }
+
+    // --------
+    // -------- Adapter features
+    // --------
+
+    /*
+     * The following interogative methods are provided so that client code can
+     * react selectively to underlying states without generating an exception.
+     */
+
+    /**
+     * Returns whether adapter can physically support overdrive mode.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this port adapter can do OverDrive,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canOverdrive() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L618">        return true;</span>
+    }
+
+    /**
+     * Returns whether the adapter can physically support hyperdrive mode.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this port adapter can do HyperDrive,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canHyperdrive() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L632">        return false;</span>
+    }
+
+    /**
+     * Returns whether the adapter can physically support flex speed mode.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this port adapter can do flex speed,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canFlex() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L646">        return true;</span>
+    }
+
+    /**
+     * Returns whether adapter can physically support 12 volt power mode.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this port adapter can do Program voltage,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canProgram() throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L663">            beginLocalExclusive();</span>
+
+            // only check if the port is aquired
+<span class="nc bnc" id="L666" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // perform a reset to read the program available flag
+<span class="nc bnc" id="L669" title="All 2 branches missed.">                if (uState.revision == 0)</span>
+<span class="nc" id="L670">                    reset();</span>
+
+                // return the flag
+<span class="nc" id="L673">                return uState.programVoltageAvailable;</span>
+            } else
+<span class="nc" id="L675">                throw new OneWireIOException(&quot;USerialAdapter-canProgram, adapter not present&quot;);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L679">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Returns whether the adapter can physically support strong 5 volt power
+     * mode.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this port adapter can do strong 5 volt
+     * mode, &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canDeliverPower() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L695">        return true;</span>
+    }
+
+    /**
+     * Returns whether the adapter can physically support &quot;smart&quot; strong 5 volt
+     * power mode. &quot;smart&quot; power delivery is the ability to deliver power until
+     * it is no longer needed. The current drop it detected and power delivery
+     * is stopped.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this port adapter can do &quot;smart&quot; strong 5
+     * volt mode, &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canDeliverSmartPower() throws OneWireIOException, OneWireException {
+
+        // regardless of adapter, the class does not support it
+<span class="nc" id="L713">        return false;</span>
+    }
+
+    /**
+     * Returns whether adapter can physically support 0 volt 'break' mode.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this port adapter can do break,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canBreak() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L727">        return true;</span>
+    }
+
+    // --------
+    // -------- Finding iButtons
+    // --------
+
+    /**
+     * Returns &lt;code&gt;true&lt;/code&gt; if the first iButton or 1-Wire device is
+     * found on the 1-Wire Network. If no devices are found, then
+     * &lt;code&gt;false&lt;/code&gt; will be returned.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if an iButton or 1-Wire device is found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean findFirstDevice() throws OneWireIOException, OneWireException {
+
+        // reset the current search
+<span class="nc" id="L746">        owState.searchLastDiscrepancy = 0;</span>
+<span class="nc" id="L747">        owState.searchFamilyLastDiscrepancy = 0;</span>
+<span class="nc" id="L748">        owState.searchLastDevice = false;</span>
+
+        // search for the first device using next
+<span class="nc" id="L751">        return findNextDevice();</span>
+    }
+
+    /**
+     * Returns &lt;code&gt;true&lt;/code&gt; if the next iButton or 1-Wire device is
+     * found. The previous 1-Wire device found is used as a starting point in
+     * the search. If no more devices are found then &lt;code&gt;false&lt;/code&gt; will
+     * be returned.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if an iButton or 1-Wire device is found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean findNextDevice() throws OneWireIOException, OneWireException {
+
+        boolean search_result;
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L771">            beginLocalExclusive();</span>
+
+            // check for previous last device
+<span class="nc bnc" id="L774" title="All 2 branches missed.">            if (owState.searchLastDevice) {</span>
+<span class="nc" id="L775">                owState.searchLastDiscrepancy = 0;</span>
+<span class="nc" id="L776">                owState.searchFamilyLastDiscrepancy = 0;</span>
+<span class="nc" id="L777">                owState.searchLastDevice = false;</span>
+
+<span class="nc" id="L779">                return false;</span>
+            }
+
+            // check for 'first' and only 1 target
+<span class="nc bnc" id="L783" title="All 6 branches missed.">            if ((owState.searchLastDiscrepancy == 0) &amp;&amp; (owState.searchLastDevice == false)</span>
+                    &amp;&amp; (owState.searchIncludeFamilies.length == 1)) {
+
+                // set the search to find the 1 target first
+<span class="nc" id="L787">                owState.searchLastDiscrepancy = 64;</span>
+
+                // create an id to set
+                // 8 bytes
+<span class="nc" id="L791">                byte[] new_id = {</span>
+                        (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                        (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                        };
+
+                // set the family code
+<span class="nc" id="L797">                new_id[0] = owState.searchIncludeFamilies[0];</span>
+
+                // set this new ID
+<span class="nc" id="L800">                System.arraycopy(new_id, 0, owState.ID, 0, 8);</span>
+            }
+
+            // loop until the correct type is found or no more devices
+            do {
+
+                // perform a search and keep the result
+<span class="nc" id="L807">                search_result = search(owState);</span>
+
+<span class="nc bnc" id="L809" title="All 2 branches missed.">                if (search_result) {</span>
+
+                    // check if not in exclude list
+<span class="nc" id="L812">                    boolean is_excluded = false;</span>
+
+<span class="nc bnc" id="L814" title="All 2 branches missed.">                    for (int i = 0; i &lt; owState.searchExcludeFamilies.length; i++) {</span>
+<span class="nc bnc" id="L815" title="All 2 branches missed.">                        if (owState.ID[0] == owState.searchExcludeFamilies[i]) {</span>
+<span class="nc" id="L816">                            is_excluded = true;</span>
+
+<span class="nc" id="L818">                            break;</span>
+                        }
+                    }
+
+                    // if not in exclude list then check for include list
+<span class="nc bnc" id="L823" title="All 2 branches missed.">                    if (!is_excluded) {</span>
+
+                        // loop through the include list
+<span class="nc" id="L826">                        boolean is_included = false;</span>
+
+<span class="nc bnc" id="L828" title="All 2 branches missed.">                        for (int i = 0; i &lt; owState.searchIncludeFamilies.length; i++) {</span>
+<span class="nc bnc" id="L829" title="All 2 branches missed.">                            if (owState.ID[0] == owState.searchIncludeFamilies[i]) {</span>
+<span class="nc" id="L830">                                is_included = true;</span>
+
+<span class="nc" id="L832">                                break;</span>
+                            }
+                        }
+
+                        // check if include list or there is no include list
+<span class="nc bnc" id="L837" title="All 4 branches missed.">                        if (is_included || (owState.searchIncludeFamilies.length == 0))</span>
+<span class="nc" id="L838">                            return true;</span>
+                    }
+                }
+
+                // skip the current type if not last device
+<span class="nc bnc" id="L843" title="All 4 branches missed.">                if (!owState.searchLastDevice &amp;&amp; (owState.searchFamilyLastDiscrepancy != 0)) {</span>
+<span class="nc" id="L844">                    owState.searchLastDiscrepancy = owState.searchFamilyLastDiscrepancy;</span>
+<span class="nc" id="L845">                    owState.searchFamilyLastDiscrepancy = 0;</span>
+<span class="nc" id="L846">                    owState.searchLastDevice = false;</span>
+                }
+
+                // end of search so reset and return
+                else {
+<span class="nc" id="L851">                    owState.searchLastDiscrepancy = 0;</span>
+<span class="nc" id="L852">                    owState.searchFamilyLastDiscrepancy = 0;</span>
+<span class="nc" id="L853">                    owState.searchLastDevice = false;</span>
+<span class="nc" id="L854">                    search_result = false;</span>
+                }
+<span class="nc bnc" id="L856" title="All 2 branches missed.">            } while (search_result);</span>
+
+            // device not found
+<span class="nc" id="L859">            return false;</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L863">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Copies the 'current' iButton address being used by the adapter into the
+     * array. This address is the last iButton or 1-Wire device found in a
+     * search (findNextDevice()...).
+     *
+     * @param address An array to be filled with the current iButton address.
+     * @see Address
+     */
+    public void getAddress(byte[] address) {
+
+<span class="nc" id="L877">        System.arraycopy(owState.ID, 0, address, 0, 8);</span>
+<span class="nc" id="L878">    }</span>
+
+    /**
+     * Copies the provided 1-Wire device address into the 'current' array. This
+     * address will then be used in the getDeviceContainer() method. Permits the
+     * adapter instance to create containers of devices it did not find in a
+     * search.
+     *
+     * @param address An array to be copied into the current iButton address.
+     */
+    public void setAddress(byte[] address) {
+
+<span class="nc" id="L890">        System.arraycopy(address, 0, owState.ID, 0, 8);</span>
+<span class="nc" id="L891">    }</span>
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network. This does not affect the 'current' device state
+     * information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present
+     * @return &lt;code&gt;true&lt;/code&gt; if device is present else &lt;code&gt;false&lt;/code&gt;.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public boolean isPresent(byte[] address) throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L909">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L912" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // check for pending power conditions
+<span class="nc bnc" id="L915" title="All 2 branches missed.">                if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L916">                    setPowerNormal();</span>
+
+                // if in overdrive, then use the block method in super
+<span class="nc bnc" id="L919" title="All 2 branches missed.">                if (owState.oneWireSpeed == SPEED_OVERDRIVE)</span>
+<span class="nc" id="L920">                    return blockIsPresent(address, false);</span>
+
+                // create a private OneWireState
+<span class="nc" id="L923">                OneWireState onewire_state = new OneWireState();</span>
+
+                // set the ID to the ID of the iButton passes to this method
+<span class="nc" id="L926">                System.arraycopy(address, 0, onewire_state.ID, 0, 8);</span>
+
+                // set the state to find the specified device
+<span class="nc" id="L929">                onewire_state.searchLastDiscrepancy = 64;</span>
+<span class="nc" id="L930">                onewire_state.searchFamilyLastDiscrepancy = 0;</span>
+<span class="nc" id="L931">                onewire_state.searchLastDevice = false;</span>
+<span class="nc" id="L932">                onewire_state.searchOnlyAlarmingButtons = false;</span>
+
+                // perform a search
+<span class="nc bnc" id="L935" title="All 2 branches missed.">                if (search(onewire_state)) {</span>
+
+                    // compare the found device with the desired device
+<span class="nc bnc" id="L938" title="All 2 branches missed.">                    for (int i = 0; i &lt; 8; i++)</span>
+<span class="nc bnc" id="L939" title="All 2 branches missed.">                        if (address[i] != onewire_state.ID[i])</span>
+<span class="nc" id="L940">                            return false;</span>
+
+                    // must be the correct device
+<span class="nc" id="L943">                    return true;</span>
+                }
+
+                // failed to find device
+<span class="nc" id="L947">                return false;</span>
+            } else
+<span class="nc" id="L949">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L953">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network and in an alarm state. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present and alarming
+     * @return &lt;code&gt;true&lt;/code&gt; if device is present and alarming else
+     * &lt;code&gt;false&lt;/code&gt;.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public boolean isAlarming(byte[] address) throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L974">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L977" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // check for pending power conditions
+<span class="nc bnc" id="L980" title="All 2 branches missed.">                if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L981">                    setPowerNormal();</span>
+
+                // if in overdrive, then use the block method in super
+<span class="nc bnc" id="L984" title="All 2 branches missed.">                if (owState.oneWireSpeed == SPEED_OVERDRIVE)</span>
+<span class="nc" id="L985">                    return blockIsPresent(address, true);</span>
+
+                // create a private OneWireState
+<span class="nc" id="L988">                OneWireState onewire_state = new OneWireState();</span>
+
+                // set the ID to the ID of the iButton passes to this method
+<span class="nc" id="L991">                System.arraycopy(address, 0, onewire_state.ID, 0, 8);</span>
+
+                // set the state to find the specified device (alarming)
+<span class="nc" id="L994">                onewire_state.searchLastDiscrepancy = 64;</span>
+<span class="nc" id="L995">                onewire_state.searchFamilyLastDiscrepancy = 0;</span>
+<span class="nc" id="L996">                onewire_state.searchLastDevice = false;</span>
+<span class="nc" id="L997">                onewire_state.searchOnlyAlarmingButtons = true;</span>
+
+                // perform a search
+<span class="nc bnc" id="L1000" title="All 2 branches missed.">                if (search(onewire_state)) {</span>
+
+                    // compare the found device with the desired device
+<span class="nc bnc" id="L1003" title="All 2 branches missed.">                    for (int i = 0; i &lt; 8; i++)</span>
+<span class="nc bnc" id="L1004" title="All 2 branches missed.">                        if (address[i] != onewire_state.ID[i])</span>
+<span class="nc" id="L1005">                            return false;</span>
+
+                    // must be the correct device
+<span class="nc" id="L1008">                    return true;</span>
+                }
+
+                // failed to find any alarming device
+<span class="nc" id="L1012">                return false;</span>
+            } else
+<span class="nc" id="L1014">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1018">            endLocalExclusive();</span>
+        }
+    }
+
+    // --------
+    // -------- Finding iButton options
+    // --------
+
+    /**
+     * Set the 1-Wire Network search to find only iButtons and 1-Wire devices
+     * that are in an 'Alarm' state that signals a need for attention. Not all
+     * iButton types have this feature. Some that do: DS1994, DS1920, DS2407.
+     * This selective searching can be canceled with the 'setSearchAllDevices()'
+     * method.
+     *
+     * @see #setNoResetSearch
+     */
+    public void setSearchOnlyAlarmingDevices() {
+
+<span class="nc" id="L1037">        owState.searchOnlyAlarmingButtons = true;</span>
+<span class="nc" id="L1038">    }</span>
+
+    /**
+     * Set the 1-Wire Network search to not perform a 1-Wire reset before a
+     * search. This feature is chiefly used with the DS2409 1-Wire coupler. The
+     * normal reset before each search can be restored with the
+     * 'setSearchAllDevices()' method.
+     */
+    public void setNoResetSearch() {
+
+<span class="nc" id="L1048">        owState.skipResetOnSearch = true;</span>
+<span class="nc" id="L1049">    }</span>
+
+    /**
+     * Set the 1-Wire Network search to find all iButtons and 1-Wire devices
+     * whether they are in an 'Alarm' state or not and restores the default
+     * setting of providing a 1-Wire reset command before each search. (see
+     * setNoResetSearch() method).
+     *
+     * @see #setNoResetSearch
+     */
+    public void setSearchAllDevices() {
+
+<span class="nc" id="L1061">        owState.searchOnlyAlarmingButtons = false;</span>
+<span class="nc" id="L1062">        owState.skipResetOnSearch = false;</span>
+<span class="nc" id="L1063">    }</span>
+
+    /**
+     * Removes any selectivity during a search for iButtons or 1-Wire devices by
+     * family type. The unique address for each iButton and 1-Wire device
+     * contains a family descriptor that indicates the capabilities of the
+     * device.
+     *
+     * @see #targetFamily
+     * @see #targetFamily(byte[])
+     * @see #excludeFamily
+     * @see #excludeFamily(byte[])
+     */
+    public void targetAllFamilies() {
+
+        // clear the include and exclude family search lists
+<span class="nc" id="L1079">        owState.searchIncludeFamilies = new byte[0];</span>
+<span class="nc" id="L1080">        owState.searchExcludeFamilies = new byte[0];</span>
+<span class="nc" id="L1081">    }</span>
+
+    /**
+     * Takes an integer to selectively search for this desired family type. If
+     * this method is used, then no devices of other families will be found by
+     * getFirstButton() &amp; getNextButton().
+     *
+     * @param familyID the code of the family type to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public void targetFamily(int familyID) {
+
+        // replace include family array with 1 element array
+<span class="nc" id="L1095">        owState.searchIncludeFamilies = new byte[1];</span>
+<span class="nc" id="L1096">        owState.searchIncludeFamilies[0] = (byte) familyID;</span>
+<span class="nc" id="L1097">    }</span>
+
+    /**
+     * Takes an array of bytes to use for selectively searching for acceptable
+     * family codes. If used, only devices with family codes in this array will
+     * be found by any of the search methods.
+     *
+     * @param familyID array of the family types to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public void targetFamily(byte familyID[]) {
+
+        // replace include family array with new array
+<span class="nc" id="L1111">        owState.searchIncludeFamilies = new byte[familyID.length];</span>
+
+<span class="nc" id="L1113">        System.arraycopy(familyID, 0, owState.searchIncludeFamilies, 0, familyID.length);</span>
+<span class="nc" id="L1114">    }</span>
+
+    /**
+     * Takes an integer family code to avoid when searching for iButtons. or
+     * 1-Wire devices. If this method is used, then no devices of this family
+     * will be found by any of the search methods.
+     *
+     * @param familyID the code of the family type NOT to target in searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public void excludeFamily(int familyID) {
+
+        // replace exclude family array with 1 element array
+<span class="nc" id="L1128">        owState.searchExcludeFamilies = new byte[1];</span>
+<span class="nc" id="L1129">        owState.searchExcludeFamilies[0] = (byte) familyID;</span>
+<span class="nc" id="L1130">    }</span>
+
+    /**
+     * Takes an array of bytes containing family codes to avoid when finding
+     * iButtons or 1-Wire devices. If used, then no devices with family codes in
+     * this array will be found by any of the search methods.
+     *
+     * @param familyID array of family cods NOT to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public void excludeFamily(byte familyID[]) {
+
+        // replace exclude family array with new array
+<span class="nc" id="L1144">        owState.searchExcludeFamilies = new byte[familyID.length];</span>
+
+<span class="nc" id="L1146">        System.arraycopy(familyID, 0, owState.searchExcludeFamilies, 0, familyID.length);</span>
+<span class="nc" id="L1147">    }</span>
+
+    // --------
+    // -------- 1-Wire Network Semaphore methods
+
+    // --------
+
+    /**
+     * Gets exclusive use of the 1-Wire to communicate with an iButton or 1-Wire
+     * Device. This method should be used for critical sections of code where a
+     * sequence of commands must not be interrupted by communication of threads
+     * with other iButtons, and it is permissible to sustain a delay in the
+     * special case that another thread has already been granted exclusive
+     * access and this access has not yet been relinquished.
+     * &lt;p&gt;
+     *
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void beginExclusive() throws OneWireException {
+
+<span class="nc" id="L1167">        serial.beginExclusive();</span>
+<span class="nc" id="L1168">    }</span>
+
+    /**
+     * Relinquishes exclusive control of the 1-Wire Network. This command
+     * dynamically marks the end of a critical section and should be used when
+     * exclusive control is no longer needed.
+     */
+    public void endExclusive() {
+
+<span class="nc" id="L1177">        serial.endExclusive();</span>
+<span class="nc" id="L1178">    }</span>
+
+    /**
+     * Gets exclusive use of the 1-Wire to communicate with an iButton or 1-Wire
+     * Device if it is not already done. Used to make methods thread safe.
+     *
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    private void beginLocalExclusive() throws OneWireException {
+
+        // check if there is no such port
+<span class="nc bnc" id="L1189" title="All 2 branches missed.">        if (serial == null) {</span>
+<span class="nc" id="L1190">            throw new OneWireException(&quot;USerialAdapter: port not selected &quot;);</span>
+        }
+
+<span class="nc" id="L1193">        serial.beginExclusive();</span>
+<span class="nc" id="L1194">    }</span>
+
+    /**
+     * Relinquishes local exclusive control of the 1-Wire Network. This just
+     * checks if we did our own 'beginExclusive' block and frees it.
+     */
+    private void endLocalExclusive() {
+
+<span class="nc" id="L1202">        serial.endExclusive();</span>
+<span class="nc" id="L1203">    }</span>
+
+    // --------
+    // -------- Primitive 1-Wire Network data methods
+    // --------
+
+    /**
+     * Sends a bit to the 1-Wire Network.
+     *
+     * @param bitValue the bit value to send to the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void putBit(boolean bitValue) throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1221">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L1224" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // check for pending power conditions
+<span class="nc bnc" id="L1227" title="All 2 branches missed.">                if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L1228">                    setPowerNormal();</span>
+
+                // flush out the com buffer
+<span class="nc" id="L1231">                serial.flush();</span>
+
+                // build a message to send bit to the U brick
+<span class="nc" id="L1234">                uBuild.restart();</span>
+
+<span class="nc" id="L1236">                int bit_offset = uBuild.dataBit(bitValue, owState.levelChangeOnNextBit);</span>
+
+                // check if just started power delivery
+<span class="nc bnc" id="L1239" title="All 2 branches missed.">                if (owState.levelChangeOnNextBit) {</span>
+
+                    // clear the primed condition
+<span class="nc" id="L1242">                    owState.levelChangeOnNextBit = false;</span>
+
+                    // set new level state
+<span class="nc" id="L1245">                    owState.oneWireLevel = LEVEL_POWER_DELIVERY;</span>
+                }
+
+                // send and receive
+<span class="nc" id="L1249">                char[] result_array = uTransaction(uBuild);</span>
+
+                // check for echo
+<span class="nc bnc" id="L1252" title="All 2 branches missed.">                if (bitValue != uBuild.interpretOneWireBit(result_array[bit_offset]))</span>
+<span class="nc" id="L1253">                    throw new OneWireIOException(&quot;1-Wire communication error, echo was incorrect&quot;);</span>
+<span class="nc" id="L1254">            } else</span>
+<span class="nc" id="L1255">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+<span class="nc" id="L1256">        } catch (IOException ex) {</span>
+<span class="nc" id="L1257">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1261">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L1263">    }</span>
+
+    /**
+     * Gets a bit from the 1-Wire Network.
+     *
+     * @return the bit value recieved from the the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean getBit() throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1277">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L1280" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // check for pending power conditions
+<span class="nc bnc" id="L1283" title="All 2 branches missed.">                if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L1284">                    setPowerNormal();</span>
+
+                // flush out the com buffer
+<span class="nc" id="L1287">                serial.flush();</span>
+
+                // build a message to send bit to the U brick
+<span class="nc" id="L1290">                uBuild.restart();</span>
+
+<span class="nc" id="L1292">                int bit_offset = uBuild.dataBit(true, owState.levelChangeOnNextBit);</span>
+
+                // check if just started power delivery
+<span class="nc bnc" id="L1295" title="All 2 branches missed.">                if (owState.levelChangeOnNextBit) {</span>
+
+                    // clear the primed condition
+<span class="nc" id="L1298">                    owState.levelChangeOnNextBit = false;</span>
+
+                    // set new level state
+<span class="nc" id="L1301">                    owState.oneWireLevel = LEVEL_POWER_DELIVERY;</span>
+                }
+
+                // send and receive
+<span class="nc" id="L1305">                char[] result_array = uTransaction(uBuild);</span>
+
+                // check the result
+<span class="nc bnc" id="L1308" title="All 2 branches missed.">                if (result_array.length == (bit_offset + 1))</span>
+<span class="nc" id="L1309">                    return uBuild.interpretOneWireBit(result_array[bit_offset]);</span>
+                else
+<span class="nc" id="L1311">                    return false;</span>
+            } else
+<span class="nc" id="L1313">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+<span class="nc" id="L1314">        } catch (IOException ex) {</span>
+<span class="nc" id="L1315">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1319">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Sends a byte to the 1-Wire Network.
+     *
+     * @param byteValue the byte value to send to the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void putByte(int byteValue) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1332">        byte[] temp_block = new byte[1];</span>
+
+<span class="nc" id="L1334">        temp_block[0] = (byte) byteValue;</span>
+
+<span class="nc" id="L1336">        dataBlock(temp_block, 0, 1);</span>
+
+        // check to make sure echo was what was sent
+<span class="nc bnc" id="L1339" title="All 2 branches missed.">        if (temp_block[0] != (byte) byteValue)</span>
+<span class="nc" id="L1340">            throw new OneWireIOException(&quot;Error short on 1-Wire during putByte&quot;);</span>
+<span class="nc" id="L1341">    }</span>
+
+    /**
+     * Gets a byte from the 1-Wire Network.
+     *
+     * @return the byte value received from the the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public int getByte() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1352">        byte[] temp_block = new byte[1];</span>
+
+<span class="nc" id="L1354">        temp_block[0] = (byte) 0xFF;</span>
+
+<span class="nc" id="L1356">        dataBlock(temp_block, 0, 1);</span>
+
+<span class="nc bnc" id="L1358" title="All 2 branches missed.">        if (temp_block.length == 1)</span>
+<span class="nc" id="L1359">            return (temp_block[0] &amp; 0xFF);</span>
+        else
+<span class="nc" id="L1361">            throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+    }
+
+    /**
+     * Get a block of data from the 1-Wire Network.
+     *
+     * @param len length of data bytes to receive
+     * @return the data received from the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public byte[] getBlock(int len) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1374">        byte[] temp_block = new byte[len];</span>
+
+        // set block to read 0xFF
+<span class="nc bnc" id="L1377" title="All 2 branches missed.">        for (int i = 0; i &lt; len; i++)</span>
+<span class="nc" id="L1378">            temp_block[i] = (byte) 0xFF;</span>
+
+<span class="nc" id="L1380">        getBlock(temp_block, len);</span>
+
+<span class="nc" id="L1382">        return temp_block;</span>
+    }
+
+    /**
+     * Get a block of data from the 1-Wire Network and write it into the
+     * provided array.
+     *
+     * @param arr array in which to write the received bytes
+     * @param len length of data bytes to receive
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void getBlock(byte[] arr, int len) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1396">        getBlock(arr, 0, len);</span>
+<span class="nc" id="L1397">    }</span>
+
+    /**
+     * Get a block of data from the 1-Wire Network and write it into the
+     * provided array.
+     *
+     * @param arr array in which to write the received bytes
+     * @param off offset into the array to start
+     * @param len length of data bytes to receive
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void getBlock(byte[] arr, int off, int len) throws OneWireIOException, OneWireException {
+
+        // set block to read 0xFF
+<span class="nc bnc" id="L1412" title="All 2 branches missed.">        for (int i = off; i &lt; len; i++)</span>
+<span class="nc" id="L1413">            arr[i] = (byte) 0xFF;</span>
+
+<span class="nc" id="L1415">        dataBlock(arr, off, len);</span>
+<span class="nc" id="L1416">    }</span>
+
+    /**
+     * Sends a block of data and returns the data received in the same array.
+     * This method is used when sending a block that contains reads and writes.
+     * The 'read' portions of the data block need to be pre-loaded with 0xFF's.
+     * It starts sending data from the index at offset 'off' for length 'len'.
+     *
+     * @param dataBlock array of data to transfer to and from the 1-Wire
+     * Network.
+     * @param off offset into the array of data to start
+     * @param len length of data to send / receive starting at 'off'
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public void dataBlock(byte dataBlock[], int off, int len) throws OneWireIOException, OneWireException {
+
+        int data_offset;
+        char[] ret_data;
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1440">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L1443" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // check for pending power conditions
+<span class="nc bnc" id="L1446" title="All 2 branches missed.">                if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L1447">                    setPowerNormal();</span>
+
+                // set the correct baud rate to stream this operation
+<span class="nc" id="L1450">                setStreamingSpeed(uBuild.OPERATION_BYTE);</span>
+
+                // flush out the com buffer
+<span class="nc" id="L1453">                serial.flush();</span>
+
+                // build a message to write/read data bytes to the U brick
+<span class="nc" id="L1456">                uBuild.restart();</span>
+
+                // check for primed byte
+<span class="nc bnc" id="L1459" title="All 4 branches missed.">                if ((len == 1) &amp;&amp; owState.levelChangeOnNextByte) {</span>
+<span class="nc" id="L1460">                    data_offset = uBuild.primedDataByte(dataBlock[off]);</span>
+<span class="nc" id="L1461">                    owState.levelChangeOnNextByte = false;</span>
+
+                    // send and receive
+<span class="nc" id="L1464">                    ret_data = uTransaction(uBuild);</span>
+
+                    // set new level state
+<span class="nc" id="L1467">                    owState.oneWireLevel = LEVEL_POWER_DELIVERY;</span>
+
+                    // extract the result byte
+<span class="nc" id="L1470">                    dataBlock[off] = uBuild.interpretPrimedByte(ret_data, data_offset);</span>
+                } else {
+<span class="nc" id="L1472">                    data_offset = uBuild.dataBytes(dataBlock, off, len);</span>
+
+                    // send and receive
+<span class="nc" id="L1475">                    ret_data = uTransaction(uBuild);</span>
+
+                    // extract the result byte(s)
+<span class="nc" id="L1478">                    uBuild.interpretDataBytes(ret_data, data_offset, dataBlock, off, len);</span>
+                }
+            } else
+<span class="nc" id="L1481">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+<span class="nc" id="L1482">        } catch (IOException ex) {</span>
+<span class="nc" id="L1483">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1487">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L1489">    }</span>
+
+    /**
+     * Sends a Reset to the 1-Wire Network.
+     *
+     * @return the result of the reset. Potential results are:
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (RESET_NOPRESENCE) no devices present on the 1-Wire Network.
+     * &lt;li&gt; 1 (RESET_PRESENCE) normal presence pulse detected on the 1-Wire
+     * Network indicating there is a device present.
+     * &lt;li&gt; 2 (RESET_ALARM) alarming presence pulse detected on the 1-Wire
+     * Network indicating there is a device present and it is in the alarm
+     * condition. This is only provided by the DS1994/DS2404 devices.
+     * &lt;li&gt; 3 (RESET_SHORT) inticates 1-Wire appears shorted. This can be
+     * transient conditions in a 1-Wire Network. Not all adapter types can
+     * detect this condition.
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public int reset() throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1514">            beginLocalExclusive();</span>
+
+            // make sure adapter is present
+<span class="nc bnc" id="L1517" title="All 2 branches missed.">            if (uAdapterPresent()) {</span>
+
+                // check for pending power conditions
+<span class="nc bnc" id="L1520" title="All 2 branches missed.">                if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L1521">                    setPowerNormal();</span>
+
+                // flush out the com buffer
+<span class="nc" id="L1524">                serial.flush();</span>
+
+                // build a message to read the baud rate from the U brick
+<span class="nc" id="L1527">                uBuild.restart();</span>
+
+<span class="nc" id="L1529">                int reset_offset = uBuild.oneWireReset();</span>
+
+                // send and receive
+<span class="nc" id="L1532">                char[] result_array = uTransaction(uBuild);</span>
+
+                // check the result
+<span class="nc bnc" id="L1535" title="All 2 branches missed.">                if (result_array.length == (reset_offset + 1))</span>
+<span class="nc" id="L1536">                    return uBuild.interpretOneWireReset(result_array[reset_offset]);</span>
+                else
+<span class="nc" id="L1538">                    throw new OneWireIOException(&quot;USerialAdapter-reset: no return byte form 1-Wire reset&quot;);</span>
+            } else
+<span class="nc" id="L1540">                throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+<span class="nc" id="L1541">        } catch (IOException ex) {</span>
+<span class="nc" id="L1542">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1546">            endLocalExclusive();</span>
+        }
+    }
+
+    // --------
+    // -------- OneWire power methods
+    // --------
+
+    /**
+     * Sets the duration to supply power to the 1-Wire Network. This method
+     * takes a time parameter that indicates the program pulse length when the
+     * method startPowerDelivery().
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canDeliverPower() and
+     * canDeliverSmartPower() method to check it's availability.
+     * &lt;p&gt;
+     *
+     * @param timeFactor
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (DELIVERY_HALF_SECOND) provide power for 1/2 second.
+     * &lt;li&gt; 1 (DELIVERY_ONE_SECOND) provide power for 1 second.
+     * &lt;li&gt; 2 (DELIVERY_TWO_SECONDS) provide power for 2 seconds.
+     * &lt;li&gt; 3 (DELIVERY_FOUR_SECONDS) provide power for 4 seconds.
+     * &lt;li&gt; 4 (DELIVERY_SMART_DONE) provide power until the the device is no
+     * longer drawing significant power.
+     * &lt;li&gt; 5 (DELIVERY_INFINITE) provide power until the setBusNormal() method
+     * is called.
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void setPowerDuration(int timeFactor) throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L1579" title="All 2 branches missed.">        if (timeFactor != DELIVERY_INFINITE)</span>
+<span class="nc" id="L1580">            throw new OneWireException(&quot;USerialAdapter-setPowerDuration, does not support this duration, infinite only&quot;);</span>
+        else
+<span class="nc" id="L1582">            owState.levelTimeFactor = DELIVERY_INFINITE;</span>
+<span class="nc" id="L1583">    }</span>
+
+    /**
+     * Sets the 1-Wire Network voltage to supply power to an iButton device.
+     * This method takes a time parameter that indicates whether the power
+     * delivery should be done immediately, or after certain conditions have
+     * been met.
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canDeliverPower() and
+     * canDeliverSmartPower() method to check it's availability.
+     * &lt;p&gt;
+     *
+     * @param changeCondition
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (CONDITION_NOW) operation should occur immediately.
+     * &lt;li&gt; 1 (CONDITION_AFTER_BIT) operation should be pending execution
+     * immediately after the next bit is sent.
+     * &lt;li&gt; 2 (CONDITION_AFTER_BYTE) operation should be pending execution
+     * immediately after next byte is sent.
+     * &lt;/ul&gt;
+     * @return &lt;code&gt;true&lt;/code&gt; if the voltage change was successful,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean startPowerDelivery(int changeCondition) throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1613">            beginLocalExclusive();</span>
+
+<span class="nc bnc" id="L1615" title="All 2 branches missed.">            if (changeCondition == CONDITION_AFTER_BIT) {</span>
+<span class="nc" id="L1616">                owState.levelChangeOnNextBit = true;</span>
+<span class="nc" id="L1617">                owState.primedLevelValue = LEVEL_POWER_DELIVERY;</span>
+<span class="nc bnc" id="L1618" title="All 2 branches missed.">            } else if (changeCondition == CONDITION_AFTER_BYTE) {</span>
+<span class="nc" id="L1619">                owState.levelChangeOnNextByte = true;</span>
+<span class="nc" id="L1620">                owState.primedLevelValue = LEVEL_POWER_DELIVERY;</span>
+<span class="nc bnc" id="L1621" title="All 2 branches missed.">            } else if (changeCondition == CONDITION_NOW) {</span>
+
+                // make sure adapter is present
+<span class="nc bnc" id="L1624" title="All 2 branches missed.">                if (uAdapterPresent()) {</span>
+
+                    // check for pending power conditions
+<span class="nc bnc" id="L1627" title="All 2 branches missed.">                    if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L1628">                        setPowerNormal();</span>
+
+                    // flush out the com buffer
+<span class="nc" id="L1631">                    serial.flush();</span>
+
+                    // build a message to read the baud rate from the U brick
+<span class="nc" id="L1634">                    uBuild.restart();</span>
+
+                    // set the SPUD time value
+<span class="nc" id="L1637">                    int set_SPUD_offset = uBuild.setParameter(UParameterSettings.PARAMETER_5VPULSE,</span>
+                            UParameterSettings.TIME5V_infinite);
+
+                    // add the command to begin the pulse
+<span class="nc" id="L1641">                    uBuild.sendCommand(UPacketBuilder.FUNCTION_5VPULSE_NOW, false);</span>
+
+                    // send and receive
+<span class="nc" id="L1644">                    char[] result_array = uTransaction(uBuild);</span>
+
+                    // check the result
+<span class="nc bnc" id="L1647" title="All 2 branches missed.">                    if (result_array.length == (set_SPUD_offset + 1)) {</span>
+<span class="nc" id="L1648">                        owState.oneWireLevel = LEVEL_POWER_DELIVERY;</span>
+
+<span class="nc" id="L1650">                        return true;</span>
+                    }
+<span class="nc" id="L1652">                } else</span>
+<span class="nc" id="L1653">                    throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+            } else
+<span class="nc" id="L1655">                throw new OneWireException(&quot;Invalid power delivery condition&quot;);</span>
+
+<span class="nc" id="L1657">            return false;</span>
+<span class="nc" id="L1658">        } catch (IOException ex) {</span>
+<span class="nc" id="L1659">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1663">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Sets the duration for providing a program pulse on the 1-Wire Network.
+     * This method takes a time parameter that indicates the program pulse
+     * length when the method startProgramPulse().
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canDeliverPower() method to
+     * check it's availability.
+     * &lt;p&gt;
+     *
+     * @param timeFactor
+     * &lt;ul&gt;
+     * &lt;li&gt; 6 (DELIVERY_EPROM) provide program pulse for 480 microseconds
+     * &lt;li&gt; 5 (DELIVERY_INFINITE) provide power until the setBusNormal() method
+     * is called.
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void setProgramPulseDuration(int timeFactor) throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L1687" title="All 2 branches missed.">        if (timeFactor != DELIVERY_EPROM)</span>
+<span class="nc" id="L1688">            throw new OneWireException(&quot;Only support EPROM length program pulse duration&quot;);</span>
+<span class="nc" id="L1689">    }</span>
+
+    /**
+     * Sets the 1-Wire Network voltage to eprom programming level. This method
+     * takes a time parameter that indicates whether the power delivery should
+     * be done immediately, or after certain conditions have been met.
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canProgram() method to check
+     * it's availability.
+     * &lt;p&gt;
+     *
+     * @param changeCondition
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (CONDITION_NOW) operation should occur immediately.
+     * &lt;li&gt; 1 (CONDITION_AFTER_BIT) operation should be pending execution
+     * immediately after the next bit is sent.
+     * &lt;li&gt; 2 (CONDITION_AFTER_BYTE) operation should be pending execution
+     * immediately after next byte is sent.
+     * &lt;/ul&gt;
+     * @return &lt;code&gt;true&lt;/code&gt; if the voltage change was successful,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    public boolean startProgramPulse(int changeCondition) throws OneWireIOException, OneWireException {
+
+        // check if adapter supports program
+<span class="nc bnc" id="L1717" title="All 2 branches missed.">        if (!uState.programVoltageAvailable)</span>
+<span class="nc" id="L1718">            throw new OneWireException(&quot;USerialAdapter: startProgramPulse, program voltage not available&quot;);</span>
+
+        // check if correct change condition
+<span class="nc bnc" id="L1721" title="All 2 branches missed.">        if (changeCondition != CONDITION_NOW)</span>
+<span class="nc" id="L1722">            throw new OneWireException(&quot;USerialAdapter: startProgramPulse, CONDITION_NOW only currently supported&quot;);</span>
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1727">            beginLocalExclusive();</span>
+
+            // build a message to read the baud rate from the U brick
+<span class="nc" id="L1730">            uBuild.restart();</span>
+
+            // int set_SPUD_offset =
+<span class="nc" id="L1733">            uBuild.setParameter(UParameterSettings.PARAMETER_12VPULSE, UParameterSettings.TIME12V_512us);</span>
+
+            // add the command to begin the pulse
+            // int pulse_offset =
+<span class="nc" id="L1737">            uBuild.sendCommand(UPacketBuilder.FUNCTION_12VPULSE_NOW, true);</span>
+
+            // send the command
+            // char[] result_array =
+<span class="nc" id="L1741">            uTransaction(uBuild);</span>
+
+            // check the result ??
+<span class="nc" id="L1744">            return true;</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1748">            endLocalExclusive();</span>
+        }
+    }
+
+    /**
+     * Sets the 1-Wire Network voltage to 0 volts. This method is used rob all
+     * 1-Wire Network devices of parasite power delivery to force them into a
+     * hard reset.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    public void startBreak() throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1766">            beginLocalExclusive();</span>
+
+            // power down the 2480 (dropping the 1-Wire)
+<span class="nc" id="L1769">            serial.setDTR(false);</span>
+<span class="nc" id="L1770">            serial.setRTS(false);</span>
+
+            // wait for power to drop
+<span class="nc" id="L1773">            sleep(200);</span>
+
+            // set the level state
+<span class="nc" id="L1776">            owState.oneWireLevel = LEVEL_BREAK;</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1780">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L1782">    }</span>
+
+    /**
+     * Sets the 1-Wire Network voltage to normal level. This method is used to
+     * disable 1-Wire conditions created by startPowerDelivery and
+     * startProgramPulse. This method will automatically be called if a
+     * communication method is called while an outstanding power command is
+     * taking place.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    public void setPowerNormal() throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1800">            beginLocalExclusive();</span>
+
+<span class="nc bnc" id="L1802" title="All 2 branches missed.">            if (owState.oneWireLevel == LEVEL_POWER_DELIVERY) {</span>
+
+                // make sure adapter is present
+<span class="nc bnc" id="L1805" title="All 2 branches missed.">                if (uAdapterPresent()) {</span>
+
+                    // flush out the com buffer
+<span class="nc" id="L1808">                    serial.flush();</span>
+
+                    // build a message to read the baud rate from the U brick
+<span class="nc" id="L1811">                    uBuild.restart();</span>
+
+                    // \\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+                    // shughes - 8-28-2003
+                    // Fixed the Set Power Level Normal problem where adapter
+                    // is left in a bad state. Removed bad fix: extra getBit()
+                    // SEE BELOW!
+                    // stop pulse command
+<span class="nc" id="L1819">                    uBuild.sendCommand(UPacketBuilder.FUNCTION_STOP_PULSE, true);</span>
+
+                    // start pulse with no prime
+<span class="nc" id="L1822">                    uBuild.sendCommand(UPacketBuilder.FUNCTION_5VPULSE_NOW, false);</span>
+                    // \\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+
+                    // add the command to stop the pulse
+<span class="nc" id="L1826">                    int pulse_response_offset = uBuild.sendCommand(UPacketBuilder.FUNCTION_STOP_PULSE, true);</span>
+
+                    // send and receive
+<span class="nc" id="L1829">                    char[] result_array = uTransaction(uBuild);</span>
+
+                    // check the result
+<span class="nc bnc" id="L1832" title="All 2 branches missed.">                    if (result_array.length == (pulse_response_offset + 1)) {</span>
+<span class="nc" id="L1833">                        owState.oneWireLevel = LEVEL_NORMAL;</span>
+
+                        // \\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+                        // shughes - 8-28-2003
+                        // This is a bad &quot;fix&quot;, it was needed when we were
+                        // causing
+                        // a bad condition. Instead of fixing it here, we should
+                        // fix it where we were causing it.. Which we did!
+                        // SEE ABOVE!
+                        // getBit();
+                        // \\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+                    } else
+<span class="nc" id="L1845">                        throw new OneWireIOException(&quot;Did not get a response back from stop power delivery&quot;);</span>
+<span class="nc" id="L1846">                }</span>
+<span class="nc bnc" id="L1847" title="All 2 branches missed.">            } else if (owState.oneWireLevel == LEVEL_BREAK) {</span>
+
+                // restore power
+<span class="nc" id="L1850">                serial.setDTR(true);</span>
+<span class="nc" id="L1851">                serial.setRTS(true);</span>
+
+                // wait for power to come up
+<span class="nc" id="L1854">                sleep(300);</span>
+
+                // set the level state
+<span class="nc" id="L1857">                owState.oneWireLevel = LEVEL_NORMAL;</span>
+
+                // set the DS2480 to the correct mode and verify
+<span class="nc" id="L1860">                adapterPresent = false;</span>
+
+<span class="nc bnc" id="L1862" title="All 2 branches missed.">                if (!uAdapterPresent())</span>
+<span class="nc" id="L1863">                    throw new OneWireIOException(&quot;Did not get a response back from adapter after break&quot;);</span>
+            }
+<span class="nc" id="L1865">        } catch (IOException ex) {</span>
+<span class="nc" id="L1866">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1870">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L1872">    }</span>
+
+    // --------
+    // -------- OneWire bus speed methods
+    // --------
+
+    /**
+     * This method takes an int representing the new speed of data transfer on
+     * the 1-Wire Network.
+     * &lt;p&gt;
+     *
+     * @param speed
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (SPEED_REGULAR) set to normal communciation speed
+     * &lt;li&gt; 1 (SPEED_FLEX) set to flexible communciation speed used for long
+     * lines
+     * &lt;li&gt; 2 (SPEED_OVERDRIVE) set to normal communciation speed to overdrive
+     * &lt;li&gt; 3 (SPEED_HYPERDRIVE) set to normal communciation speed to hyperdrive
+     * &lt;li&gt; &gt;3 future speeds
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public void setSpeed(int speed) throws OneWireIOException, OneWireException {
+
+        try {
+
+            // acquire exclusive use of the port
+<span class="nc" id="L1902">            beginLocalExclusive();</span>
+
+            // check for valid speed
+<span class="nc bnc" id="L1905" title="All 6 branches missed.">            if ((speed == SPEED_REGULAR) || (speed == SPEED_OVERDRIVE) || (speed == SPEED_FLEX)) {</span>
+
+                // change 1-Wire speed
+<span class="nc" id="L1908">                owState.oneWireSpeed = (char) speed;</span>
+
+                // set adapter to communicate at this new speed (regular == flex
+                // for now)
+<span class="nc bnc" id="L1912" title="All 2 branches missed.">                if (speed == SPEED_OVERDRIVE)</span>
+<span class="nc" id="L1913">                    uState.uSpeedMode = uState.USPEED_OVERDRIVE;</span>
+                else
+<span class="nc" id="L1915">                    uState.uSpeedMode = uState.USPEED_FLEX;</span>
+            } else
+<span class="nc" id="L1917">                throw new OneWireException(&quot;Requested speed is not supported by this adapter&quot;);</span>
+        } finally {
+
+            // release local exclusive use of port
+<span class="nc" id="L1921">            endLocalExclusive();</span>
+        }
+<span class="nc" id="L1923">    }</span>
+
+    /**
+     * This method returns the current data transfer speed through a port to a
+     * 1-Wire Network.
+     * &lt;p&gt;
+     *
+     * @return
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (SPEED_REGULAR) set to normal communication speed
+     * &lt;li&gt; 1 (SPEED_FLEX) set to flexible communication speed used for long
+     * lines
+     * &lt;li&gt; 2 (SPEED_OVERDRIVE) set to normal communication speed to overdrive
+     * &lt;li&gt; 3 (SPEED_HYPERDRIVE) set to normal communication speed to hyperdrive
+     * &lt;li&gt; &gt;3 future speeds
+     * &lt;/ul&gt;
+     */
+    public int getSpeed() {
+
+<span class="nc" id="L1942">        return owState.oneWireSpeed;</span>
+    }
+
+    // --------
+    // -------- Support methods
+    // --------
+
+    /**
+     * Peform a search using the oneWire state provided
+     *
+     * @param mState current OneWire state used to do the search
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    private boolean search(OneWireState mState) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1959">        int reset_offset = 0;</span>
+
+        // make sure adapter is present
+<span class="nc bnc" id="L1962" title="All 2 branches missed.">        if (uAdapterPresent()) {</span>
+
+            // check for pending power conditions
+<span class="nc bnc" id="L1965" title="All 2 branches missed.">            if (owState.oneWireLevel != LEVEL_NORMAL)</span>
+<span class="nc" id="L1966">                setPowerNormal();</span>
+
+            // set the correct baud rate to stream this operation
+<span class="nc" id="L1969">            setStreamingSpeed(uBuild.OPERATION_SEARCH);</span>
+
+            // reset the packet
+<span class="nc" id="L1972">            uBuild.restart();</span>
+
+            // add a reset/ search command
+<span class="nc bnc" id="L1975" title="All 2 branches missed.">            if (!mState.skipResetOnSearch)</span>
+<span class="nc" id="L1976">                reset_offset = uBuild.oneWireReset();</span>
+
+<span class="nc bnc" id="L1978" title="All 2 branches missed.">            if (mState.searchOnlyAlarmingButtons)</span>
+<span class="nc" id="L1979">                uBuild.dataByte(ALARM_SEARCH_CMD);</span>
+            else
+<span class="nc" id="L1981">                uBuild.dataByte(NORMAL_SEARCH_CMD);</span>
+
+            // add search sequence based on mState
+<span class="nc" id="L1984">            int search_offset = uBuild.search(mState);</span>
+
+            // send/receive the search
+<span class="nc" id="L1987">            char[] result_array = uTransaction(uBuild);</span>
+
+            // interpret search result and return
+<span class="nc bnc" id="L1990" title="All 2 branches missed.">            if (!mState.skipResetOnSearch)</span>
+<span class="nc" id="L1991">                uBuild.interpretOneWireReset(result_array[reset_offset]);</span>
+
+<span class="nc" id="L1993">            return uBuild.interpretSearch(mState, result_array, search_offset);</span>
+        } else
+<span class="nc" id="L1995">            throw new OneWireIOException(&quot;Error communicating with adapter&quot;);</span>
+    }
+
+    /**
+     * Perform a 'strongAccess' with the provided 1-Wire address. 1-Wire Network
+     * has already been reset and the 'search' command sent before this is
+     * called.
+     *
+     * @param address device address to do strongAccess on
+     * @param alarmOnly verify device is present and alarming if true
+     * @return true if device participated and was present in the strongAccess
+     * search
+     */
+    private boolean blockIsPresent(byte[] address, boolean alarmOnly) throws OneWireIOException, OneWireException {
+
+        // 24 bytes
+<span class="nc" id="L2011">        byte[] send_packet = {</span>
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,(byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,(byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,(byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,(byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,(byte) 0xFF,
+                (byte) 0xFF, (byte) 0xFF, (byte) 0xFF,(byte) 0xFF
+                };
+        int i;
+
+        // reset the 1-Wire
+<span class="nc" id="L2022">        reset();</span>
+
+        // send search command
+<span class="nc bnc" id="L2025" title="All 2 branches missed.">        if (alarmOnly) {</span>
+<span class="nc" id="L2026">            putByte(ALARM_SEARCH_CMD);</span>
+        } else {
+<span class="nc" id="L2028">            putByte(NORMAL_SEARCH_CMD);</span>
+        }
+
+        // now set or clear apropriate bits for search
+<span class="nc bnc" id="L2032" title="All 2 branches missed.">        for (i = 0; i &lt; 64; i++) {</span>
+<span class="nc" id="L2033">            Bit.arrayWriteBit(Bit.arrayReadBit(i, 0, address), (i + 1) * 3 - 1, 0, send_packet);</span>
+        }
+
+        // send to 1-Wire Net
+<span class="nc" id="L2037">        dataBlock(send_packet, 0, 24);</span>
+
+        // check the results of last 8 triplets (should be no conflicts)
+<span class="nc" id="L2040">        int cnt = 56, goodbits = 0, tst, s;</span>
+
+<span class="nc bnc" id="L2042" title="All 2 branches missed.">        for (i = 168; i &lt; 192; i += 3) {</span>
+<span class="nc" id="L2043">            tst = (Bit.arrayReadBit(i, 0, send_packet) &lt;&lt; 1) | Bit.arrayReadBit(i + 1, 0, send_packet);</span>
+<span class="nc" id="L2044">            s = Bit.arrayReadBit(cnt++, 0, address);</span>
+
+<span class="nc bnc" id="L2046" title="All 2 branches missed.">            if (tst == 0x03) // no device on line</span>
+            {
+<span class="nc" id="L2048">                goodbits = 0; // number of good bits set to zero</span>
+
+<span class="nc" id="L2050">                break; // quit</span>
+            }
+
+<span class="nc bnc" id="L2053" title="All 8 branches missed.">            if (((s == 0x01) &amp;&amp; (tst == 0x02)) || ((s == 0x00) &amp;&amp; (tst == 0x01))) // correct bit</span>
+<span class="nc" id="L2054">                goodbits++; // count as a good bit</span>
+        }
+
+        // check too see if there were enough good bits to be successful
+<span class="nc bnc" id="L2058" title="All 2 branches missed.">        return (goodbits &gt;= 8);</span>
+    }
+
+    // --------
+    // -------- U Adapter Methods
+    // --------
+
+    /**
+     * set the correct baud rate to stream this operation
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    private void setStreamingSpeed(int operation) throws OneWireIOException {
+
+<span class="nc" id="L2071">        ThreadContext.push(&quot;setStreamingSpeed(&quot; + operation + &quot;)&quot;);</span>
+
+        try {
+
+            // get the desired baud rate for this operation
+<span class="nc" id="L2076">            int baud = uBuild.getDesiredBaud(operation, owState.oneWireSpeed, maxBaud);</span>
+
+            // check if already at the correct speed
+<span class="nc bnc" id="L2079" title="All 2 branches missed.">            if (baud == serial.getBaudRate()) {</span>
+<span class="nc" id="L2080">                return;</span>
+            }
+
+<span class="nc" id="L2083">            logger.debug(&quot;Changing baud rate from &quot; + serial.getBaudRate() + &quot; to &quot; + baud);</span>
+
+            // convert this baud to 'u' baud
+            char ubaud;
+
+<span class="nc bnc" id="L2088" title="All 4 branches missed.">            switch (baud) {</span>
+
+            case 115200:
+<span class="nc" id="L2091">                ubaud = uState.BAUD_115200;</span>
+<span class="nc" id="L2092">                break;</span>
+            case 57600:
+<span class="nc" id="L2094">                ubaud = uState.BAUD_57600;</span>
+<span class="nc" id="L2095">                break;</span>
+            case 19200:
+<span class="nc" id="L2097">                ubaud = uState.BAUD_19200;</span>
+<span class="nc" id="L2098">                break;</span>
+            case 9600:
+            default:
+<span class="nc" id="L2101">                ubaud = uState.BAUD_9600;</span>
+                break;
+            }
+
+            // see if this is a new baud
+<span class="nc bnc" id="L2106" title="All 2 branches missed.">            if (ubaud == uState.ubaud) {</span>
+<span class="nc" id="L2107">                return;</span>
+            }
+
+            // default, loose communication with adapter
+<span class="nc" id="L2111">            adapterPresent = false;</span>
+
+            // build a message to read the baud rate from the U brick
+<span class="nc" id="L2114">            uBuild.restart();</span>
+
+<span class="nc" id="L2116">            int baud_offset = uBuild.setParameter(UParameterSettings.PARAMETER_BAUDRATE, ubaud);</span>
+
+            try {
+                // send command, no response at this baud rate
+<span class="nc" id="L2120">                serial.flush();</span>
+
+<span class="nc" id="L2122">                RawSendPacket pkt = (RawSendPacket) uBuild.getPackets().nextElement();</span>
+<span class="nc" id="L2123">                char[] temp_buf = new char[pkt.buffer.length()];</span>
+
+<span class="nc" id="L2125">                pkt.buffer.getChars(0, pkt.buffer.length(), temp_buf, 0);</span>
+<span class="nc" id="L2126">                serial.write(temp_buf);</span>
+
+                // delay to let things settle
+<span class="nc" id="L2129">                sleep(5);</span>
+<span class="nc" id="L2130">                serial.flush();</span>
+
+                // set the baud rate
+<span class="nc" id="L2133">                sleep(5); // solaris hack!!!</span>
+<span class="nc" id="L2134">                serial.setBaudRate(baud);</span>
+<span class="nc" id="L2135">            } catch (IOException ex) {</span>
+<span class="nc" id="L2136">                throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+<span class="nc" id="L2137">            }</span>
+
+<span class="nc" id="L2139">            uState.ubaud = ubaud;</span>
+
+            // delay to let things settle
+<span class="nc" id="L2142">            sleep(5);</span>
+
+            // verify adapter is at new baud rate
+<span class="nc" id="L2145">            uBuild.restart();</span>
+
+<span class="nc" id="L2147">            baud_offset = uBuild.getParameter(UParameterSettings.PARAMETER_BAUDRATE);</span>
+
+            // set the DS2480 communication speed for subsequent blocks
+<span class="nc" id="L2150">            uBuild.setSpeed();</span>
+
+            try {
+
+                // send and receive
+<span class="nc" id="L2155">                serial.flush();</span>
+
+<span class="nc" id="L2157">                char[] result_array = uTransaction(uBuild);</span>
+
+                // check the result
+<span class="nc bnc" id="L2160" title="All 2 branches missed.">                if (result_array.length == 1) {</span>
+<span class="nc bnc" id="L2161" title="All 4 branches missed.">                    if (((result_array[baud_offset] &amp; 0xF1) == 0) &amp;&amp; ((result_array[baud_offset] &amp; 0x0E) == uState.ubaud)) {</span>
+<span class="nc" id="L2162">                        logger.debug(&quot;Success, baud changed and DS2480 is there&quot;);</span>
+
+                        // adapter still with us
+<span class="nc" id="L2165">                        adapterPresent = true;</span>
+
+                        // flush any garbage characters
+<span class="nc" id="L2168">                        sleep(150);</span>
+<span class="nc" id="L2169">                        serial.flush();</span>
+
+<span class="nc" id="L2171">                        return;</span>
+                    }
+                }
+<span class="nc" id="L2174">            } catch (IOException ex) {</span>
+<span class="nc" id="L2175">                logger.error(&quot;USerialAdapter-setStreamingSpeed: &quot; + ex);</span>
+<span class="nc" id="L2176">            } catch (OneWireIOException ex) {</span>
+<span class="nc" id="L2177">                logger.error(&quot;USerialAdapter-setStreamingSpeed: &quot;, ex);</span>
+<span class="nc" id="L2178">            }</span>
+
+<span class="nc" id="L2180">            logger.error(&quot;Failed to change baud of DS2480&quot;);</span>
+
+        } finally {
+<span class="nc" id="L2183">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L2185">    }</span>
+
+    /**
+     * Verify that the DS2480 based adapter is present on the open port.
+     *
+     * @return 'true' if adapter present
+     * @throws OneWireException - if port not selected
+     */
+    private synchronized boolean uAdapterPresent() throws OneWireException {
+
+<span class="nc" id="L2195">        boolean rt = true;</span>
+
+        // check if adapter has already be verified to be present
+<span class="nc bnc" id="L2198" title="All 2 branches missed.">        if (!adapterPresent) {</span>
+
+            // do a master reset
+<span class="nc" id="L2201">            uMasterReset();</span>
+
+            // attempt to verify
+<span class="nc bnc" id="L2204" title="All 2 branches missed.">            if (!uVerify()) {</span>
+
+                // do a master reset and try again
+<span class="nc" id="L2207">                uMasterReset();</span>
+
+<span class="nc bnc" id="L2209" title="All 2 branches missed.">                if (!uVerify()) {</span>
+
+                    // do a power reset and try again
+<span class="nc" id="L2212">                    uPowerReset();</span>
+
+<span class="nc bnc" id="L2214" title="All 2 branches missed.">                    if (!uVerify())</span>
+<span class="nc" id="L2215">                        rt = false;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L2220">        adapterPresent = rt;</span>
+
+<span class="nc" id="L2222">        logger.debug(&quot;AdapterPresent result: &quot; + rt);</span>
+
+<span class="nc" id="L2224">        return rt;</span>
+    }
+
+    /**
+     * Do a master reset on the DS2480. This reduces the baud rate to 9600 and
+     * performs a break. A single timing byte is then sent.
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    private synchronized void uMasterReset() {
+
+<span class="nc" id="L2234">        ThreadContext.push(&quot;uMasterReset&quot;);</span>
+
+        try {
+
+<span class="nc" id="L2238">            logger.debug(&quot;uMasterReset()&quot;);</span>
+
+            // try to acquire the port
+            try {
+
+                // set the baud rate
+<span class="nc" id="L2244">                serial.setBaudRate(9600);</span>
+
+<span class="nc" id="L2246">                uState.ubaud = uState.BAUD_9600;</span>
+
+                // put back to standard speed
+<span class="nc" id="L2249">                owState.oneWireSpeed = SPEED_REGULAR;</span>
+<span class="nc" id="L2250">                uState.uSpeedMode = uState.USPEED_FLEX;</span>
+<span class="nc" id="L2251">                uState.ubaud = uState.BAUD_9600;</span>
+
+                // send a break to reset DS2480
+<span class="nc" id="L2254">                serial.sendBreak(10);</span>
+<span class="nc" id="L2255">                sleep(5);</span>
+
+                // send the timing byte
+<span class="nc" id="L2258">                serial.flush();</span>
+<span class="nc" id="L2259">                serial.write(UPacketBuilder.FUNCTION_RESET);</span>
+<span class="nc" id="L2260">                serial.flush();</span>
+<span class="nc" id="L2261">            } catch (IOException ex) {</span>
+<span class="nc" id="L2262">                logger.error(&quot;Reset failed&quot;, ex);</span>
+<span class="nc" id="L2263">            }</span>
+        } finally {
+<span class="nc" id="L2265">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L2267">    }</span>
+
+    /**
+     * Do a power reset on the DS2480. This reduces the baud rate to 9600 and
+     * powers down the DS2480. A single timing byte is then sent.
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    private synchronized void uPowerReset() {
+
+<span class="nc" id="L2276">        ThreadContext.push(&quot;uPowerReset&quot;);</span>
+
+        try {
+
+<span class="nc" id="L2280">            logger.debug(&quot;uPowerReset()&quot;);</span>
+
+            // try to acquire the port
+            try {
+
+                // set the baud rate
+<span class="nc" id="L2286">                serial.setBaudRate(9600);</span>
+
+<span class="nc" id="L2288">                uState.ubaud = uState.BAUD_9600;</span>
+
+                // put back to standard speed
+<span class="nc" id="L2291">                owState.oneWireSpeed = SPEED_REGULAR;</span>
+<span class="nc" id="L2292">                uState.uSpeedMode = uState.USPEED_FLEX;</span>
+<span class="nc" id="L2293">                uState.ubaud = uState.BAUD_9600;</span>
+
+                // power down DS2480
+<span class="nc" id="L2296">                serial.setDTR(false);</span>
+<span class="nc" id="L2297">                serial.setRTS(false);</span>
+<span class="nc" id="L2298">                sleep(300);</span>
+<span class="nc" id="L2299">                serial.setDTR(true);</span>
+<span class="nc" id="L2300">                serial.setRTS(true);</span>
+<span class="nc" id="L2301">                sleep(1);</span>
+
+                // send the timing byte
+<span class="nc" id="L2304">                serial.flush();</span>
+<span class="nc" id="L2305">                serial.write(UPacketBuilder.FUNCTION_RESET);</span>
+<span class="nc" id="L2306">                serial.flush();</span>
+<span class="nc" id="L2307">            } catch (IOException ex) {</span>
+<span class="nc" id="L2308">                logger.error(&quot;Reset failed&quot;, ex);</span>
+<span class="nc" id="L2309">            }</span>
+        } finally {
+<span class="nc" id="L2311">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L2313">    }</span>
+
+    /**
+     * Read and verify the baud rate with the DS2480 chip and perform a single
+     * bit MicroLAN operation. This is used as a DS2480 detect.
+     *
+     * @return 'true' if the correct baud rate and bit operation was read from
+     * the DS2480
+     */
+    private boolean uVerify() {
+
+        try {
+<span class="nc" id="L2325">            serial.flush();</span>
+
+            // build a message to read the baud rate from the U brick
+<span class="nc" id="L2328">            uBuild.restart();</span>
+
+<span class="nc" id="L2330">            uBuild.setParameter(UParameterSettings.PARAMETER_SLEW,</span>
+                    uState.uParameters[owState.oneWireSpeed].pullDownSlewRate);
+<span class="nc" id="L2332">            uBuild.setParameter(UParameterSettings.PARAMETER_WRITE1LOW,</span>
+                    uState.uParameters[owState.oneWireSpeed].write1LowTime);
+<span class="nc" id="L2334">            uBuild.setParameter(UParameterSettings.PARAMETER_SAMPLEOFFSET,</span>
+                    uState.uParameters[owState.oneWireSpeed].sampleOffsetTime);
+<span class="nc" id="L2336">            uBuild.setParameter(UParameterSettings.PARAMETER_5VPULSE, UParameterSettings.TIME5V_infinite);</span>
+<span class="nc" id="L2337">            int baud_offset = uBuild.getParameter(UParameterSettings.PARAMETER_BAUDRATE);</span>
+<span class="nc" id="L2338">            int bit_offset = uBuild.dataBit(true, false);</span>
+
+            // send and receive
+<span class="nc" id="L2341">            char[] result_array = uTransaction(uBuild);</span>
+
+            // check the result
+<span class="nc bnc" id="L2344" title="All 2 branches missed.">            if (result_array.length == (bit_offset + 1)) {</span>
+<span class="nc bnc" id="L2345" title="All 8 branches missed.">                if (((result_array[baud_offset] &amp; 0xF1) == 0) &amp;&amp; ((result_array[baud_offset] &amp; 0x0E) == uState.ubaud)</span>
+                        &amp;&amp; ((result_array[bit_offset] &amp; 0xF0) == 0x90)
+                        &amp;&amp; ((result_array[bit_offset] &amp; 0x0C) == uState.uSpeedMode))
+<span class="nc" id="L2348">                    return true;</span>
+            }
+<span class="nc" id="L2350">        } catch (IOException ex) {</span>
+<span class="nc" id="L2351">            logger.error(&quot;USerialAdapter-uVerify: &quot;, ex);</span>
+<span class="nc" id="L2352">        } catch (OneWireIOException ex) {</span>
+<span class="nc" id="L2353">            logger.error(&quot;USerialAdapter-uVerify: &quot;, ex);</span>
+<span class="nc" id="L2354">        }</span>
+
+<span class="nc" id="L2356">        return false;</span>
+    }
+
+    /**
+     * Write the raw U packet and then read the result.
+     *
+     * @param tempBuild the U Packet Build where the packet to send resides
+     * @return the result array
+     * @throws OneWireIOException on a 1-Wire communication error
+     */
+    private char[] uTransaction(UPacketBuilder tempBuild) throws OneWireIOException {
+
+        //int offset;
+
+        try {
+            // clear the buffers
+<span class="nc" id="L2372">            serial.flush();</span>
+<span class="nc" id="L2373">            inBuffer.setLength(0);</span>
+
+            // loop to send all of the packets
+<span class="nc bnc" id="L2376" title="All 2 branches missed.">            for (Enumeration&lt;RawSendPacket&gt; packet_enum = tempBuild.getPackets(); packet_enum.hasMoreElements();) {</span>
+
+                // get the next packet
+<span class="nc" id="L2379">                RawSendPacket pkt = packet_enum.nextElement();</span>
+
+                // bogus packet to indicate need to wait for long DS2480 alarm
+                // reset
+<span class="nc bnc" id="L2383" title="All 4 branches missed.">                if ((pkt.buffer.length() == 0) &amp;&amp; (pkt.returnLength == 0)) {</span>
+<span class="nc" id="L2384">                    sleep(6);</span>
+<span class="nc" id="L2385">                    serial.flush();</span>
+
+<span class="nc" id="L2387">                    continue;</span>
+                }
+
+                // get the data
+<span class="nc" id="L2391">                char[] temp_buf = new char[pkt.buffer.length()];</span>
+
+<span class="nc" id="L2393">                pkt.buffer.getChars(0, pkt.buffer.length(), temp_buf, 0);</span>
+
+                // remember number of bytes in input
+                //offset = inBuffer.length();
+
+                // send the packet
+<span class="nc" id="L2399">                serial.write(temp_buf);</span>
+
+                // wait on returnLength bytes in inBound
+<span class="nc" id="L2402">                inBuffer.append(serial.readWithTimeout(pkt.returnLength));</span>
+<span class="nc" id="L2403">            }</span>
+
+            // read the return packet
+<span class="nc" id="L2406">            char[] ret_buffer = new char[inBuffer.length()];</span>
+
+<span class="nc" id="L2408">            inBuffer.getChars(0, inBuffer.length(), ret_buffer, 0);</span>
+
+            // check for extra bytes in inBuffer
+            //extraBytesReceived = (inBuffer.length() &gt; tempBuild.totalReturnLength);
+
+            // clear the inbuffer
+<span class="nc" id="L2414">            inBuffer.setLength(0);</span>
+
+<span class="nc" id="L2416">            return ret_buffer;</span>
+<span class="nc" id="L2417">        } catch (IOException ex) {</span>
+
+            // need to check on adapter
+<span class="nc" id="L2420">            adapterPresent = false;</span>
+
+            // pass it on
+<span class="nc" id="L2423">            throw new OneWireIOException(&quot;Oops&quot;, ex);</span>
+        }
+    }
+
+    /**
+     * Sleep for the specified number of milliseconds
+     */
+    private void sleep(long msTime) {
+
+        // provided debug on standard out
+<span class="nc" id="L2433">        logger.debug(&quot;sleep(&quot; + msTime + &quot;)&quot;);</span>
+
+        try {
+<span class="nc" id="L2436">            Thread.sleep(msTime);</span>
+<span class="nc" id="L2437">        } catch (InterruptedException ex) {</span>
+<span class="nc" id="L2438">            logger.debug(&quot;sleep interrupted&quot;);</span>
+<span class="nc" id="L2439">        }</span>
+<span class="nc" id="L2440">    }</span>
+
+    // --------
+    // -------- Static
+    // --------
+
+    /**
+     * Static method called before instance is created. Attempt to create a hash
+     * of SerialService's and get the max baud rate.
+     */
+    static {
+
+        /*
+         * // create a SerialServices instance for each port available and put
+         * in hash Enumeration com_enum =
+         * CommPortIdentifier.getPortIdentifiers(); CommPortIdentifier port_id;
+         * SerialService serial_instance; // loop throught all of the serial
+         * port elements while (com_enum.hasMoreElements()) { // get the next
+         * com port port_id = ( CommPortIdentifier ) com_enum.nextElement(); //
+         * only collect the names of the serial ports if (port_id.getPortType() ==
+         * CommPortIdentifier.PORT_SERIAL) { serial_instance = new
+         * SerialService(port_id.getName());
+         * serailServiceHash.put(port_id.getName(), serial_instance); if
+         * (DEBUG) System.out.println(&quot;DEBUG: Serial port: &quot; +
+         * port_id.getName()); } }
+         */
+
+        // check properties to see if max baud set manualy
+<span class="nc" id="L2468">        maxBaud = 115200;</span>
+
+<span class="nc" id="L2470">        String max_baud_str = OneWireAccessProvider.getProperty(&quot;onewire.serial.maxbaud&quot;);</span>
+
+<span class="nc bnc" id="L2472" title="All 2 branches missed.">        if (max_baud_str != null) {</span>
+            try {
+<span class="nc" id="L2474">                maxBaud = Integer.parseInt(max_baud_str);</span>
+<span class="nc" id="L2475">            } catch (NumberFormatException ex) {</span>
+<span class="nc" id="L2476">                maxBaud = 0;</span>
+<span class="nc" id="L2477">            }</span>
+        }
+
+        // provided debug on standard out
+<span class="nc" id="L2481">        LogManager.getLogger(USerialAdapter.class).debug(&quot;getMaxBaud from properties: &quot; + maxBaud);</span>
+
+        // if not valid then use fastest
+<span class="nc bnc" id="L2484" title="All 8 branches missed.">        if ((maxBaud != 115200) &amp;&amp; (maxBaud != 57600) &amp;&amp; (maxBaud != 19200) &amp;&amp; (maxBaud != 9600))</span>
+<span class="nc" id="L2485">            maxBaud = 115200;</span>
+<span class="nc" id="L2486">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

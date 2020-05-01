@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GCalScheduleUpdaterBase.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Google Calendar v3 API based schedule updater</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.scheduler.gcal</a> &gt; <span class="el_source">GCalScheduleUpdaterBase.java</span></div><h1>GCalScheduleUpdaterBase.java</h1><pre class="source lang-java linenums">package net.sf.dz3.scheduler.gcal;
+
+import java.util.Date;
+import java.util.Map;
+
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.scheduler.AbstractScheduleUpdater;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxAware;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Base class for schedule updaters using Google Calendar as a back end.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2014
+ */
+public abstract class GCalScheduleUpdaterBase extends AbstractScheduleUpdater implements JmxAware {
+
+    /**
+     * Time of last known successful request to the calendar service, {@code 0} if none succeeded yet.
+     */
+<span class="nc" id="L22">    private long lastKnownGood = 0;</span>
+    
+<span class="nc" id="L24">    protected final StatusParser statusParser = new StatusParser();</span>
+
+    public GCalScheduleUpdaterBase(Map&lt;Thermostat, String&gt; ts2source) {
+<span class="nc" id="L27">        super(ts2source);</span>
+<span class="nc" id="L28">    }</span>
+
+    @JmxAttribute(description = &quot;Last time when the schedule was actually extracted&quot;)
+    public final String getLastKnownGood() {
+        
+<span class="nc" id="L33">        return new Date(lastKnownGood).toString();</span>
+    }
+
+    @Override
+    public final JmxDescriptor getJmxDescriptor() {
+        
+<span class="nc" id="L39">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Google Calendar Schedule Updater&quot;,
+<span class="nc" id="L42">                Integer.toHexString(hashCode()),</span>
+                &quot;Pulls schedule from a Google Calendar&quot;);
+    }
+
+    /**
+     * Update {@link #lastKnownGood} to current system time.
+     */
+    protected void touch() {
+<span class="nc" id="L50">        lastKnownGood = System.currentTimeMillis();</span>
+<span class="nc" id="L51">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

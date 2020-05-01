@@ -1,0 +1,287 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractPidController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller.pid</a> &gt; <span class="el_source">AbstractPidController.java</span></div><h1>AbstractPidController.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller.pid;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.controller.AbstractProcessController;
+import net.sf.dz3.controller.ProcessControllerStatus;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxAware;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Abstract base for a PID controller implementation.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public abstract class AbstractPidController extends AbstractProcessController implements AbstractPidControllerConfiguration, JmxAware {
+
+    /**
+     * Name this object has in a {@link #getJmxDescriptor() JMX representation}.
+     */
+    private final String jmxName;
+    
+    /**
+     * Indicates whether to reset the {@link #getIntegral() accumulated integral component}
+     * upon setpoint change.
+     */
+<span class="fc" id="L29">    private boolean resetOnSetpointChange = true;</span>
+    
+    /**
+     * Proportional weight.
+     */
+    private double P;
+    
+    /**
+     * Integral weight.
+     */
+    private double I;
+    
+    /**
+     * Derivative weight.
+     */
+    private double D;
+
+    /**
+     * Saturation limit. The controller is considered saturated if the output
+     * absolute value is greater than this.
+     */
+    private double saturationLimit;
+
+    /**
+     * Last known value of proportional component.
+     *
+     * This value is here for instrumentation purposes only.
+     */
+<span class="fc" id="L57">    private double lastP = 0;</span>
+
+    /**
+     * Last known value of integral component.
+     *
+     * This value is here for instrumentation purposes only.
+     */
+<span class="fc" id="L64">    private double lastI = 0;</span>
+
+    /**
+     * Last known value of derivative component.
+     *
+     * This value is here for instrumentation purposes only.
+     */
+<span class="fc" id="L71">    private double lastD = 0;</span>
+
+    public AbstractPidController(String jmxName, final double setpoint, final double P, final double I, final double D, double saturationLimit) {
+	
+<span class="fc" id="L75">        super(setpoint);</span>
+
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">	if (&quot;&quot;.equals(jmxName)) {</span>
+<span class="nc" id="L78">	    throw new IllegalArgumentException(&quot;jmxName can't be null or empty&quot;);</span>
+	}
+	
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">	if (jmxName == null) {</span>
+	
+<span class="fc" id="L83">	    this.jmxName = Integer.toHexString(hashCode());</span>
+	    
+	} else {
+	
+<span class="nc" id="L87">	    this.jmxName = jmxName;</span>
+	}
+	
+<span class="fc" id="L90">        setP(P);</span>
+<span class="fc" id="L91">        setI(I);</span>
+<span class="fc" id="L92">        setD(D);</span>
+<span class="fc" id="L93">        setLimit(saturationLimit);</span>
+
+<span class="fc" id="L95">	check();</span>
+<span class="fc" id="L96">    }</span>
+
+    public AbstractPidController(final double setpoint, final double P, final double I, final double D, double saturationLimit) {
+        
+<span class="fc" id="L100">        this(null, setpoint, P, I, D, saturationLimit);</span>
+<span class="fc" id="L101">    }</span>
+
+    /**
+     * Check if  parameters are fine.
+     */
+    private void check() {
+
+        // This method should be fast because it will be called at the
+        // beginning of compute() to make sure the controller is initialized
+
+<span class="pc bpc" id="L111" title="5 of 6 branches missed.">        if (P == 0 &amp;&amp; I == 0 &amp;&amp; D == 0) {</span>
+<span class="nc" id="L112">            throw new IllegalArgumentException(&quot;All PID components are zeroed: check the configuration&quot;);</span>
+        }
+
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (saturationLimit &lt; 0) {</span>
+<span class="nc" id="L116">            throw new IllegalArgumentException(&quot;Check parameters: saturationLimit=&quot; + saturationLimit);</span>
+        }
+<span class="fc" id="L118">    }</span>
+
+    @Override
+    public void setP(double P) {
+
+<span class="fc" id="L123">	this.P = P;</span>
+<span class="fc" id="L124">	statusChanged();</span>
+<span class="fc" id="L125">    }</span>
+
+    @Override
+    public void setI(double I) {
+
+<span class="fc" id="L130">	this.I = I;</span>
+<span class="fc" id="L131">	statusChanged();</span>
+<span class="fc" id="L132">    }</span>
+
+    @Override
+    public void setD(double D) {
+
+<span class="fc" id="L137">	this.D = D;</span>
+<span class="fc" id="L138">	statusChanged();</span>
+<span class="fc" id="L139">    }</span>
+    
+    public void setLimit(double saturationLimit) {
+
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        if (saturationLimit &lt; 0) {</span>
+<span class="nc" id="L144">            throw new IllegalArgumentException(&quot;limit must be non-negative&quot;);</span>
+        }
+        
+<span class="fc" id="L147">        this.saturationLimit = saturationLimit;</span>
+<span class="fc" id="L148">        statusChanged();</span>
+<span class="fc" id="L149">    }</span>
+
+    @JmxAttribute(description = &quot;Proportional weight&quot;)
+    public final double getP() {
+<span class="fc" id="L153">	return P;</span>
+    }
+
+    @JmxAttribute(description = &quot;Integral weight&quot;)
+    public final double getI() {
+<span class="fc" id="L158">	return I;</span>
+    }
+    
+    @JmxAttribute(description = &quot;Derivative weight&quot;)
+    public final double getD() {
+<span class="fc" id="L163">	return D;</span>
+    }
+
+    @JmxAttribute(description = &quot;Integral component saturation limit&quot;)
+    public final double getLimit() {
+<span class="nc" id="L168">        return saturationLimit;</span>
+    }
+
+    @Override
+    protected final DataSample&lt;Double&gt; compute() {
+
+<span class="fc" id="L174">        ThreadContext.push(&quot;compute&quot;);</span>
+
+        try {
+
+            // This is guaranteed to be not null (see call stack)
+<span class="fc" id="L179">            DataSample&lt;Double&gt; pv = getProcessVariable();</span>
+
+            // This will only be non-null upon second invocation
+<span class="fc" id="L182">            DataSample&lt;Double&gt; lastKnownSignal = getLastKnownSignal();</span>
+
+<span class="fc" id="L184">            double error = getError();</span>
+<span class="fc" id="L185">            double p = error * getP();</span>
+<span class="fc" id="L186">            lastP = p;</span>
+<span class="fc" id="L187">            double signal = p;</span>
+
+<span class="fc bfc" id="L189" title="All 2 branches covered.">            if (saturationLimit == 0) {</span>
+<span class="fc" id="L190">                double integral = getIntegral(lastKnownSignal, pv, error);</span>
+<span class="fc" id="L191">                lastI = integral * getI();</span>
+<span class="fc" id="L192">                signal += lastI;</span>
+
+<span class="fc" id="L194">            } else {</span>
+
+<span class="fc bfc" id="L196" title="All 4 branches covered.">                if (lastKnownSignal != null &amp;&amp; Math.abs(lastKnownSignal.sample) &lt; saturationLimit) {</span>
+                    // Integral value will only be updated if the output
+                    // is not saturated
+<span class="fc" id="L199">                    double integral = getIntegral(lastKnownSignal, pv, error);</span>
+<span class="fc" id="L200">                    lastI = integral * getI();</span>
+                }
+
+<span class="fc" id="L203">                signal += lastI;</span>
+            }
+
+<span class="fc" id="L206">            double derivative = getDerivative(lastKnownSignal, pv, error);</span>
+            
+            // One cause of this is setSetpoint(), which causes values
+            // to be computed in a rapid succession, with chance of delta T being zero
+            // being close to 1
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">            if (Double.compare(derivative, Double.NaN) != 0</span>
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">                    &amp;&amp; Double.compare(derivative, Double.NEGATIVE_INFINITY) != 0</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">                    &amp;&amp; Double.compare(derivative, Double.POSITIVE_INFINITY) != 0) {</span>
+            
+<span class="fc" id="L215">                lastD = derivative * getD();</span>
+<span class="fc" id="L216">                signal += lastD;</span>
+            }
+            
+            // VT: NOTE: When the hell was it NaN? I know this code wouldn't be
+            // here for no reason, but can't remember the circumstances.
+            // Need them to write the test case.
+            
+            // VT: NOTE: Aha, one such case is right above. Need to see if this ever happens again.
+
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">            if (Double.compare(signal, Double.NaN) == 0) {</span>
+
+<span class="nc" id="L227">                throw new IllegalStateException(&quot;signal is NaN, components: &quot; + getStatus());</span>
+            }
+
+<span class="fc" id="L230">            String sourceName = pv.sourceName + &quot;.pc&quot;;</span>
+<span class="fc" id="L231">            String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+
+<span class="fc" id="L233">            return new DataSample&lt;Double&gt;(pv.timestamp, sourceName, signature, signal, null);</span>
+
+        } finally {
+<span class="fc" id="L236">            ThreadContext.pop();</span>
+        }
+    }
+    
+    @Override
+    protected final String getShortName() {
+<span class="fc" id="L242">        return &quot;pid&quot;;</span>
+    }
+
+    @Override
+    public final ProcessControllerStatus getStatus() {
+
+<span class="fc" id="L248">        return new PidControllerStatus(getSetpoint(), getError(), getLastKnownSignal(), lastP, lastI, lastD);</span>
+    }
+
+    protected abstract double getIntegral(DataSample&lt;Double&gt; lastKnownSignal, DataSample&lt;Double&gt;  pv, double error);
+    protected abstract double getDerivative(DataSample&lt;Double&gt; lastKnownSignal, DataSample&lt;Double&gt;  pv, double error);
+    
+    public JmxDescriptor getJmxDescriptor() {
+<span class="nc" id="L255">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;PID Controller&quot;,
+                jmxName,
+                &quot;Issue control signal based on P, I, D, Limit values&quot;);
+    }
+
+    @JmxAttribute(description = &quot;Accumulated integral component&quot;)
+    public final double getIntegral() {
+        
+<span class="nc" id="L265">        return lastI;</span>
+    }
+    
+    /**
+     * @return {@link #resetOnSetpointChange}.
+     */
+    protected final boolean needResetOnSetpointChange() {
+        
+<span class="nc" id="L273">        return resetOnSetpointChange;</span>
+    }
+    
+    @JmxAttribute(description = &quot;Whether to reset the accumulated integral component upon setpoint change&quot;)
+    public boolean getResetOnSetpointChange() {
+        
+<span class="nc" id="L279">        return resetOnSetpointChange;</span>
+    }
+
+    public void setResetOnSetpointChange(boolean reset) {
+        
+<span class="nc" id="L284">        this.resetOnSetpointChange = reset;</span>
+<span class="nc" id="L285">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

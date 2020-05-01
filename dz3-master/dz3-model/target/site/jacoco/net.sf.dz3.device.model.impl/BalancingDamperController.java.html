@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BalancingDamperController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">BalancingDamperController.java</span></div><h1>BalancingDamperController.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.actuator.Damper;
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.device.model.ThermostatSignal;
+import net.sf.dz3.device.model.Unit;
+import net.sf.jukebox.conf.ConfigurableProperty;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Balancing damper controller, supports modulating dampers.
+ *
+ * If bang/bang dampers is all you have, use {@link SimpleDamperController} instead.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class BalancingDamperController extends AbstractDamperController {
+
+    /**
+     * When do we start thinking about dumping excess static pressure.
+     *
+     * &lt;p&gt;
+     *
+     * If the total area of open dampers vs. all the dampers is more than
+     * this, no big deal. Otherwise, we start opening the dump zone dampers
+     * and otherwise fiddle with them.
+     *
+     * &lt;p&gt;
+     *
+     * The closer is this value to 1.0, the better from the A/C unit point
+     * of view. However, this has to be modified for the case of the
+     * variable speed fan, it is not yet clear how, though.
+     *
+     * &lt;p&gt;
+     *
+     * Rough model shows that the dump threshold more than 0.4 is
+     * unacceptable from the comfort point of view. In real life, the dump
+     * threshold may be even lower because the dampers are not ideal and
+     * leak a lot.
+     */
+<span class="fc" id="L52">    protected double dumpThreshold = 0.3;</span>
+
+    /**
+     * Create an instance and make it listen to the unit and thermostats.
+     *
+     * @param unit Unit to listen to.
+     * @param ts2damper Thermostats to listen to and dampers to associate them with.
+     */
+    public BalancingDamperController(Unit unit, Map&lt;Thermostat, Damper&gt; ts2damper) {
+<span class="fc" id="L61">        super(unit, ts2damper);</span>
+<span class="fc" id="L62">    }</span>
+
+    /**
+     * Get the dump threshold.
+     *
+     * @return Current value of the dump threshold.
+     */
+    @JmxAttribute(description = &quot;Dump threshold&quot;)
+    public final double getDumpThreshold() {
+
+<span class="nc" id="L72">        return dumpThreshold;</span>
+    }
+
+    /**
+     * Set the dump threshold.
+     *
+     * @param threshold Dump threshold to set.
+     *
+     * @exception IllegalArgumentException if the parameter value is outside of 0...1.0 range.
+     */
+    @ConfigurableProperty(
+            propertyName = &quot;dumpThreshold&quot;,
+            description = &quot;Dump threshold&quot;,
+            defaultValue = &quot;0.3&quot;
+                )
+    public void setDumpThreshold(double dumpThreshold) {
+
+<span class="nc bnc" id="L89" title="All 4 branches missed.">        if ( dumpThreshold &lt; 0 || dumpThreshold &gt; 1 ) {</span>
+
+<span class="nc" id="L91">            throw new IllegalArgumentException(&quot;Invalid value &quot; + dumpThreshold + &quot; (should be in 0..1 range)&quot;);</span>
+        }
+
+<span class="nc" id="L94">        this.dumpThreshold = dumpThreshold;</span>
+
+<span class="nc" id="L96">        sync();</span>
+<span class="nc" id="L97">    }</span>
+
+    @Override
+    Map&lt;Damper, Double&gt; compute(Map&lt;Thermostat, Damper&gt; ts2damper, Map&lt;Thermostat, ThermostatSignal&gt; ts2signal) {
+
+<span class="fc" id="L102">        ThreadContext.push(&quot;compute&quot;);</span>
+
+        try {
+
+            // Calculate the mapping between the thermostat signal and the
+            // damper position
+
+            // Readjust the throttles:
+            //
+            // - Room with the most demand gets 1.0
+            // - Room with the least demand gets 0.0
+            // - All the rest line up accordingly
+
+            // VT: FIXME: Implement dump threshold logic
+
+<span class="fc" id="L117">            SortedMap&lt;Double, Set&lt;Thermostat&gt;&gt; demand2ts = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L118">            Map&lt;Damper, Double&gt; damperMap = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L120" title="All 2 branches covered.">            for (Iterator&lt;Thermostat&gt; i = ts2signal.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc" id="L122">                Thermostat ts = i.next();</span>
+<span class="fc" id="L123">                ThermostatSignal signal = ts2signal.get(ts);</span>
+
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">                if (signal.demand.isError()) {</span>
+
+                    // We have no idea what temperature this zone is at,
+                    // let's assume the worst case
+
+<span class="nc" id="L130">                    Damper d = ts2damper.get(ts);</span>
+
+<span class="nc" id="L132">                    damperMap.put(d, d.getParkPosition());</span>
+
+<span class="nc" id="L134">                    continue;</span>
+                }
+
+                // Negative demand counts as 0, otherwise damper positions will go
+                // below 0 - boom
+<span class="fc bfc" id="L139" title="All 2 branches covered.">                Double demand = Double.valueOf(signal.demand.sample &gt;= 0.0 ? signal.demand.sample : 0);</span>
+
+<span class="fc" id="L141">                Set&lt;Thermostat&gt; tsSet = demand2ts.get(demand);</span>
+
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">                if (tsSet == null) {</span>
+
+<span class="fc" id="L145">                    tsSet = new TreeSet&lt;&gt;();</span>
+<span class="fc" id="L146">                    demand2ts.put(demand, tsSet);</span>
+                }
+
+<span class="fc" id="L149">                tsSet.add(ts);</span>
+<span class="fc" id="L150">            }</span>
+
+<span class="fc" id="L152">            logger.debug(&quot;demand2ts: {}&quot;, demand2ts);</span>
+
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">            double most = demand2ts.isEmpty() ? 1 : demand2ts.lastKey();</span>
+
+            // Normalize
+
+<span class="fc" id="L158">            double scale = 1 / most;</span>
+
+            // See if most was 0
+            // Have to compare to all extremes due to funky nature of division by zero
+
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            scale = Double.compare(scale, Double.NaN) == 0 ? 0 : scale;</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">            scale = Double.compare(scale, Double.POSITIVE_INFINITY) == 0 ? 0 : scale;</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">            scale = Double.compare(scale, Double.NEGATIVE_INFINITY) == 0 ? 0 : scale;</span>
+
+<span class="fc" id="L167">            logger.debug(&quot;scale={}&quot;, scale);</span>
+
+            // Now, (signal + offset) * scale should be a value for the
+            // damper position.
+
+            // Shuffle the dampers
+
+<span class="fc bfc" id="L174" title="All 2 branches covered.">            for (Iterator&lt;Double&gt; i = demand2ts.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc" id="L176">                Double key = i.next();</span>
+<span class="fc" id="L177">                Set&lt;Thermostat&gt; tsSet = demand2ts.get(key);</span>
+
+<span class="fc" id="L179">                double value = key.doubleValue() * scale;</span>
+
+<span class="fc bfc" id="L181" title="All 2 branches covered.">                for (Iterator&lt;Thermostat&gt; i2 = tsSet.iterator(); i2.hasNext(); ) {</span>
+
+<span class="fc" id="L183">                    Thermostat ts = i2.next();</span>
+
+<span class="fc" id="L185">                    damperMap.put(ts2damper.get(ts), value);</span>
+<span class="fc" id="L186">                }</span>
+<span class="fc" id="L187">            }</span>
+
+<span class="fc" id="L189">            return damperMap;</span>
+
+        } finally {
+<span class="fc" id="L192">            ThreadContext.pop();</span>
+        }
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L199">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="nc" id="L201">                getClass().getSimpleName(),</span>
+<span class="nc" id="L202">                Integer.toHexString(hashCode()),</span>
+                &quot;Balancing Damper Controller (modulating dampers)&quot;);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

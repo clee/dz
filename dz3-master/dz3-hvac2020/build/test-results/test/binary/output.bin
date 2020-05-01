@@ -1,0 +1,327 @@
+D[32m23:53:13,190 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:13,214 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,062 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,063 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,070 INFO DataBroadcaster Test worker [] Async: 'null'
+[m	D[32m23:53:14,077 INFO DataBroadcaster Test worker [] Async: 'null'
+	[m
+D[32m23:53:14,081 INFO DataBroadcaster Test worker [] Async: 'null'
+
+[mD[32m23:53:14,086 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,089 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,099 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,101 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,103 INFO DataBroadcaster Test worker [] Async: 'null'
+[mc[36m23:53:14,124 DEBUG AbstractSwitch pool-23-thread-1 [set, setState/delay, setState] mode: true
+[mk[36m23:53:14,128 DEBUG AbstractHvacUnit2020 pool-23-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+[ms[36m23:53:14,129 DEBUG AbstractSwitch pool-23-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+[mj[36m23:53:14,130 DEBUG AbstractHvacUnit2020 pool-23-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+[mr[36m23:53:14,132 DEBUG AbstractSwitch pool-23-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+[mD[32m23:53:14,134 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,146 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,148 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,149 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,150 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,153 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,156 INFO DataBroadcaster Test worker [] Async: 'null'
+[mS[36m23:53:14,158 DEBUG AbstractHvacUnit2020 Test worker [setMode] already Cooling
+[mD[32m23:53:14,164 INFO DataBroadcaster Test worker [] Async: 'null'
+[mS[36m23:53:14,168 DEBUG AbstractHvacUnit2020 Test worker [setMode] already Heating
+[mD[32m23:53:14,170 INFO DataBroadcaster Test worker [] Async: 'null'
+[mT[36m23:53:14,179 DEBUG FanPanel$1 pool-41-thread-1 [set] signal: (0.0, 0.0) => 0.0
+[mf[36m23:53:14,181 DEBUG AbstractHvacUnit2020 pool-41-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+[mn[36m23:53:14,183 DEBUG AbstractSwitch pool-41-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+[mD[32m23:53:14,188 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,188 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,189 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,190 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,190 INFO DataBroadcaster Test worker [] Async: 'null'
+[mT[36m23:53:14,203 DEBUG FanPanel$1 pool-51-thread-1 [set] signal: (1.0, 0.0) => 1.0
+[me[36m23:53:14,204 DEBUG AbstractHvacUnit2020 pool-51-thread-1 [set, execute/1.0] 0: 1.0 > 0.0 = true
+[mm[36m23:53:14,204 DEBUG AbstractSwitch pool-51-thread-1 [set, execute/1.0, setState/delay, setState] 0: true
+[mT[36m23:53:14,218 DEBUG FanPanel$1 pool-51-thread-1 [set] signal: (1.0, 1.0) => 1.0
+[me[36m23:53:14,219 DEBUG AbstractHvacUnit2020 pool-51-thread-1 [set, execute/1.0] 0: 1.0 > 0.0 = true
+[mm[36m23:53:14,219 DEBUG AbstractSwitch pool-51-thread-1 [set, execute/1.0, setState/delay, setState] 0: true
+[mT[36m23:53:14,220 DEBUG FanPanel$1 pool-51-thread-1 [set] signal: (0.0, 0.0) => 0.0
+[mf[36m23:53:14,220 DEBUG AbstractHvacUnit2020 pool-51-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+[mn[36m23:53:14,220 DEBUG AbstractSwitch pool-51-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+[mD[32m23:53:14,221 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,222 INFO DataBroadcaster Test worker [] Async: 'null'
+[mD[32m23:53:14,224 INFO DataBroadcaster Test worker [] Async: 'null'
+[mT[36m23:53:14,226 DEBUG FanPanel$1 pool-55-thread-1 [set] signal: (1.0, 0.0) => 1.0
+[me[36m23:53:14,228 DEBUG AbstractHvacUnit2020 pool-55-thread-1 [set, execute/1.0] 0: 1.0 > 0.0 = true
+[mm[36m23:53:14,229 DEBUG AbstractSwitch pool-55-thread-1 [set, execute/1.0, setState/delay, setState] 0: true
+[mT[36m23:53:14,251 DEBUG FanPanel$1 pool-57-thread-1 [set] signal: (0.0, 0.0) => 0.0
+[mf[36m23:53:14,259 DEBUG AbstractHvacUnit2020 pool-57-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+[mn[36m23:53:14,260 DEBUG AbstractSwitch pool-57-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+[m D[32m23:53:14,262 INFO DataBroadcaster Test worker [] Async: 'null'
+ [m!D[32m23:53:14,263 INFO DataBroadcaster Test worker [] Async: 'null'
+![m!T[36m23:53:14,275 DEBUG FanPanel$1 pool-61-thread-1 [set] signal: (0.0, 0.0) => 0.0
+![m!f[36m23:53:14,275 DEBUG AbstractHvacUnit2020 pool-61-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+![m!n[36m23:53:14,276 DEBUG AbstractSwitch pool-61-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+![m"T[36m23:53:14,344 DEBUG FanPanel$1 pool-62-thread-1 [set] signal: (0.0, 0.0) => 0.0
+"[m"i[36m23:53:14,352 DEBUG AbstractHvacUnit2020 pool-62-thread-1 [set, execute/0.0] null: 0.0 > 0.0 = false
+"[m"O[1;31m23:53:14,357 FATAL AbstractHvacUnit2020 Test worker [] Shutdown failure
+"M[m java.util.concurrent.ExecutionException: java.lang.IllegalStateException
+"G	at java.util.concurrent.FutureTask.report(FutureTask.java:122) ~[?:?]
+"D	at java.util.concurrent.FutureTask.get(FutureTask.java:191) ~[?:?]
+"k	at net.sf.dz3.device.actuator.impl.AbstractHvacUnit2020.powerOff(AbstractHvacUnit2020.java:266) [main/:?]
+"t	at net.sf.dz3.device.actuator.impl.FanPanelOperationTest.powerOffSyncBad(FanPanelOperationTest.java:158) [test/:?]
+"P	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+"b	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+"j	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+"<	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+"o	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50) [junit-4.12.jar:4.12]
+"n	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12) [junit-4.12.jar:4.12]
+"m	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47) [junit-4.12.jar:4.12]
+"l	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17) [junit-4.12.jar:4.12]
+"X	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325) [junit-4.12.jar:4.12]
+"l	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78) [junit-4.12.jar:4.12]
+"l	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57) [junit-4.12.jar:4.12]
+"V	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290) [junit-4.12.jar:4.12]
+"Z	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71) [junit-4.12.jar:4.12]
+"\	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288) [junit-4.12.jar:4.12]
+"Z	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58) [junit-4.12.jar:4.12]
+"[	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268) [junit-4.12.jar:4.12]
+"T	at org.junit.runners.ParentRunner.run(ParentRunner.java:363) [junit-4.12.jar:4.12]
+"–	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.runTestClass(JUnitTestClassExecutor.java:110) [gradle-testing-jvm-6.3.jar:6.3]
+"	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:58) [gradle-testing-jvm-6.3.jar:6.3]
+"	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:38) [gradle-testing-jvm-6.3.jar:6.3]
+"«	at org.gradle.api.internal.tasks.testing.junit.AbstractJUnitTestClassProcessor.processTestClass(AbstractJUnitTestClassProcessor.java:62) [gradle-testing-jvm-6.3.jar:6.3]
+"–	at org.gradle.api.internal.tasks.testing.SuiteTestClassProcessor.processTestClass(SuiteTestClassProcessor.java:51) [gradle-testing-base-6.3.jar:6.3]
+"P	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+"b	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+"j	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+"<	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+"x	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36) [gradle-messaging-6.3.jar:6.3]
+"x	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24) [gradle-messaging-6.3.jar:6.3]
+"ˆ	at org.gradle.internal.dispatch.ContextClassLoaderDispatch.dispatch(ContextClassLoaderDispatch.java:33) [gradle-messaging-6.3.jar:6.3]
+"—	at org.gradle.internal.dispatch.ProxyDispatchAdapter$DispatchingInvocationHandler.invoke(ProxyDispatchAdapter.java:94) [gradle-messaging-6.3.jar:6.3]
+"A	at com.sun.proxy.$Proxy5.processTestClass(Unknown Source) [?:?]
+"„	at org.gradle.api.internal.tasks.testing.worker.TestWorker.processTestClass(TestWorker.java:118) [gradle-testing-base-6.3.jar:6.3]
+"P	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+"b	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+"j	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+"<	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+"x	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36) [gradle-messaging-6.3.jar:6.3]
+"x	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24) [gradle-messaging-6.3.jar:6.3]
+"°	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:182) [gradle-messaging-6.3.jar:6.3]
+"°	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:164) [gradle-messaging-6.3.jar:6.3]
+"w	at org.gradle.internal.remote.internal.hub.MessageHub$Handler.run(MessageHub.java:412) [gradle-messaging-6.3.jar:6.3]
+"Ž	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64) [gradle-base-services-6.3.jar:6.3]
+"}	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:48) [gradle-base-services-6.3.jar:6.3]
+"Z	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) [?:?]
+"Z	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) [?:?]
+"	at org.gradle.internal.concurrent.ThreadFactoryImpl$ManagedThreadRunnable.run(ThreadFactoryImpl.java:56) [gradle-base-services-6.3.jar:6.3]
+"0	at java.lang.Thread.run(Thread.java:834) [?:?]
+"+Caused by: java.lang.IllegalStateException
+#D[32m23:53:14,366 INFO DataBroadcaster Test worker [] Async: 'null'
+#[m#D[32m23:53:14,367 INFO DataBroadcaster Test worker [] Async: 'null'
+#[m#D[32m23:53:14,367 INFO DataBroadcaster Test worker [] Async: 'null'
+#[m#D[32m23:53:14,368 INFO DataBroadcaster Test worker [] Async: 'null'
+#[m#V[36m23:53:14,386 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (0.25, 0.0) => 0.25
+#[m#g[36m23:53:14,386 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 1: 0.25 > 0.0 = true
+#[m#n[36m23:53:14,390 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 1: true
+#[m#w[36m23:53:14,390 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 2: 0.25 > 0.2857142857142857 = false
+#[m#o[36m23:53:14,391 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 2: false
+#[m#w[36m23:53:14,391 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 3: 0.25 > 0.7142857142857142 = false
+#[m#o[36m23:53:14,392 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 3: false
+#[m#h[36m23:53:14,393 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 4: 0.25 > 1.0 = false
+#[m#o[36m23:53:14,396 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 4: false
+#[m#T[36m23:53:14,401 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (0.5, 0.0) => 0.5
+#[m#e[36m23:53:14,401 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 1: 0.5 > 0.0 = true
+#[m#m[36m23:53:14,401 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 1: true
+#[m#t[36m23:53:14,402 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 2: 0.5 > 0.2857142857142857 = true
+#[m#m[36m23:53:14,402 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 2: true
+#[m#u[36m23:53:14,403 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 3: 0.5 > 0.7142857142857142 = false
+#[m#n[36m23:53:14,403 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 3: false
+#[m#f[36m23:53:14,403 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 4: 0.5 > 1.0 = false
+#[m#n[36m23:53:14,404 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 4: false
+#[m#V[36m23:53:14,405 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (0.75, 0.0) => 0.75
+#[m#g[36m23:53:14,405 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 1: 0.75 > 0.0 = true
+#[m#n[36m23:53:14,405 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 1: true
+#[m#v[36m23:53:14,406 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 2: 0.75 > 0.2857142857142857 = true
+#[m#n[36m23:53:14,406 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 2: true
+#[m#v[36m23:53:14,406 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 3: 0.75 > 0.7142857142857142 = true
+#[m#n[36m23:53:14,406 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 3: true
+#[m#h[36m23:53:14,410 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 4: 0.75 > 1.0 = false
+#[m#o[36m23:53:14,412 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 4: false
+#[m#T[36m23:53:14,417 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (1.0, 0.0) => 1.0
+#[m#e[36m23:53:14,418 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 1: 1.0 > 0.0 = true
+#[m#m[36m23:53:14,418 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 1: true
+#[m#t[36m23:53:14,419 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 2: 1.0 > 0.2857142857142857 = true
+#[m#m[36m23:53:14,419 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 2: true
+#[m#t[36m23:53:14,420 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 3: 1.0 > 0.7142857142857142 = true
+#[m#m[36m23:53:14,420 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 3: true
+#[m#e[36m23:53:14,420 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 4: 1.0 > 1.0 = true
+#[m#m[36m23:53:14,421 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 4: true
+#[m$D[32m23:53:14,422 INFO DataBroadcaster Test worker [] Async: 'null'
+$[m&'T[32m23:53:14,425 INFO DataBroadcaster Test worker [demandMapSwitch1] Async: 'null'
+&'[m&'T[32m23:53:14,426 INFO DataBroadcaster Test worker [demandMapSwitch1] Async: 'null'
+&'[m&'n[36m23:53:14,426 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch1, execute/0.0] 0: 0.0 > 0.0 = false
+&'[m&'v[36m23:53:14,426 DEBUG AbstractSwitch Test worker [demandMapSwitch1, execute/0.0, setState/delay, setState] 0: false
+&'[m&'m[36m23:53:14,427 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch1, execute/1.0] 0: 1.0 > 0.0 = true
+&'[m&'u[36m23:53:14,427 DEBUG AbstractSwitch Test worker [demandMapSwitch1, execute/1.0, setState/delay, setState] 0: true
+&'[m&(T[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+&([m&(T[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+&([m&(Ü[32m23:53:14,428 INFO FanPanelMapTest Test worker [demandMapSwitch2] map: {0.0={net.sf.dz3.device.sensor.impl.NullSwitch, address=0, state=false}, 1.0={net.sf.dz3.device.sensor.impl.NullSwitch, address=1, state=false}}
+&([m&(T[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+&([m&(n[36m23:53:14,429 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.0] 0: 0.0 > 0.0 = false
+&([m&(v[36m23:53:14,429 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.0, setState/delay, setState] 0: false
+&([m&(n[36m23:53:14,429 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.0] 1: 0.0 > 1.0 = false
+&([m&(v[36m23:53:14,430 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.0, setState/delay, setState] 1: false
+&([m&(m[36m23:53:14,430 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.5] 0: 0.5 > 0.0 = true
+&([m&(u[36m23:53:14,430 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.5, setState/delay, setState] 0: true
+&([m&(n[36m23:53:14,431 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.5] 1: 0.5 > 1.0 = false
+&([m&(v[36m23:53:14,431 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.5, setState/delay, setState] 1: false
+&([m&(m[36m23:53:14,432 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/1.0] 0: 1.0 > 0.0 = true
+&([m&(u[36m23:53:14,432 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/1.0, setState/delay, setState] 0: true
+&([m&(m[36m23:53:14,433 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/1.0] 1: 1.0 > 1.0 = true
+&([m&(u[36m23:53:14,433 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/1.0, setState/delay, setState] 1: true
+&([m&(m[36m23:53:14,439 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/2.0] 0: 2.0 > 0.0 = true
+&([m&(u[36m23:53:14,439 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/2.0, setState/delay, setState] 0: true
+&([m&(m[36m23:53:14,439 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/2.0] 1: 2.0 > 1.0 = true
+&([m&(u[36m23:53:14,440 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/2.0, setState/delay, setState] 1: true
+&([m&)D[32m23:53:14,440 INFO DataBroadcaster Test worker [] Async: 'null'
+&)[m&)D[32m23:53:14,440 INFO DataBroadcaster Test worker [] Async: 'null'
+&)[m&*D[32m23:53:14,445 INFO DataBroadcaster Test worker [] Async: 'null'
+&*[m&+D[32m23:53:14,447 INFO DataBroadcaster Test worker [] Async: 'null'
+&+[m&,D[32m23:53:14,448 INFO DataBroadcaster Test worker [] Async: 'null'
+&,[m&,D[32m23:53:14,448 INFO DataBroadcaster Test worker [] Async: 'null'
+&,[m&,D[32m23:53:14,449 INFO DataBroadcaster Test worker [] Async: 'null'
+&,[m&-D[32m23:53:14,451 INFO DataBroadcaster Test worker [] Async: 'null'
+&-[m&-D[32m23:53:14,452 INFO DataBroadcaster Test worker [] Async: 'null'
+&-[m&.D[32m23:53:14,453 INFO DataBroadcaster Test worker [] Async: 'null'
+&.[m&.D[32m23:53:14,454 INFO DataBroadcaster Test worker [] Async: 'null'
+&.[m&/D[32m23:53:14,455 INFO DataBroadcaster Test worker [] Async: 'null'
+&/[m&/D[32m23:53:14,456 INFO DataBroadcaster Test worker [] Async: 'null'
+&/[m10D[32m23:53:14,460 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10D[32m23:53:14,461 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10D[32m23:53:14,462 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10c[36m23:53:14,476 DEBUG AbstractSwitch pool-93-thread-1 [set, setState/delay, setState] mode: true
+10[m10k[36m23:53:14,477 DEBUG AbstractHvacUnit2020 pool-93-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+10[m10s[36m23:53:14,477 DEBUG AbstractSwitch pool-93-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+10[m10j[36m23:53:14,477 DEBUG AbstractHvacUnit2020 pool-93-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+10[m10r[36m23:53:14,478 DEBUG AbstractSwitch pool-93-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+10[m10D[32m23:53:14,479 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10D[32m23:53:14,479 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10D[32m23:53:14,480 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10c[36m23:53:14,495 DEBUG AbstractSwitch pool-97-thread-1 [set, setState/delay, setState] mode: true
+10[m10k[36m23:53:14,496 DEBUG AbstractHvacUnit2020 pool-97-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+10[m10s[36m23:53:14,497 DEBUG AbstractSwitch pool-97-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+10[m10j[36m23:53:14,497 DEBUG AbstractHvacUnit2020 pool-97-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+10[m10r[36m23:53:14,498 DEBUG AbstractSwitch pool-97-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+10[m10D[32m23:53:14,499 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10D[32m23:53:14,499 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10D[32m23:53:14,500 INFO DataBroadcaster Test worker [] Async: 'null'
+10[m10d[36m23:53:14,507 DEBUG AbstractSwitch pool-101-thread-1 [set, setState/delay, setState] mode: true
+10[m10l[36m23:53:14,507 DEBUG AbstractHvacUnit2020 pool-101-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+10[m10t[36m23:53:14,508 DEBUG AbstractSwitch pool-101-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+10[m10k[36m23:53:14,509 DEBUG AbstractHvacUnit2020 pool-101-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+10[m10s[36m23:53:14,509 DEBUG AbstractSwitch pool-101-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+10[m12D[32m23:53:14,514 INFO DataBroadcaster Test worker [] Async: 'null'
+12[m12D[32m23:53:14,514 INFO DataBroadcaster Test worker [] Async: 'null'
+12[m12D[32m23:53:14,515 INFO DataBroadcaster Test worker [] Async: 'null'
+12[m12e[36m23:53:14,531 DEBUG AbstractSwitch pool-105-thread-1 [set, setState/delay, setState] mode: false
+12[m12l[36m23:53:14,531 DEBUG AbstractHvacUnit2020 pool-105-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+12[m12t[36m23:53:14,532 DEBUG AbstractSwitch pool-105-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+12[m12k[36m23:53:14,532 DEBUG AbstractHvacUnit2020 pool-105-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+12[m12s[36m23:53:14,533 DEBUG AbstractSwitch pool-105-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+12[m12S[36m23:53:14,533 DEBUG AbstractHvacUnit2020 Test worker [setMode] already Cooling
+12[m13D[32m23:53:14,534 INFO DataBroadcaster Test worker [] Async: 'null'
+13[m13D[32m23:53:14,534 INFO DataBroadcaster Test worker [] Async: 'null'
+13[m13D[32m23:53:14,534 INFO DataBroadcaster Test worker [] Async: 'null'
+13[m13d[36m23:53:14,546 DEBUG AbstractSwitch pool-109-thread-1 [set, setState/delay, setState] mode: true
+13[m13l[36m23:53:14,547 DEBUG AbstractHvacUnit2020 pool-109-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+13[m13t[36m23:53:14,547 DEBUG AbstractSwitch pool-109-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+13[m13k[36m23:53:14,548 DEBUG AbstractHvacUnit2020 pool-109-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+13[m13s[36m23:53:14,548 DEBUG AbstractSwitch pool-109-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+13[m13S[36m23:53:14,548 DEBUG AbstractHvacUnit2020 Test worker [setMode] already Heating
+13[m14D[32m23:53:14,549 INFO DataBroadcaster Test worker [] Async: 'null'
+14[m14D[32m23:53:14,549 INFO DataBroadcaster Test worker [] Async: 'null'
+14[m14D[32m23:53:14,550 INFO DataBroadcaster Test worker [] Async: 'null'
+14[m14d[36m23:53:14,571 DEBUG AbstractSwitch pool-113-thread-1 [set, setState/delay, setState] mode: true
+14[m14l[36m23:53:14,571 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+14[m14t[36m23:53:14,572 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+14[m14k[36m23:53:14,572 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+14[m14s[36m23:53:14,573 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+14[m14d[36m23:53:14,574 DEBUG AbstractSwitch pool-113-thread-1 [set, setState/delay, setState] mode: true
+14[m14k[36m23:53:14,574 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/1.0] demand: 1.0 > 0.0 = true
+14[m14s[36m23:53:14,575 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/1.0, setState/delay, setState] demand: true
+14[m14j[36m23:53:14,575 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/1.0] speed: 1.0 > 0.0 = true
+14[m14r[36m23:53:14,575 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/1.0, setState/delay, setState] speed: true
+14[m14d[36m23:53:14,576 DEBUG AbstractSwitch pool-113-thread-1 [set, setState/delay, setState] mode: true
+14[m14k[36m23:53:14,576 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/1.0] demand: 1.0 > 0.0 = true
+14[m14s[36m23:53:14,576 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/1.0, setState/delay, setState] demand: true
+14[m14j[36m23:53:14,576 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/1.0] speed: 1.0 > 0.0 = true
+14[m14r[36m23:53:14,577 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/1.0, setState/delay, setState] speed: true
+14[m14e[36m23:53:14,577 DEBUG AbstractSwitch pool-113-thread-1 [set, setState/delay, setState] mode: false
+14[m14k[36m23:53:14,577 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/1.0] demand: 1.0 > 0.0 = true
+14[m14s[36m23:53:14,577 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/1.0, setState/delay, setState] demand: true
+14[m14j[36m23:53:14,578 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/1.0] speed: 1.0 > 0.0 = true
+14[m14r[36m23:53:14,578 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/1.0, setState/delay, setState] speed: true
+14[m14e[36m23:53:14,578 DEBUG AbstractSwitch pool-113-thread-1 [set, setState/delay, setState] mode: false
+14[m14l[36m23:53:14,579 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+14[m14t[36m23:53:14,579 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+14[m14j[36m23:53:14,579 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/1.0] speed: 1.0 > 0.0 = true
+14[m14r[36m23:53:14,579 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/1.0, setState/delay, setState] speed: true
+14[m14e[36m23:53:14,580 DEBUG AbstractSwitch pool-113-thread-1 [set, setState/delay, setState] mode: false
+14[m14l[36m23:53:14,580 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+14[m14t[36m23:53:14,580 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+14[m14k[36m23:53:14,581 DEBUG AbstractHvacUnit2020 pool-113-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+14[m14s[36m23:53:14,585 DEBUG AbstractSwitch pool-113-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+14[m15D[32m23:53:14,587 INFO DataBroadcaster Test worker [] Async: 'null'
+15[m15D[32m23:53:14,587 INFO DataBroadcaster Test worker [] Async: 'null'
+15[m15D[32m23:53:14,587 INFO DataBroadcaster Test worker [] Async: 'null'
+15[m15d[36m23:53:14,600 DEBUG AbstractSwitch pool-117-thread-1 [set, setState/delay, setState] mode: true
+15[m15l[36m23:53:14,601 DEBUG AbstractHvacUnit2020 pool-117-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+15[m15t[36m23:53:14,601 DEBUG AbstractSwitch pool-117-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+15[m15k[36m23:53:14,601 DEBUG AbstractHvacUnit2020 pool-117-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+15[m15s[36m23:53:14,601 DEBUG AbstractSwitch pool-117-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+15[m15e[36m23:53:14,603 DEBUG AbstractSwitch pool-117-thread-1 [set, setState/delay, setState] mode: false
+15[m15l[36m23:53:14,603 DEBUG AbstractHvacUnit2020 pool-117-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+15[m15t[36m23:53:14,604 DEBUG AbstractSwitch pool-117-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+15[m15k[36m23:53:14,604 DEBUG AbstractHvacUnit2020 pool-117-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+15[m15s[36m23:53:14,604 DEBUG AbstractSwitch pool-117-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+15[m16D[32m23:53:14,605 INFO DataBroadcaster Test worker [] Async: 'null'
+16[m16D[32m23:53:14,606 INFO DataBroadcaster Test worker [] Async: 'null'
+16[m17D[32m23:53:14,622 INFO DataBroadcaster Test worker [] Async: 'null'
+17[m17D[32m23:53:14,623 INFO DataBroadcaster Test worker [] Async: 'null'
+17[m17D[32m23:53:14,623 INFO DataBroadcaster Test worker [] Async: 'null'
+17[m17d[36m23:53:14,634 DEBUG AbstractSwitch pool-124-thread-1 [set, setState/delay, setState] mode: true
+17[m17l[36m23:53:14,635 DEBUG AbstractHvacUnit2020 pool-124-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+17[m17t[36m23:53:14,638 DEBUG AbstractSwitch pool-124-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+17[m17k[36m23:53:14,639 DEBUG AbstractHvacUnit2020 pool-124-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+17[m17s[36m23:53:14,639 DEBUG AbstractSwitch pool-124-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+17[m17e[36m23:53:14,640 DEBUG AbstractSwitch pool-124-thread-1 [set, setState/delay, setState] mode: false
+17[m17l[36m23:53:14,641 DEBUG AbstractHvacUnit2020 pool-124-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+17[m17t[36m23:53:14,641 DEBUG AbstractSwitch pool-124-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+17[m17k[36m23:53:14,641 DEBUG AbstractHvacUnit2020 pool-124-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+17[m17s[36m23:53:14,641 DEBUG AbstractSwitch pool-124-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+17[m18D[32m23:53:14,642 INFO DataBroadcaster Test worker [] Async: 'null'
+18[m18D[32m23:53:14,642 INFO DataBroadcaster Test worker [] Async: 'null'
+18[m18D[32m23:53:14,643 INFO DataBroadcaster Test worker [] Async: 'null'
+18[m18e[36m23:53:14,663 DEBUG AbstractSwitch pool-128-thread-1 [set, setState/delay, setState] mode: false
+18[m18l[36m23:53:14,664 DEBUG AbstractHvacUnit2020 pool-128-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+18[m18t[36m23:53:14,664 DEBUG AbstractSwitch pool-128-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+18[m18k[36m23:53:14,664 DEBUG AbstractHvacUnit2020 pool-128-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+18[m18s[36m23:53:14,665 DEBUG AbstractSwitch pool-128-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+18[m18d[36m23:53:14,666 DEBUG AbstractSwitch pool-128-thread-1 [set, setState/delay, setState] mode: true
+18[m18l[36m23:53:14,666 DEBUG AbstractHvacUnit2020 pool-128-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+18[m18t[36m23:53:14,666 DEBUG AbstractSwitch pool-128-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+18[m18k[36m23:53:14,667 DEBUG AbstractHvacUnit2020 pool-128-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+18[m18s[36m23:53:14,667 DEBUG AbstractSwitch pool-128-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+18[m19D[32m23:53:14,668 INFO DataBroadcaster Test worker [] Async: 'null'
+19[m19D[32m23:53:14,668 INFO DataBroadcaster Test worker [] Async: 'null'
+19[m19D[32m23:53:14,668 INFO DataBroadcaster Test worker [] Async: 'null'
+19[m19e[36m23:53:14,678 DEBUG AbstractSwitch pool-132-thread-1 [set, setState/delay, setState] mode: false
+19[m19l[36m23:53:14,679 DEBUG AbstractHvacUnit2020 pool-132-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+19[m19t[36m23:53:14,679 DEBUG AbstractSwitch pool-132-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+19[m19k[36m23:53:14,680 DEBUG AbstractHvacUnit2020 pool-132-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+19[m19s[36m23:53:14,680 DEBUG AbstractSwitch pool-132-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+19[m19e[36m23:53:14,686 DEBUG AbstractSwitch pool-132-thread-1 [set, setState/delay, setState] mode: false
+19[m19l[36m23:53:14,687 DEBUG AbstractHvacUnit2020 pool-132-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+19[m19t[36m23:53:14,687 DEBUG AbstractSwitch pool-132-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+19[m19k[36m23:53:14,687 DEBUG AbstractHvacUnit2020 pool-132-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+19[m19s[36m23:53:14,687 DEBUG AbstractSwitch pool-132-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+19[m

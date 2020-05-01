@@ -1,0 +1,23 @@
+01:25:10,406 WARN UnitModel main [run, loadSampleConfiguration, stateChanged] state is null, invoked from constructor?
+01:25:10,409 ERROR Container main [run, loadConfiguration(spring-config-local.xml)] Failed to load spring-config-local.xml
+org.springframework.beans.factory.BeanDefinitionStoreException: IOException parsing XML document from class path resource [spring-config-local.xml]; nested exception is java.io.FileNotFoundException: class path resource [spring-config-local.xml] cannot be opened because it does not exist
+	at org.springframework.beans.factory.xml.XmlBeanDefinitionReader.loadBeanDefinitions(XmlBeanDefinitionReader.java:349) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.beans.factory.xml.XmlBeanDefinitionReader.loadBeanDefinitions(XmlBeanDefinitionReader.java:310) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.beans.factory.support.AbstractBeanDefinitionReader.loadBeanDefinitions(AbstractBeanDefinitionReader.java:143) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.beans.factory.support.AbstractBeanDefinitionReader.loadBeanDefinitions(AbstractBeanDefinitionReader.java:178) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.beans.factory.support.AbstractBeanDefinitionReader.loadBeanDefinitions(AbstractBeanDefinitionReader.java:149) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.beans.factory.support.AbstractBeanDefinitionReader.loadBeanDefinitions(AbstractBeanDefinitionReader.java:212) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.context.support.AbstractXmlApplicationContext.loadBeanDefinitions(AbstractXmlApplicationContext.java:113) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.context.support.AbstractXmlApplicationContext.loadBeanDefinitions(AbstractXmlApplicationContext.java:80) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.context.support.AbstractRefreshableApplicationContext.refreshBeanFactory(AbstractRefreshableApplicationContext.java:123) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.context.support.AbstractApplicationContext.obtainFreshBeanFactory(AbstractApplicationContext.java:422) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:352) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.context.support.ClassPathXmlApplicationContext.<init>(ClassPathXmlApplicationContext.java:139) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.context.support.ClassPathXmlApplicationContext.<init>(ClassPathXmlApplicationContext.java:93) ~[spring-2.5.6.jar:2.5.6]
+	at net.sf.dz3.runtime.Container.loadConfiguration(Container.java:131) [dz3-spring-3.6.8-SNAPSHOT.jar:?]
+	at net.sf.dz3.runtime.Container.run(Container.java:61) [dz3-spring-3.6.8-SNAPSHOT.jar:?]
+	at net.sf.dz3.runtime.Container.main(Container.java:46) [dz3-spring-3.6.8-SNAPSHOT.jar:?]
+Caused by: java.io.FileNotFoundException: class path resource [spring-config-local.xml] cannot be opened because it does not exist
+	at org.springframework.core.io.ClassPathResource.getInputStream(ClassPathResource.java:143) ~[spring-2.5.6.jar:2.5.6]
+	at org.springframework.beans.factory.xml.XmlBeanDefinitionReader.loadBeanDefinitions(XmlBeanDefinitionReader.java:336) ~[spring-2.5.6.jar:2.5.6]
+	... 15 more

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="net.sf.dz3.device.actuator.impl.HvacJmxTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2020-05-23T06:53:14" hostname="cx" time="0.037">
+  <properties/>
+  <testcase name="heatpump" classname="net.sf.dz3.device.actuator.impl.HvacJmxTest" time="0.036"/>
+  <testcase name="fanPanel" classname="net.sf.dz3.device.actuator.impl.HvacJmxTest" time="0.0"/>
+  <system-out><![CDATA[?[32m23:53:14,099 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,101 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,103 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,124 DEBUG AbstractSwitch pool-23-thread-1 [set, setState/delay, setState] mode: true
+?[m?[36m23:53:14,128 DEBUG AbstractHvacUnit2020 pool-23-thread-1 [set, execute/0.0] demand: 0.0 > 0.0 = false
+?[m?[36m23:53:14,129 DEBUG AbstractSwitch pool-23-thread-1 [set, execute/0.0, setState/delay, setState] demand: false
+?[m?[36m23:53:14,130 DEBUG AbstractHvacUnit2020 pool-23-thread-1 [set, execute/0.0] speed: 0.0 > 0.0 = false
+?[m?[36m23:53:14,132 DEBUG AbstractSwitch pool-23-thread-1 [set, execute/0.0, setState/delay, setState] speed: false
+?[m?[32m23:53:14,134 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

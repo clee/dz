@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BusAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 Wrapper - 2020</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.onewire</a> &gt; <span class="el_source">BusAdapter.java</span></div><h1>BusAdapter.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.onewire;
+
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.stream.Collectors;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.DSPortAdapter.Reset;
+import com.dalsemi.onewire.adapter.DSPortAdapter.Speed;
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.container.OneWireContainer1F;
+import com.dalsemi.onewire.utils.OWPath;
+
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.dz3.device.sensor.DeviceFactory2020;
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.dz3.instrumentation.Marker;
+
+/**
+ * The agent performing all 1-Wire bus operations on our behalf.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class BusAdapter implements Runnable, DeviceFactory2020 {
+
+<span class="fc" id="L41">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    private final DSPortAdapter adapter;
+    private final Speed speed;
+<span class="fc" id="L45">    private boolean enabled = true;</span>
+
+    /**
+     * The future that becomes completed when {@link #browse()} is complete.
+     *
+     * This member must never be accessed directly, only via {@link #getBrowseFuture()}.
+     */
+<span class="fc" id="L52">    private Future&lt;?&gt; browseFuture = null;</span>
+
+    /**
+     * Access to 1-Wire adapter is serialized, we will never do anything out of order.
+     */
+<span class="fc" id="L57">    ExecutorService executor = Executors.newSingleThreadExecutor();</span>
+
+<span class="fc" id="L59">    public BusAdapter(DSPortAdapter adapter, Speed speed) {</span>
+<span class="fc" id="L60">        this.adapter = adapter;</span>
+<span class="fc" id="L61">        this.speed = speed;</span>
+<span class="fc" id="L62">    }</span>
+
+    @Override
+    @SuppressWarnings(&quot;squid:S2142&quot;)
+    public void run() {
+<span class="fc" id="L67">        ThreadContext.push(&quot;run&quot;);</span>
+
+        try {
+
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">            while (enabled) {</span>
+
+                // Just keep going
+
+                try {
+
+<span class="fc" id="L77">                    browse();</span>
+<span class="nc" id="L78">                    Thread.sleep(10000);</span>
+
+<span class="nc" id="L80">                } catch (Throwable t) {</span>
+
+<span class="nc" id="L82">                    String message = t.getMessage();</span>
+
+<span class="nc bnc" id="L84" title="All 4 branches missed.">                    if (message != null &amp;&amp; message.startsWith(&quot;Error short&quot;)) {</span>
+
+<span class="nc" id="L86">                        logger.fatal(&quot;1-Wire Network shorted out!!!&quot;, t);</span>
+
+                        // VT: NOTE: This is a critical failure. All the
+                        // listeners must be notified immediately - this most
+                        // probably means loss of all sensors, and what's worse,
+                        // this means loss of control over HVAC actuator
+                        // devices, though the devices themselves have to be
+                        // powered and therefore keep their state - in other
+                        // words, if the HVAC is on, it will stay on. Very Bad
+                        // Thing (TM).
+
+                        // Well, and of course, it *has* to be this inconvenient
+                        // - the only place where a network short can be
+                        // detected is where you actually *write* something to
+                        // it. Both places are outside of normal control flow,
+                        // and they're asynchronous.
+
+<span class="nc" id="L103">                        handleShortCircuit();</span>
+
+                        // Now, the short circuit is a condition that is
+                        // detected at the very beginning of browse(), very
+                        // fast. Let to its own devices, this will cycle
+                        // indefinitely, so it would be a good idea to restrict
+                        // the cycle rate.
+
+<span class="nc" id="L111">                        Thread.sleep(1000);</span>
+
+                    } else {
+
+<span class="nc" id="L115">                        logger.warn(&quot;Browse failure:&quot;, t);</span>
+                    }
+<span class="nc" id="L117">                }</span>
+            }
+
+<span class="nc" id="L120">            logger.info(&quot;good bye&quot;);</span>
+
+<span class="nc" id="L122">        } catch (InterruptedException ex) {</span>
+
+            // VT: NOTE: squid:S2142 SonarQube is not smart enough to realize that InterruptedException
+            // *is* handled properly
+<span class="nc" id="L126">            logger.warn(&quot;Interrupted, terminating&quot;, ex);</span>
+
+        } finally {
+<span class="nc" id="L129">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L131">    }</span>
+
+    /**
+     * Browse the whole 1-Wire bus for devices present.
+     */
+    private void browse() throws InterruptedException, ExecutionException {
+
+<span class="fc" id="L138">        Runnable r = () -&gt; {</span>
+
+<span class="fc" id="L140">            ThreadContext.push(&quot;browse&quot;);</span>
+<span class="fc" id="L141">            Marker m = new Marker(&quot;browse&quot;);</span>
+
+            try {
+
+<span class="fc" id="L145">                adapter.setSearchAllDevices();</span>
+<span class="fc" id="L146">                adapter.targetAllFamilies();</span>
+
+                // One device may be discoverable on multiple paths
+
+<span class="fc" id="L150">                Map&lt;OneWireContainer, OWPath&gt; device2path = new TreeMap&lt;&gt;();</span>
+
+<span class="fc" id="L152">                browse(new OWPath(adapter), device2path);</span>
+
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                for (Entry&lt;OneWireContainer, OWPath&gt; kv : device2path.entrySet()) {</span>
+<span class="fc" id="L155">                    logger.debug(&quot;{}: {} {}&quot;,</span>
+<span class="fc" id="L156">                            kv.getKey().getAddressAsString(),</span>
+<span class="fc" id="L157">                            kv.getKey().getName(),</span>
+<span class="fc" id="L158">                            kv.getValue());</span>
+
+<span class="fc" id="L160">                }</span>
+
+<span class="nc" id="L162">                announce(device2path);</span>
+
+<span class="fc" id="L164">            } catch (Throwable t) {</span>
+
+<span class="fc" id="L166">                throw new IllegalStateException(&quot;browse failed&quot;, t);</span>
+
+            } finally {
+<span class="fc" id="L169">                m.close();</span>
+<span class="fc" id="L170">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L172">        };</span>
+
+<span class="fc" id="L174">        setBrowseFuture(executor.submit(r));</span>
+<span class="fc" id="L175">    }</span>
+
+    /**
+     * Browse the 1-Wire bus starting from a particular path.
+     *
+     * @param path Path to start the browse at.
+     * @param device2path Container to accumulate discovered devices and their paths in.
+     */
+    private void browse(OWPath path, Map&lt;OneWireContainer, OWPath&gt; device2path) throws OneWireException {
+<span class="fc" id="L184">        ThreadContext.push(&quot;browse/path&quot;);</span>
+<span class="fc" id="L185">        Marker m = new Marker(&quot;browse/path&quot;);</span>
+
+        try {
+
+<span class="fc" id="L189">            logger.debug(&quot;path: {}&quot;, path);</span>
+
+<span class="fc" id="L191">            closeAllPaths();</span>
+<span class="fc" id="L192">            path.open();</span>
+
+            // Default capacity of 10 should be more than enough
+<span class="fc" id="L195">            List&lt;OWPath&gt; switchList = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L197" title="All 2 branches covered.">            for (Enumeration&lt;OneWireContainer&gt; e = adapter.getAllDeviceContainers(); e.hasMoreElements();) {</span>
+
+<span class="fc" id="L199">                OneWireContainer owc = e.nextElement();</span>
+
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">                if (isKnown(owc.getAddressAsString(), device2path)) {</span>
+<span class="nc" id="L202">                    logger.debug(&quot;already known: {}&quot;, owc.getAddressAsString());</span>
+<span class="nc" id="L203">                    continue;</span>
+                }
+
+<span class="fc" id="L206">                logger.debug(&quot;found: {} {} ({})&quot;, path, owc.getAddressAsString(), owc.getName());</span>
+
+<span class="fc" id="L208">                device2path.put(owc, path);</span>
+
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">                if (owc instanceof OneWireContainer1F) {</span>
+
+<span class="nc" id="L212">                    OWPath channel1 = new OWPath(adapter, path);</span>
+
+<span class="nc" id="L214">                    channel1.add(owc, 0);</span>
+
+<span class="nc" id="L216">                    switchList.add(channel1);</span>
+
+<span class="nc" id="L218">                    OWPath channel2 = new OWPath(adapter, path);</span>
+
+<span class="nc" id="L220">                    channel2.add(owc, 1);</span>
+
+<span class="nc" id="L222">                    switchList.add(channel2);</span>
+                }
+
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">                for (Iterator&lt;OWPath&gt; i = switchList.iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L227">                    browse(i.next(), device2path);</span>
+                }
+<span class="fc" id="L229">            }</span>
+
+        } finally {
+<span class="fc" id="L232">            m.close();</span>
+<span class="fc" id="L233">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L235">    }</span>
+
+    /**
+     * Determine if the device is present in the map.
+     *
+     * @param address Address to check.
+     * @param device2path Known devices to check against.
+     *
+     * @return {@code true} if the device is known.
+     */
+    boolean isKnown(String address, Map&lt;OneWireContainer, OWPath&gt; device2path) {
+
+<span class="fc" id="L247">        return !device2path.keySet().stream()</span>
+<span class="fc" id="L248">            .map(OneWireContainer::getAddressAsString)</span>
+<span class="fc bfc" id="L249" title="All 2 branches covered.">            .map(a -&gt; a.equals(address) ? a : null)</span>
+<span class="fc" id="L250">            .filter(Objects::nonNull)</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">            .collect(Collectors.toList()).isEmpty();</span>
+    }
+
+    /**
+     * Close all open device paths.
+     *
+     * VT: NOTE: This is a shortcut using DS2409 specific hardware commands to
+     * close all open paths. Must be modified if a different adapter is ever used.
+     *
+     * @throws OneWireException if anything goes wrong.
+     */
+    private void closeAllPaths() throws OneWireException  {
+
+        // DS2409 specific - skip, all lines off
+
+<span class="fc" id="L266">        logger.debug(&quot;reset: {}&quot;, Reset.valueOf(adapter.reset()));</span>
+<span class="fc" id="L267">        adapter.putByte(0x00CC);</span>
+<span class="fc" id="L268">        adapter.putByte(0x0066);</span>
+
+        // VT: FIXME: What does this return, again?
+<span class="fc" id="L271">        adapter.getByte();</span>
+<span class="fc" id="L272">    }</span>
+
+    /**
+     * Handle a short circuit.
+     */
+    private void handleShortCircuit() {
+<span class="nc" id="L278">        throw new UnsupportedOperationException(&quot;Not Implemented&quot;);</span>
+    }
+
+    /**
+     * Handle the devices discovered by {@link #browse()}.
+     *
+     * @param lastBrowse Mapping from the devices to their paths for the last {@link #browse()} call.
+     */
+    private void announce(Map&lt;OneWireContainer, OWPath&gt; lastBrowse) {
+
+        // VT: NOTE: This has to be atomic, but can't be synchronized - that'll cause a deadlock
+
+<span class="fc" id="L290">        Runnable r = () -&gt; {</span>
+<span class="nc" id="L291">            ThreadContext.push(&quot;announce&quot;);</span>
+
+            try {
+
+<span class="nc" id="L295">                logger.fatal(&quot;FIXME: announce&quot;);</span>
+
+            } finally {
+<span class="nc" id="L298">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L300">        };</span>
+
+<span class="nc" id="L302">        executor.submit(r);</span>
+<span class="nc" id="L303">    }</span>
+
+    @Override
+    public synchronized AnalogSensor getSensor(String address) {
+<span class="nc" id="L307">        throw new UnsupportedOperationException(&quot;Not Implemented&quot;);</span>
+    }
+
+    @Override
+    public synchronized Switch getSwitch(String address) {
+<span class="nc" id="L312">        throw new UnsupportedOperationException(&quot;Not Implemented&quot;);</span>
+    }
+
+    private synchronized void setBrowseFuture(Future&lt;?&gt; f) throws InterruptedException, ExecutionException {
+
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">        if (browseFuture != null) {</span>
+
+            // We're the only one that could've created it
+
+<span class="nc bnc" id="L321" title="All 2 branches missed.">            if (!browseFuture.isDone()) {</span>
+<span class="nc" id="L322">                logger.warn(&quot;browseFuture: not done?&quot;);</span>
+<span class="nc" id="L323">                browseFuture.get();</span>
+            }
+        }
+
+<span class="fc" id="L327">        browseFuture = f;</span>
+
+<span class="fc" id="L329">        notifyAll();</span>
+<span class="fc" id="L330">    }</span>
+
+    public synchronized Future&lt;?&gt; getBrowseFuture() throws InterruptedException {
+
+<span class="fc bfc" id="L334" title="All 2 branches covered.">        while (browseFuture == null) {</span>
+<span class="fc" id="L335">            wait();</span>
+        }
+
+<span class="fc" id="L338">        return browseFuture;</span>
+    }
+
+    public synchronized void powerOff() throws InterruptedException, ExecutionException {
+
+<span class="fc" id="L343">        enabled = false;</span>
+
+        // One last thing
+<span class="fc" id="L346">        Runnable r = new Runnable() {</span>
+
+            @Override
+            public void run() {
+<span class="fc" id="L350">                logger.info(&quot;good bye&quot;);</span>
+<span class="fc" id="L351">            }</span>
+        };
+
+<span class="fc" id="L354">        Future&lt;?&gt; down = executor.submit(r);</span>
+
+<span class="fc" id="L356">        executor.shutdown();</span>
+
+<span class="fc" id="L358">        logger.debug(&quot;awaiting shutdown&quot;);</span>
+
+<span class="fc" id="L360">        down.get();</span>
+
+<span class="fc" id="L362">        logger.info(&quot;shut down.&quot;);</span>
+<span class="fc" id="L363">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

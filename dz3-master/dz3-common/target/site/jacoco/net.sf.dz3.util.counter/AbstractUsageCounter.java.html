@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractUsageCounter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Common Components</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.util.counter</a> &gt; <span class="el_source">AbstractUsageCounter.java</span></div><h1>AbstractUsageCounter.java</h1><pre class="source lang-java linenums">package net.sf.dz3.util.counter;
+
+import java.io.IOException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+
+/**
+ * Base class for persistent implementations.
+ *  
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public abstract class AbstractUsageCounter implements ResourceUsageCounter {
+    
+    protected final Logger logger;
+    
+<span class="fc" id="L24">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;&gt;();</span>
+    
+    /**
+     * Human readable name for the user interface.
+     */
+    private final String name;
+    
+    /**
+     * Signature for the data logger.
+     */
+    private final String signature;
+    
+    /**
+     * Strategy determining what exactly is being counted.
+     */
+    private final CounterStrategy counter;
+
+    /**
+     * The threshold.
+     */
+    private long threshold;
+    
+    /**
+     * Current usage.
+     */
+    private long current;
+    
+    /**
+     * Storage keys.
+     */
+    private final Object[] storageKeys;
+
+    /**
+     * Create an instance with the default (time based usage) counter strategy.
+     * 
+     * @param name Human readable name for the user interface.
+     * @param target What to count.
+     * @param storageKeys How to store the counter data.
+     * 
+     * @throws IOException if things go sour.
+     */
+    public AbstractUsageCounter(String name, DataSource&lt;Double&gt; target, Object[] storageKeys) throws IOException {
+        
+<span class="nc" id="L67">        this(name, new TimeBasedUsage(System.currentTimeMillis()), target, storageKeys);</span>
+<span class="nc" id="L68">    }</span>
+    
+    /**
+     * Create an instance.
+     * 
+     * @param name Human readable name for the user interface.
+     * @param counter Counter to use.
+     * @param target What to count.
+     * @param storageKeys How to store the counter data.
+     * 
+     * @throws IOException if things go sour.
+     */
+<span class="fc" id="L80">    public AbstractUsageCounter(String name, CounterStrategy counter, DataSource&lt;Double&gt; target, Object []storageKeys) throws IOException {</span>
+        
+        // Kludge to allow to use logger in subclass methods called from the constructor
+<span class="fc" id="L83">        logger = LogManager.getLogger(getClass());</span>
+        
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (name == null) {</span>
+<span class="fc" id="L86">            throw new IllegalArgumentException(&quot;name can't be null&quot;);</span>
+        }
+        
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (counter == null) {</span>
+<span class="fc" id="L90">            throw new IllegalArgumentException(&quot;counter can't be null&quot;);</span>
+        }
+
+<span class="fc" id="L93">        this.name = name;</span>
+<span class="fc" id="L94">        this.signature = MessageDigestCache.getMD5(name).substring(0, 19);</span>
+<span class="fc" id="L95">        this.counter = counter;</span>
+<span class="fc" id="L96">        this.storageKeys = storageKeys;</span>
+        
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (storageKeys != null) {</span>
+
+<span class="fc" id="L100">            logger.debug(&quot;storageKeys: &quot; + storageKeys.length + &quot; items&quot;);</span>
+        
+<span class="fc bfc" id="L102" title="All 2 branches covered.">            for (int offset = 0; offset &lt; storageKeys.length; offset++) {</span>
+<span class="fc" id="L103">                logger.debug(&quot;storageKeys[&quot; + offset + &quot;]: &quot; + storageKeys[offset]);</span>
+            }
+        
+        } else {
+            
+<span class="nc" id="L108">            logger.info(&quot;no storageKeys given&quot;);</span>
+        }
+
+<span class="fc" id="L111">        CounterState state = load();</span>
+        
+<span class="fc" id="L113">        this.threshold = state.threshold;</span>
+<span class="fc" id="L114">        this.current = state.current;</span>
+        
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (target == null) {</span>
+<span class="fc" id="L117">            throw new IllegalArgumentException(&quot;null target doesn't make sense&quot;);</span>
+        }
+        
+<span class="fc" id="L120">        target.addConsumer(this);</span>
+<span class="fc" id="L121">    }</span>
+
+    /**
+     * @return Storage keys.
+     * @see #storageKeys
+     */
+    protected final Object[] getStorageKeys() {
+        
+<span class="fc" id="L129">        return storageKeys;</span>
+    }
+
+    @Override
+    public final String getName() {
+        
+<span class="fc" id="L135">        return name;</span>
+    }
+
+    @Override
+    public long getThreshold() {
+        
+<span class="fc" id="L141">        return threshold;</span>
+    }
+
+    @Override
+    public long getUsageAbsolute() {
+        
+<span class="fc" id="L147">        return current;</span>
+    }
+
+    @Override
+    public double getUsageRelative() {
+        
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        return threshold == 0 ? 0 : (double)current / (double)threshold;</span>
+    }
+
+    @Override
+    public void setThreshold(long units) {
+        
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if (units &lt;= 0) {</span>
+<span class="nc" id="L160">            throw new IllegalArgumentException(&quot;threshold must be positive (&quot; + units + &quot; given)&quot;);</span>
+        }
+        
+<span class="nc" id="L163">        threshold = units;</span>
+<span class="nc" id="L164">    }</span>
+
+    @Override
+    public final synchronized void reset() {
+
+<span class="fc" id="L169">        ThreadContext.push(&quot;reset&quot;);</span>
+        
+        try {
+
+<span class="fc" id="L173">            current = 0;</span>
+
+<span class="fc" id="L175">            doReset();</span>
+<span class="fc" id="L176">            save();</span>
+                
+<span class="nc" id="L178">        } catch (IOException ex) {</span>
+
+<span class="nc" id="L180">            logger.error(&quot;Failed to save state for '&quot; + getName() + &quot;'&quot;, ex);</span>
+            
+        }finally {
+<span class="fc" id="L183">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L185">    }</span>
+
+    @Override
+    public void consume(DataSample&lt;Double&gt; signal) {
+        
+<span class="fc" id="L190">        ThreadContext.push(&quot;consume@&quot; + Integer.toHexString(hashCode()));</span>
+        
+        try {
+            
+<span class="fc" id="L194">            logger.debug(&quot;Signal: &quot; + signal);</span>
+        
+<span class="fc bfc" id="L196" title="All 2 branches covered.">            if (signal == null) {</span>
+<span class="fc" id="L197">                throw new IllegalArgumentException(&quot;signal can't be null&quot;);</span>
+            }
+
+<span class="fc bfc" id="L200" title="All 2 branches covered.">            if (signal.isError()) {</span>
+
+                // Interpret this as &quot;not running&quot;
+<span class="fc" id="L203">                current += counter.consume(signal.timestamp, 0);</span>
+<span class="fc" id="L204">                return;</span>
+            }
+
+<span class="fc" id="L207">            current += counter.consume(signal.timestamp, signal.sample);</span>
+
+<span class="fc" id="L209">            save();</span>
+
+<span class="fc" id="L211">            dataBroadcaster.broadcast(new DataSample&lt;Double&gt;(name, signature, Double.valueOf(current), null));</span>
+
+<span class="fc" id="L213">            alert(threshold, current);</span>
+        
+<span class="nc" id="L215">        } catch (IOException ex) {</span>
+            
+<span class="nc" id="L217">            logger.error(&quot;Failed to save state for '&quot; + getName() + &quot;'&quot;, ex);</span>
+            
+        } finally {
+<span class="fc" id="L220">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L222">    }</span>
+
+    @Override
+    public void addConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L227">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="nc" id="L228">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L233">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L234">    }</span>
+
+    /**
+     * Object to represent the counter state.
+     */
+    protected static class CounterState {
+
+        /**
+         * Currently set threshold.
+         */
+        public final long threshold;
+        
+        /**
+         * Currently recorded usage.
+         */
+        public final long current;
+        
+<span class="fc" id="L251">        public CounterState(long threshold, long current) {</span>
+            
+<span class="fc" id="L253">            this.threshold = threshold;</span>
+<span class="fc" id="L254">            this.current = current;</span>
+<span class="fc" id="L255">        }</span>
+        
+        @Override
+        public String toString() {
+            
+<span class="fc" id="L260">            StringBuilder sb = new StringBuilder();</span>
+            
+<span class="fc" id="L262">            sb.append(&quot;(threshold=&quot;).append(threshold);</span>
+<span class="fc" id="L263">            sb.append(&quot;, current=&quot;).append(current).append(&quot;)&quot;);</span>
+            
+<span class="fc" id="L265">            return sb.toString();</span>
+        }
+    }
+
+    /**
+     * Load the previously stored state.
+     * 
+     * @throws IOException if things go sour.
+     */
+    protected abstract CounterState load() throws IOException;
+    
+    /**
+     * Store the current state.
+     * 
+     * @throws IOException if things go sour.
+     */
+    protected abstract void save() throws IOException;
+    
+    /**
+     * Alert the user about usage.
+     * 
+     * @param threshold Usage threshold.
+     * @param current Current usage.
+     */
+    protected abstract void alert(long threshold, long current);
+    
+    /**
+     * Perform the reset in concrete implementations.
+     * 
+     * One good thing to do here would be to reset alerts, if any.
+     * 
+     * @throws IOException if things go sour.
+     */
+    protected abstract void doReset() throws IOException;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

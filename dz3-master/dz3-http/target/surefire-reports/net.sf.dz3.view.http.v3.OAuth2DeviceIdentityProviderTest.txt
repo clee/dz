@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: net.sf.dz3.view.http.v3.OAuth2DeviceIdentityProviderTest
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.207 sec

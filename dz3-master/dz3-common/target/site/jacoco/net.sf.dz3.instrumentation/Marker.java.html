@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Marker.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Common Components</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.instrumentation</a> &gt; <span class="el_source">Marker.java</span></div><h1>Marker.java</h1><pre class="source lang-java linenums">package net.sf.dz3.instrumentation;
+
+import org.apache.commons.lang3.time.StopWatch;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+/**
+ * An object to keep track of time spent on something in a convenient manner.
+ * 
+ * Usage pattern (just like {@link NDC}:
+ * 
+ * {@code
+ * 
+ * NDC.push(&quot;whatever&quot;);
+ * Marker m = new Marker(&quot;something complicated&quot;);
+ * 
+ * try {
+ *     ... do something
+ *  
+ * } finally {
+ * 
+ *     // NOTE: Put m.close() BEFORE NDC.pop(), not after, to preserve the context
+ *     m.close();
+ *     NDC.pop();
+ * }
+ * 
+ */
+public class Marker {
+
+<span class="nc" id="L31">    private final Logger logger = LogManager.getLogger(getClass());</span>
+    
+    /**
+     * Message to be printed in the log when the marker is closed.
+     */
+    private final String marker;
+    
+    /**
+     * Level to print marker messages with.
+     */
+    private final Level level;
+    
+    /**
+     * Timekeeper.
+     */
+    private StopWatch stopWatch;
+    
+    /**
+     * Redundant invocation preventer.
+     */
+<span class="nc" id="L51">    private boolean closed = false;</span>
+    
+    /**
+     * Create an instance and start the {@link #stopWatch timer}.
+     * 
+     * @param marker Message to print when the marker is closed.
+     * It would be a good idea not to use parentheses in this string, for they
+     * will break automated processing.
+     * 
+     * @param level Level to print marker messages with.
+     */
+<span class="nc" id="L62">    public Marker(String marker, Level level) {</span>
+    
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        if (marker == null) {</span>
+<span class="nc" id="L65">            throw new IllegalArgumentException(&quot;Marker can't be null&quot;);</span>
+        }
+        
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        if (level == null) {</span>
+<span class="nc" id="L69">            throw new IllegalArgumentException(&quot;Level can't be null&quot;);</span>
+        }
+        
+<span class="nc" id="L72">        this.marker = marker;</span>
+<span class="nc" id="L73">        this.level = level;</span>
+        
+<span class="nc" id="L75">        stopWatch = new StopWatch();</span>
+<span class="nc" id="L76">        stopWatch.start();</span>
+
+<span class="nc" id="L78">        printStartMarker();</span>
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * Create an instance at {@link Level#DEBUG DEBUG} level and start the {@link #stopWatch timer}.
+     * 
+     * @param marker Message to print when the marker is closed.
+     * It would be a good idea not to use parentheses in this string, for they
+     * will break automated processing.
+     */
+    public Marker(String marker) {
+        
+<span class="nc" id="L90">        this(marker, Level.DEBUG);</span>
+<span class="nc" id="L91">    }</span>
+
+    protected void printStartMarker() {
+
+        // Mark the beginning of the timed section
+
+<span class="nc" id="L97">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L99">        getSignature(sb);</span>
+<span class="nc" id="L100">        sb.append(marker).append(&quot;) started&quot;);</span>
+
+<span class="nc" id="L102">        logger.log(level, sb.toString());</span>
+<span class="nc" id="L103">    }</span>
+    
+    /**
+     * Print the diagnostic message and keep going.
+     * 
+     * @param checkpointMessage Message to print.
+     * 
+     * @return Time elapsed since creation of this marker instance, in milliseconds.
+     */
+    public final long checkpoint(String checkpointMessage) {
+        
+<span class="nc" id="L114">        StringBuilder sb = new StringBuilder();</span>
+        
+<span class="nc" id="L116">        getSignature(sb);</span>
+<span class="nc" id="L117">        sb.append(marker);</span>
+<span class="nc" id="L118">        sb.append(&quot;) checkpoint '&quot; + checkpointMessage + &quot;' reached at &quot;);</span>
+
+<span class="nc" id="L120">        printTimeMarker(sb, stopWatch);</span>
+        
+<span class="nc" id="L122">        logger.log(level, sb.toString());</span>
+        
+<span class="nc" id="L124">        return stopWatch.getTime();</span>
+    }
+    
+    /**
+     * Close the interval and print the diagnostic message.
+     * 
+     * You can only {@code close()} the marker once.
+     * 
+     * @return Time elapsed since creation of this marker instance, in milliseconds.
+     */
+    public final long close() {
+        
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if (closed) {</span>
+<span class="nc" id="L137">            StringBuilder sb = new StringBuilder();</span>
+            
+<span class="nc" id="L139">            getSignature(sb);</span>
+<span class="nc" id="L140">            sb.append(&quot;already closed)&quot;);</span>
+<span class="nc" id="L141">            throw new IllegalStateException(sb.toString());</span>
+        }
+        
+<span class="nc" id="L144">        stopWatch.stop();</span>
+
+<span class="nc" id="L146">        closed = true;</span>
+        
+<span class="nc" id="L148">        StringBuilder sb = new StringBuilder();</span>
+        
+<span class="nc" id="L150">        getSignature(sb);</span>
+<span class="nc" id="L151">        sb.append(marker);</span>
+<span class="nc" id="L152">        sb.append(&quot;) completed in &quot;);</span>
+
+<span class="nc" id="L154">        printTimeMarker(sb, stopWatch);</span>
+        
+<span class="nc" id="L156">        logger.log(level, sb.toString());</span>
+        
+<span class="nc" id="L158">        return stopWatch.getTime();</span>
+    }
+
+    protected void printTimeMarker(StringBuilder sb, StopWatch stopWatch) {
+<span class="nc" id="L162">        sb.append(stopWatch.getTime()).append(&quot; ms (&quot;).append(stopWatch.toString()).append(&quot;)&quot;);</span>
+<span class="nc" id="L163">    }</span>
+    
+    /**
+     * Get the unique marker signature.
+     * 
+     * @param sb Buffer to append the signature to.
+     */
+    private void getSignature(StringBuilder sb) {
+<span class="nc" id="L171">        sb.append(&quot;marker&quot;);</span>
+<span class="nc" id="L172">        sb.append('@').append(Integer.toHexString(Thread.currentThread().hashCode()));</span>
+<span class="nc" id="L173">        sb.append('#').append(Integer.toHexString(hashCode()));</span>
+<span class="nc" id="L174">        sb.append(&quot;: (&quot;);</span>
+<span class="nc" id="L175">    }</span>
+    
+    protected void finalize() {
+        
+<span class="nc bnc" id="L179" title="All 2 branches missed.">        if (!closed) {</span>
+
+<span class="nc" id="L181">            StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L183">            getSignature(sb);</span>
+<span class="nc" id="L184">            sb.append(marker);</span>
+<span class="nc" id="L185">            sb.append(&quot;) RUNAWAY INSTANCE, NOT close()d&quot;);</span>
+
+<span class="nc" id="L187">            logger.error(sb.toString());</span>
+        }
+<span class="nc" id="L189">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

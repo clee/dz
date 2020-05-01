@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SimpleDamperController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">SimpleDamperController.java</span></div><h1>SimpleDamperController.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.actuator.Damper;
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.device.model.ThermostatSignal;
+import net.sf.dz3.device.model.Unit;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Simple damper controller, supports bang/bang dampers only.
+ *
+ * If bang/bang dampers is all you have, there's no sense to go beyond this.
+ * If you have modulating dampers, use {@link BalancingDamperController} instead.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class SimpleDamperController extends AbstractDamperController {
+
+    /**
+     * Create an instance and make it listen to the unit and thermostats.
+     *
+     * @param unit Unit to listen to.
+     * @param ts2damper Thermostats to listen to and dampers to associate them with.
+     */
+    public SimpleDamperController(Unit unit, Map&lt;Thermostat, Damper&gt; ts2damper) {
+<span class="fc" id="L32">        super(unit, ts2damper);</span>
+<span class="fc" id="L33">    }</span>
+
+    @Override
+    Map&lt;Damper, Double&gt; compute(Map&lt;Thermostat, Damper&gt; ts2damper, Map&lt;Thermostat, ThermostatSignal&gt; ts2signal) {
+
+<span class="fc" id="L38">        ThreadContext.push(&quot;compute&quot;);</span>
+
+        try {
+
+<span class="fc" id="L42">            Map&lt;Damper, Double&gt; damperMap = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            for (Iterator&lt;Thermostat&gt; i = ts2damper.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc" id="L46">                Thermostat ts = i.next();</span>
+<span class="fc" id="L47">                ThermostatSignal signal = ts2signal.get(ts);</span>
+<span class="fc" id="L48">                Damper d = ts2damper.get(ts);</span>
+
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">                if (signal == null) {</span>
+
+                    // Quite possible we're just starting, assume demand is there
+<span class="nc" id="L53">                    damperMap.put(d, d.getParkPosition());</span>
+
+                } else {
+
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">                    if (signal.demand.isError()) {</span>
+
+                        // We have no idea what temperature this zone is at,
+                        // let's assume the worst case
+
+<span class="nc" id="L62">                        damperMap.put(d, d.getParkPosition());</span>
+
+                    } else {
+
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">                        damperMap.put(d, signal.calling ? 1.0 : 0.0);</span>
+                    }
+                }
+<span class="fc" id="L69">            }</span>
+
+<span class="fc" id="L71">            return damperMap;</span>
+
+        } finally {
+<span class="fc" id="L74">            ThreadContext.pop();</span>
+        }
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L81">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="nc" id="L83">                getClass().getSimpleName(),</span>
+<span class="nc" id="L84">                Integer.toHexString(hashCode()),</span>
+                &quot;Simple Damper Controller (bang-bang dampers only)&quot;);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

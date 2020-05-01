@@ -1,0 +1,621 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MemoryBankSBM.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.container</a> &gt; <span class="el_source">MemoryBankSBM.java</span></div><h1>MemoryBankSBM.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 2001 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.container;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+import com.dalsemi.onewire.utils.CRC8;
+
+/**
+ * Memory bank class for the DS2438.
+ *
+ *  @version    0.00, 30 Oct 2001
+ *  @author     DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+class MemoryBankSBM implements MemoryBank {
+
+<span class="nc" id="L46">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+    
+   //--------
+   //--------Static Final Variables
+   //--------
+
+   /**
+    * Read scratchpad command
+    */
+   private static final byte READ_SCRATCHPAD_COMMAND  = ( byte ) 0xBE;
+
+   /**
+    * Recall memory command
+    */
+   private static final byte RECALL_MEMORY_COMMAND    = ( byte ) 0xB8;
+
+   /**
+    * Copy scratchpad command
+    */
+   private static final byte COPY_SCRATCHPAD_COMMAND  = ( byte ) 0x48;
+
+   /**
+    * Write scratchpad command
+    */
+   private static final byte WRITE_SCRATCHPAD_COMMAND = ( byte ) 0x4E;
+
+   //--------
+   //-------- Protected Variables for MemoryBank implementation
+   //--------
+
+   /**
+    * Starting physical address in memory bank.  Needed for different
+    * types of memory in the same logical memory bank.  This can be
+    * used to seperate them into two virtual memory banks.  Example:
+    * DS2406 status page has mixed EPROM and Volatile RAM.
+    */
+   protected int startPhysicalAddress;
+
+   /**
+    * Size of memory bank in bytes
+    */
+   protected int size;
+
+   /**
+    * Memory bank descriptions
+    */
+   protected String bankDescription;
+
+   /**
+    * Memory bank usage flags
+    */
+   protected boolean generalPurposeMemory;
+
+   /**
+    * Flag if memory bank is read/write
+    */
+   protected boolean readWrite;
+
+   /**
+    * Flag if memory bank is write once (EPROM)
+    */
+   protected boolean writeOnce;
+
+   /**
+    * Flag if memory bank is read only
+    */
+   protected boolean readOnly;
+
+   /**
+    * Flag if memory bank is non volatile
+    * (will not erase when power removed)
+    */
+   protected boolean nonVolatile;
+
+   /**
+    * Flag if memory bank needs power delivery to write
+    */
+   protected boolean powerDelivery;
+
+   //--------
+   //-------- Variables
+   //--------
+
+   /**
+    * Reference to the OneWireContainer this bank resides on.
+    */
+   protected OneWireContainer ib;
+
+   /**
+    * block of 0xFF's used for faster read pre-fill of 1-Wire blocks
+    */
+   protected byte[] ffBlock;
+
+   /**
+    * Flag if read back verification is enabled in 'write()'.
+    */
+   protected boolean writeVerification;
+
+   /**
+    * Flag to indicate that speed needs to be set
+    */
+   protected boolean doSetSpeed;
+
+   //--------
+   //-------- Constructor
+   //--------
+
+   /**
+    * Memory bank contstuctor.  Requires reference to the OneWireContainer
+    * this memory bank resides on.
+    */
+<span class="nc" id="L157">   public MemoryBankSBM (OneWireContainer ibutton) {</span>
+      // keep reference to ibutton where memory bank is
+<span class="nc" id="L159">      ib = ibutton;</span>
+
+      // initialize attributes of this memory bank - DEFAULT: DS2438 Status byte
+<span class="nc" id="L162">      bankDescription      = &quot;Status/Configuration&quot;;</span>
+<span class="nc" id="L163">      generalPurposeMemory = false;</span>
+<span class="nc" id="L164">      startPhysicalAddress = 0;</span>
+<span class="nc" id="L165">      size                 = 1;</span>
+<span class="nc" id="L166">      readWrite            = true;</span>
+<span class="nc" id="L167">      readOnly             = false;</span>
+<span class="nc" id="L168">      nonVolatile          = true;</span>
+<span class="nc" id="L169">      powerDelivery        = true;</span>
+<span class="nc" id="L170">      writeVerification    = true;</span>
+
+      // create the ffblock (used for faster 0xFF fills)
+<span class="nc" id="L173">      ffBlock = new byte [20];</span>
+
+<span class="nc bnc" id="L175" title="All 2 branches missed.">      for (int i = 0; i &lt; 20; i++) {</span>
+<span class="nc" id="L176">         ffBlock [i] = ( byte ) 0xFF;</span>
+      }
+
+      // indicate speed has not been set
+<span class="nc" id="L180">      doSetSpeed = true;</span>
+<span class="nc" id="L181">   }</span>
+
+   //--------
+   //-------- Memory Bank methods
+   //--------
+
+   /**
+    * Query to see get a string description of the current memory bank.
+    *
+    * @return  String containing the memory bank description
+    */
+   @Override
+   public String getBankDescription() {
+<span class="nc" id="L194">      return bankDescription;</span>
+   }
+
+   /**
+    * Query to see if the current memory bank is general purpose
+    * user memory.  If it is NOT then it is Memory-Mapped and writing
+    * values to this memory will affect the behavior of the 1-Wire
+    * device.
+    *
+    * @return  'true' if current memory bank is general purpose
+    */
+   @Override
+   public boolean isGeneralPurposeMemory() {
+<span class="nc" id="L207">      return generalPurposeMemory;</span>
+   }
+
+   /**
+    * Query to see if current memory bank is read/write.
+    *
+    * @return  'true' if current memory bank is read/write
+    */
+   @Override
+   public boolean isReadWrite() {
+<span class="nc" id="L217">      return readWrite;</span>
+   }
+
+   /**
+    * Query to see if current memory bank is write write once such
+    * as with EPROM technology.
+    *
+    * @return  'true' if current memory bank can only be written once
+    */
+   @Override
+   public boolean isWriteOnce() {
+<span class="nc" id="L228">      return false;</span>
+   }
+
+   /**
+    * Query to see if current memory bank is read only.
+    *
+    * @return  'true' if current memory bank can only be read
+    */
+   @Override
+   public boolean isReadOnly () {
+<span class="nc" id="L238">      return readOnly;</span>
+   }
+
+   /**
+    * Query to see if current memory bank non-volatile.  Memory is
+    * non-volatile if it retains its contents even when removed from
+    * the 1-Wire network.
+    *
+    * @return  'true' if current memory bank non volatile.
+    */
+   @Override
+   public boolean isNonVolatile() {
+<span class="nc" id="L250">      return nonVolatile;</span>
+   }
+
+   /**
+    * Query to see if current memory bank pages need the adapter to
+    * have a 'ProgramPulse' in order to write to the memory.
+    *
+    * @return  'true' if writing to the current memory bank pages
+    *                 requires a 'ProgramPulse'.
+    */
+   @Override
+   public boolean needsProgramPulse() {
+<span class="nc" id="L262">      return false;</span>
+   }
+
+   /**
+    * Query to see if current memory bank pages need the adapter to
+    * have a 'PowerDelivery' feature in order to write to the memory.
+    *
+    * @return  'true' if writing to the current memory bank pages
+    *                 requires 'PowerDelivery'.
+    */
+   @Override
+   public boolean needsPowerDelivery() {
+<span class="nc" id="L274">      return powerDelivery;</span>
+   }
+
+   /**
+    * Query to get the starting physical address of this bank.  Physical
+    * banks are sometimes sub-divided into logical banks due to changes
+    * in attributes.
+    *
+    * @return  physical starting address of this logical bank.
+    */
+   @Override
+   public int getStartPhysicalAddress() {
+<span class="nc" id="L286">      return startPhysicalAddress;</span>
+   }
+
+   /**
+    * Query to get the memory bank size in bytes.
+    *
+    * @return  memory bank size in bytes.
+    */
+   @Override
+   public int getSize() {
+<span class="nc" id="L296">      return size;</span>
+   }
+
+   /**
+    * Set the write verification for the 'write()' method.
+    *
+    * @param  doReadVerf   true (default) verify write in 'write'
+    *                      false, don't verify write (used on
+    *                      Write-Once bit manipulation)
+    */
+   @Override
+   public void setWriteVerification(boolean doReadVerf) {
+<span class="nc" id="L308">      writeVerification = doReadVerf;</span>
+<span class="nc" id="L309">   }</span>
+
+   //--------
+   //-------- MemoryBank I/O methods
+   //--------
+
+   /**
+    * Read  memory in the current bank with no CRC checking (device or
+    * data). The resulting data from this API may or may not be what is on
+    * the 1-Wire device.  It is recommends that the data contain some kind
+    * of checking (CRC) like in the readPagePacket() method or have
+    * the 1-Wire device provide the CRC as in readPageCRC().  readPageCRC()
+    * however is not supported on all memory types, see 'hasPageAutoCRC()'.
+    * If neither is an option then this method could be called more
+    * then once to at least verify that the same thing is read consistantly.
+    *
+    * @param  startAddr     starting physical address
+    * @param  readContinue  if 'true' then device read is continued without
+    *                       re-selecting.  This can only be used if the new
+    *                       read() continious where the last one led off
+    *                       and it is inside a 'beginExclusive/endExclusive'
+    *                       block.
+    * @param  readBuf       byte array to place read data into
+    * @param  offset        offset into readBuf to place data
+    * @param  len           length in bytes to read
+    *
+    * @throws OneWireIOException
+    * @throws OneWireException
+    */
+   @Override
+   public void read(int startAddr, boolean readContinue, byte[] readBuf, int offset, int len) throws OneWireIOException, OneWireException {
+
+       byte[] temp_buf;
+
+      // check for valid address
+<span class="nc bnc" id="L344" title="All 4 branches missed.">      if ((startAddr &lt; 0) || ((startAddr + len) &gt; size)) {</span>
+<span class="nc" id="L345">         throw new OneWireException(&quot;Read exceeds memory bank&quot;);</span>
+      }
+
+      // check for zero length read (saves time)
+<span class="nc bnc" id="L349" title="All 2 branches missed.">      if (len == 0) {</span>
+<span class="nc" id="L350">         return;</span>
+      }
+
+      // attempt to put device at max desired speed
+<span class="nc" id="L354">      checkSpeed();</span>
+
+      // translate the address into a page and offset
+<span class="nc" id="L357">      int page = (startAddr + startPhysicalAddress) / 8;</span>
+<span class="nc" id="L358">      int page_offset = (startAddr + startPhysicalAddress) % 8;</span>
+<span class="nc" id="L359">      int data_len = 8 - page_offset;</span>
+<span class="nc bnc" id="L360" title="All 2 branches missed.">      if (data_len &gt; len) {</span>
+<span class="nc" id="L361">         data_len = len;</span>
+      }
+<span class="nc" id="L363">      int page_cnt = 0;</span>
+<span class="nc" id="L364">      int data_read = 0;</span>
+
+      // loop while reading pages
+<span class="nc bnc" id="L367" title="All 2 branches missed.">      while (data_read &lt; len) {</span>
+         // read a page
+<span class="nc" id="L369">         temp_buf = readRawPage(page + page_cnt);</span>
+
+         // copy contents to the readBuf
+<span class="nc" id="L372">         System.arraycopy(temp_buf, page_offset, readBuf, offset + data_read, data_len);</span>
+
+         // increment counters
+<span class="nc" id="L375">         page_cnt++;</span>
+<span class="nc" id="L376">         data_read += data_len;</span>
+<span class="nc" id="L377">         page_offset = 0;</span>
+<span class="nc" id="L378">         data_len = (len - data_read);</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">         if (data_len &gt; 8)</span>
+<span class="nc" id="L380">            data_len = 8;</span>
+      }
+<span class="nc" id="L382">   }</span>
+
+   /**
+    * Write  memory in the current bank.  It is recommended that
+    * when writing  data that some structure in the data is created
+    * to provide error free reading back with read().  Or the
+    * method 'writePagePacket()' could be used which automatically
+    * wraps the data in a length and CRC.
+    *
+    * When using on Write-Once devices care must be taken to write into
+    * into empty space.  If write() is used to write over an unlocked
+    * page on a Write-Once device it will fail.  If write verification
+    * is turned off with the method 'setWriteVerification(false)' then
+    * the result will be an 'AND' of the existing data and the new data.
+    *
+    * @param  startAddr     starting address
+    * @param  writeBuf      byte array containing data to write
+    * @param  offset        offset into writeBuf to get data
+    * @param  len           length in bytes to write
+    *
+    * @throws OneWireIOException
+    * @throws OneWireException
+    */
+   @Override
+   public void write(int startAddr, byte[] writeBuf, int offset, int len) throws OneWireIOException, OneWireException {
+
+       byte[] temp_buf;
+
+      // return if nothing to do
+<span class="nc bnc" id="L411" title="All 2 branches missed.">      if (len == 0) {</span>
+<span class="nc" id="L412">         return;</span>
+      }
+
+      // check if power delivery is available
+<span class="nc bnc" id="L416" title="All 2 branches missed.">      if (!ib.adapter.canDeliverPower()) {</span>
+<span class="nc" id="L417">         throw new OneWireException(&quot;Power delivery required but not available&quot;);</span>
+      }
+
+      // attempt to put device at max desired speed
+<span class="nc" id="L421">      checkSpeed();</span>
+
+      // translate the address into a page and offset
+<span class="nc" id="L424">      int page = (startAddr + startPhysicalAddress) / 8;</span>
+<span class="nc" id="L425">      int page_offset = (startAddr + startPhysicalAddress) % 8;</span>
+<span class="nc" id="L426">      int data_len = 8 - page_offset;</span>
+<span class="nc bnc" id="L427" title="All 2 branches missed.">      if (data_len &gt; len) {</span>
+<span class="nc" id="L428">         data_len = len;</span>
+      }
+<span class="nc" id="L430">      int page_cnt = 0;</span>
+<span class="nc" id="L431">      int data_written = 0;</span>
+<span class="nc" id="L432">      byte[] page_buf = new byte[8];</span>
+
+      // loop while writing pages
+<span class="nc bnc" id="L435" title="All 2 branches missed.">      while (data_written &lt; len) {</span>
+         // check if only writing part of page
+         // pre-fill write page buff with current page contents
+<span class="nc bnc" id="L438" title="All 4 branches missed.">         if ((page_offset != 0) || (data_len != 8)) {</span>
+<span class="nc" id="L439">            temp_buf = readRawPage(page + page_cnt);</span>
+<span class="nc" id="L440">            System.arraycopy(temp_buf, 0, page_buf, 0, 8);</span>
+         }
+
+         // fill in the data to write
+<span class="nc" id="L444">         System.arraycopy(writeBuf, offset + data_written, page_buf, page_offset, data_len);</span>
+
+         // write the page
+<span class="nc" id="L447">         writeRawPage(page + page_cnt, page_buf, 0);</span>
+
+         // increment counters
+<span class="nc" id="L450">         page_cnt++;</span>
+<span class="nc" id="L451">         data_written += data_len;</span>
+<span class="nc" id="L452">         page_offset = 0;</span>
+<span class="nc" id="L453">         data_len = (len - data_written);</span>
+<span class="nc bnc" id="L454" title="All 2 branches missed.">         if (data_len &gt; 8) {</span>
+<span class="nc" id="L455">            data_len = 8;</span>
+         }
+      }
+<span class="nc" id="L458">   }</span>
+
+   //--------
+   //-------- Bank specific methods
+   //--------
+
+
+   /**
+    * Reads the specified 8 byte page and returns the data in an array.
+    *
+    * @param page the page number to read
+    *
+    * @return  eight byte array that make up the page
+    *
+    * @throws OneWireIOException Error reading data
+    * @throws OneWireException Could not find part
+    * @throws IllegalArgumentException Bad parameters passed
+    */
+   protected byte[] readRawPage(int page) throws OneWireIOException, OneWireException    {
+
+<span class="nc" id="L478">       byte[] buffer = new byte [11];</span>
+<span class="nc" id="L479">      byte[] result = new byte [8];</span>
+      int    crc8;   // this device uses a crc 8
+
+<span class="nc bnc" id="L482" title="All 2 branches missed.">      if (ib.adapter.select(ib.address)) {</span>
+         /* recall memory to the scratchpad */
+<span class="nc" id="L484">         buffer [0] = RECALL_MEMORY_COMMAND;</span>
+<span class="nc" id="L485">         buffer [1] = ( byte ) page;</span>
+
+<span class="nc" id="L487">         ib.adapter.dataBlock(buffer, 0, 2);</span>
+
+         /* perform the read scratchpad */
+<span class="nc" id="L490">         ib.adapter.select(ib.address);</span>
+
+<span class="nc" id="L492">         buffer [0] = READ_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L493">         buffer [1] = ( byte ) page;</span>
+
+<span class="nc bnc" id="L495" title="All 2 branches missed.">         for (int i = 2; i &lt; 11; i++) {</span>
+<span class="nc" id="L496">            buffer [i] = ( byte ) 0x0ff;</span>
+         }
+
+<span class="nc" id="L499">         ib.adapter.dataBlock(buffer, 0, 11);</span>
+
+         /* do the crc check */
+<span class="nc" id="L502">         crc8 = CRC8.compute(buffer, 2, 9);</span>
+
+<span class="nc bnc" id="L504" title="All 2 branches missed.">         if (crc8 != 0x0) {</span>
+<span class="nc" id="L505">            throw new OneWireIOException(</span>
+               &quot;Bad CRC during page read &quot; + crc8);
+         }
+
+         // copy the data into the result
+<span class="nc" id="L510">         System.arraycopy(buffer, 2, result, 0, 8);</span>
+      } else {
+<span class="nc" id="L512">         throw new OneWireIOException(&quot;Device not found during read page.&quot;);</span>
+      }
+
+<span class="nc" id="L515">      return result;</span>
+   }
+
+   /**
+    * Writes a page of memory to this device. Pages 3-6 are always
+    * available for user storage and page 7 is available if the CA bit is set
+    * to 0 (false) with &lt;CODE&gt;setFlag()&lt;/CODE&gt;.
+    *
+    * @param page    the page number
+    * @param source  data to be written to page
+    * @param offset  offset with page to begin writting
+    *
+    * @returns 'true' if the write was successfull
+    *
+    * @throws OneWireIOException Error reading data
+    * @throws OneWireException Could not find part
+    * @throws IllegalArgumentException Bad parameters passed
+    */
+   protected void writeRawPage(int page, byte[] source, int offset) throws OneWireIOException, OneWireException {
+       
+<span class="nc" id="L535">      byte[] buffer = new byte [12];</span>
+      int crc8;
+
+<span class="nc bnc" id="L538" title="All 2 branches missed.">      if (ib.adapter.select(ib.address)) {</span>
+         // write the page to the scratchpad first
+<span class="nc" id="L540">         buffer [0] = WRITE_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L541">         buffer [1] = ( byte ) page;</span>
+
+<span class="nc" id="L543">         System.arraycopy(source, offset, buffer, 2, 8);</span>
+<span class="nc" id="L544">         ib.adapter.dataBlock(buffer, 0, 10);</span>
+
+         // read back the scrathpad
+<span class="nc bnc" id="L547" title="All 2 branches missed.">         if (ib.adapter.select(ib.address)) {</span>
+            // write the page to the scratchpad first
+<span class="nc" id="L549">            buffer [0] = READ_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L550">            buffer [1] = ( byte ) page;</span>
+
+<span class="nc" id="L552">            System.arraycopy(ffBlock, 0, buffer, 2, 9);</span>
+<span class="nc" id="L553">            ib.adapter.dataBlock(buffer, 0, 11);</span>
+
+            /* do the crc check */
+<span class="nc" id="L556">            crc8 = CRC8.compute(buffer, 2, 9);</span>
+
+<span class="nc bnc" id="L558" title="All 2 branches missed.">            if (crc8 != 0x0) {</span>
+<span class="nc" id="L559">               throw new OneWireIOException(&quot;Bad CRC during scratchpad read &quot; + crc8);</span>
+            }
+
+            // now copy that part of the scratchpad to memory
+<span class="nc bnc" id="L563" title="All 2 branches missed.">            if (ib.adapter.select(ib.address)) {</span>
+                
+<span class="nc" id="L565">               buffer [0] = COPY_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L566">               buffer [1] = ( byte ) page;</span>
+
+<span class="nc" id="L568">               ib.adapter.dataBlock(buffer, 0, 2);</span>
+
+               // give it some time to write
+               try {
+<span class="nc" id="L572">                  Thread.sleep(12);</span>
+<span class="nc" id="L573">               } catch (InterruptedException ex) {</span>
+<span class="nc" id="L574">                   logger.debug(&quot;Interrupted&quot;, ex);</span>
+<span class="nc" id="L575">               }</span>
+
+               // check the result
+<span class="nc bnc" id="L578" title="All 2 branches missed.">               if ((byte)ib.adapter.getByte() != (byte)0xFF) {</span>
+<span class="nc" id="L579">                  throw new OneWireIOException(&quot;Copy scratchpad verification not found.&quot;);</span>
+               }
+
+<span class="nc" id="L582">               return;</span>
+            }
+         }
+      }
+
+<span class="nc" id="L587">      throw new OneWireIOException(&quot;Device not found during write page.&quot;);</span>
+   }
+
+   //--------
+   //-------- checkSpeed methods
+   //--------
+
+   /**
+    * Check the device speed if has not been done before or if
+    * an error was detected.
+    *
+    * @throws OneWireIOException
+    * @throws OneWireException
+    */
+   public synchronized void checkSpeed() throws OneWireIOException, OneWireException {
+       // only check the speed
+<span class="nc bnc" id="L603" title="All 2 branches missed.">       if (doSetSpeed) {</span>
+
+           // attempt to set the correct speed and verify device present
+<span class="nc" id="L606">           ib.doSpeed();</span>
+
+           // no exceptions so clear flag
+<span class="nc" id="L609">           doSetSpeed = false;</span>
+       }
+<span class="nc" id="L611">   }</span>
+
+   /**
+    * Set the flag to indicate the next 'checkSpeed()' will force
+    * a speed set and verify 'doSpeed()'.
+    */
+   public synchronized void forceVerify () {
+<span class="nc" id="L618">       doSetSpeed = true;</span>
+<span class="nc" id="L619">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

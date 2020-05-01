@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" tests="19" skipped="0" failures="0" errors="0" timestamp="2020-05-23T06:53:14" hostname="cx" time="0.277">
+  <properties/>
+  <testcase name="compareTo" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.004"/>
+  <testcase name="consumeError" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.002"/>
+  <testcase name="consumeNull" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.003"/>
+  <testcase name="setModeSameCool" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.008"/>
+  <testcase name="setModeSameHeat" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.006"/>
+  <testcase name="powerOffSyncGood" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.018"/>
+  <testcase name="mapDemand00" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.001"/>
+  <testcase name="mapDemand20" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.001"/>
+  <testcase name="mapDemand26" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.0"/>
+  <testcase name="mapDemand51" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.001"/>
+  <testcase name="powerCycle" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.03"/>
+  <testcase name="setModeHeatCool" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.0"/>
+  <testcase name="consume" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.001"/>
+  <testcase name="setModeHeatOff" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.037"/>
+  <testcase name="setModeCoolHeat" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.001"/>
+  <testcase name="setModeCoolOff" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.014"/>
+  <testcase name="powerOffSyncBad" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.089"/>
+  <testcase name="multistage" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.055"/>
+  <testcase name="consumeNegative" classname="net.sf.dz3.device.actuator.impl.FanPanelOperationTest" time="0.001"/>
+  <system-out><![CDATA[?[32m23:53:14,146 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,148 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,149 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,150 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,153 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,156 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,158 DEBUG AbstractHvacUnit2020 Test worker [setMode] already Cooling
+?[m?[32m23:53:14,164 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,168 DEBUG AbstractHvacUnit2020 Test worker [setMode] already Heating
+?[m?[32m23:53:14,170 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,179 DEBUG FanPanel$1 pool-41-thread-1 [set] signal: (0.0, 0.0) => 0.0
+?[m?[36m23:53:14,181 DEBUG AbstractHvacUnit2020 pool-41-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+?[m?[36m23:53:14,183 DEBUG AbstractSwitch pool-41-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+?[m?[32m23:53:14,188 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,188 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,189 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,190 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,190 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,203 DEBUG FanPanel$1 pool-51-thread-1 [set] signal: (1.0, 0.0) => 1.0
+?[m?[36m23:53:14,204 DEBUG AbstractHvacUnit2020 pool-51-thread-1 [set, execute/1.0] 0: 1.0 > 0.0 = true
+?[m?[36m23:53:14,204 DEBUG AbstractSwitch pool-51-thread-1 [set, execute/1.0, setState/delay, setState] 0: true
+?[m?[36m23:53:14,218 DEBUG FanPanel$1 pool-51-thread-1 [set] signal: (1.0, 1.0) => 1.0
+?[m?[36m23:53:14,219 DEBUG AbstractHvacUnit2020 pool-51-thread-1 [set, execute/1.0] 0: 1.0 > 0.0 = true
+?[m?[36m23:53:14,219 DEBUG AbstractSwitch pool-51-thread-1 [set, execute/1.0, setState/delay, setState] 0: true
+?[m?[36m23:53:14,220 DEBUG FanPanel$1 pool-51-thread-1 [set] signal: (0.0, 0.0) => 0.0
+?[m?[36m23:53:14,220 DEBUG AbstractHvacUnit2020 pool-51-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+?[m?[36m23:53:14,220 DEBUG AbstractSwitch pool-51-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+?[m?[32m23:53:14,221 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,222 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,224 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,226 DEBUG FanPanel$1 pool-55-thread-1 [set] signal: (1.0, 0.0) => 1.0
+?[m?[36m23:53:14,228 DEBUG AbstractHvacUnit2020 pool-55-thread-1 [set, execute/1.0] 0: 1.0 > 0.0 = true
+?[m?[36m23:53:14,229 DEBUG AbstractSwitch pool-55-thread-1 [set, execute/1.0, setState/delay, setState] 0: true
+?[m?[36m23:53:14,251 DEBUG FanPanel$1 pool-57-thread-1 [set] signal: (0.0, 0.0) => 0.0
+?[m?[36m23:53:14,259 DEBUG AbstractHvacUnit2020 pool-57-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+?[m?[36m23:53:14,260 DEBUG AbstractSwitch pool-57-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+?[m?[32m23:53:14,262 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,263 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,275 DEBUG FanPanel$1 pool-61-thread-1 [set] signal: (0.0, 0.0) => 0.0
+?[m?[36m23:53:14,275 DEBUG AbstractHvacUnit2020 pool-61-thread-1 [set, execute/0.0] 0: 0.0 > 0.0 = false
+?[m?[36m23:53:14,276 DEBUG AbstractSwitch pool-61-thread-1 [set, execute/0.0, setState/delay, setState] 0: false
+?[m?[36m23:53:14,344 DEBUG FanPanel$1 pool-62-thread-1 [set] signal: (0.0, 0.0) => 0.0
+?[m?[36m23:53:14,352 DEBUG AbstractHvacUnit2020 pool-62-thread-1 [set, execute/0.0] null: 0.0 > 0.0 = false
+?[m?[1;31m23:53:14,357 FATAL AbstractHvacUnit2020 Test worker [] Shutdown failure
+?[m java.util.concurrent.ExecutionException: java.lang.IllegalStateException
+	at java.util.concurrent.FutureTask.report(FutureTask.java:122) ~[?:?]
+	at java.util.concurrent.FutureTask.get(FutureTask.java:191) ~[?:?]
+	at net.sf.dz3.device.actuator.impl.AbstractHvacUnit2020.powerOff(AbstractHvacUnit2020.java:266) [main/:?]
+	at net.sf.dz3.device.actuator.impl.FanPanelOperationTest.powerOffSyncBad(FanPanelOperationTest.java:158) [test/:?]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50) [junit-4.12.jar:4.12]
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12) [junit-4.12.jar:4.12]
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47) [junit-4.12.jar:4.12]
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17) [junit-4.12.jar:4.12]
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:325) [junit-4.12.jar:4.12]
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:78) [junit-4.12.jar:4.12]
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:57) [junit-4.12.jar:4.12]
+	at org.junit.runners.ParentRunner$3.run(ParentRunner.java:290) [junit-4.12.jar:4.12]
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:71) [junit-4.12.jar:4.12]
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:288) [junit-4.12.jar:4.12]
+	at org.junit.runners.ParentRunner.access$000(ParentRunner.java:58) [junit-4.12.jar:4.12]
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:268) [junit-4.12.jar:4.12]
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:363) [junit-4.12.jar:4.12]
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.runTestClass(JUnitTestClassExecutor.java:110) [gradle-testing-jvm-6.3.jar:6.3]
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:58) [gradle-testing-jvm-6.3.jar:6.3]
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:38) [gradle-testing-jvm-6.3.jar:6.3]
+	at org.gradle.api.internal.tasks.testing.junit.AbstractJUnitTestClassProcessor.processTestClass(AbstractJUnitTestClassProcessor.java:62) [gradle-testing-jvm-6.3.jar:6.3]
+	at org.gradle.api.internal.tasks.testing.SuiteTestClassProcessor.processTestClass(SuiteTestClassProcessor.java:51) [gradle-testing-base-6.3.jar:6.3]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.dispatch.ContextClassLoaderDispatch.dispatch(ContextClassLoaderDispatch.java:33) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.dispatch.ProxyDispatchAdapter$DispatchingInvocationHandler.invoke(ProxyDispatchAdapter.java:94) [gradle-messaging-6.3.jar:6.3]
+	at com.sun.proxy.$Proxy5.processTestClass(Unknown Source) [?:?]
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.processTestClass(TestWorker.java:118) [gradle-testing-base-6.3.jar:6.3]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:?]
+	at jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:?]
+	at jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:?]
+	at java.lang.reflect.Method.invoke(Method.java:566) ~[?:?]
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:182) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.remote.internal.hub.MessageHubBackedObjectConnection$DispatchWrapper.dispatch(MessageHubBackedObjectConnection.java:164) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.remote.internal.hub.MessageHub$Handler.run(MessageHub.java:412) [gradle-messaging-6.3.jar:6.3]
+	at org.gradle.internal.concurrent.ExecutorPolicy$CatchAndRecordFailures.onExecute(ExecutorPolicy.java:64) [gradle-base-services-6.3.jar:6.3]
+	at org.gradle.internal.concurrent.ManagedExecutorImpl$1.run(ManagedExecutorImpl.java:48) [gradle-base-services-6.3.jar:6.3]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1128) [?:?]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:628) [?:?]
+	at org.gradle.internal.concurrent.ThreadFactoryImpl$ManagedThreadRunnable.run(ThreadFactoryImpl.java:56) [gradle-base-services-6.3.jar:6.3]
+	at java.lang.Thread.run(Thread.java:834) [?:?]
+Caused by: java.lang.IllegalStateException
+?[32m23:53:14,366 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,367 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,367 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,368 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[36m23:53:14,386 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (0.25, 0.0) => 0.25
+?[m?[36m23:53:14,386 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 1: 0.25 > 0.0 = true
+?[m?[36m23:53:14,390 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 1: true
+?[m?[36m23:53:14,390 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 2: 0.25 > 0.2857142857142857 = false
+?[m?[36m23:53:14,391 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 2: false
+?[m?[36m23:53:14,391 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 3: 0.25 > 0.7142857142857142 = false
+?[m?[36m23:53:14,392 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 3: false
+?[m?[36m23:53:14,393 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.25] 4: 0.25 > 1.0 = false
+?[m?[36m23:53:14,396 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.25, setState/delay, setState] 4: false
+?[m?[36m23:53:14,401 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (0.5, 0.0) => 0.5
+?[m?[36m23:53:14,401 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 1: 0.5 > 0.0 = true
+?[m?[36m23:53:14,401 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 1: true
+?[m?[36m23:53:14,402 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 2: 0.5 > 0.2857142857142857 = true
+?[m?[36m23:53:14,402 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 2: true
+?[m?[36m23:53:14,403 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 3: 0.5 > 0.7142857142857142 = false
+?[m?[36m23:53:14,403 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 3: false
+?[m?[36m23:53:14,403 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.5] 4: 0.5 > 1.0 = false
+?[m?[36m23:53:14,404 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.5, setState/delay, setState] 4: false
+?[m?[36m23:53:14,405 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (0.75, 0.0) => 0.75
+?[m?[36m23:53:14,405 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 1: 0.75 > 0.0 = true
+?[m?[36m23:53:14,405 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 1: true
+?[m?[36m23:53:14,406 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 2: 0.75 > 0.2857142857142857 = true
+?[m?[36m23:53:14,406 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 2: true
+?[m?[36m23:53:14,406 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 3: 0.75 > 0.7142857142857142 = true
+?[m?[36m23:53:14,406 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 3: true
+?[m?[36m23:53:14,410 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/0.75] 4: 0.75 > 1.0 = false
+?[m?[36m23:53:14,412 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/0.75, setState/delay, setState] 4: false
+?[m?[36m23:53:14,417 DEBUG FanPanel$1 pool-67-thread-1 [set] signal: (1.0, 0.0) => 1.0
+?[m?[36m23:53:14,418 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 1: 1.0 > 0.0 = true
+?[m?[36m23:53:14,418 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 1: true
+?[m?[36m23:53:14,419 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 2: 1.0 > 0.2857142857142857 = true
+?[m?[36m23:53:14,419 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 2: true
+?[m?[36m23:53:14,420 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 3: 1.0 > 0.7142857142857142 = true
+?[m?[36m23:53:14,420 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 3: true
+?[m?[36m23:53:14,420 DEBUG AbstractHvacUnit2020 pool-67-thread-1 [set, execute/1.0] 4: 1.0 > 1.0 = true
+?[m?[36m23:53:14,421 DEBUG AbstractSwitch pool-67-thread-1 [set, execute/1.0, setState/delay, setState] 4: true
+?[m?[32m23:53:14,422 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

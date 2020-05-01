@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MessageDigestCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Common Components</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.util.digest</a> &gt; <span class="el_source">MessageDigestCache.java</span></div><h1>MessageDigestCache.java</h1><pre class="source lang-java linenums">package net.sf.dz3.util.digest;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import net.sf.jukebox.util.MessageDigestFactory;
+
+/**
+ * Caching wrapper for {@link MessageDigestFactory}
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+<span class="nc" id="L16">public class MessageDigestCache {</span>
+
+<span class="fc" id="L18">    private static final Logger logger = LogManager.getLogger(MessageDigestCache.class);</span>
+<span class="fc" id="L19">    private static final MessageDigestFactory provider = new MessageDigestFactory();</span>
+    
+    /**
+     * The cache.
+     * 
+     * Note that the visibility is package private - for testability.
+     */
+<span class="fc" id="L26">    static final Map&lt;String, String&gt; cache = new HashMap&lt;String, String&gt;();</span>
+    
+    /**
+     * Cache size limit.
+     * 
+     * It is expected that the number of cache entries will be finite, and will
+     * stabilize pretty soon after the system is started. Let's hardcode it
+     * according to &quot;worse is better&quot;, and see whetherthis is good enough.
+     * 
+     * Note that the visibility is package private - for testability.
+     */
+<span class="fc" id="L37">    static int cacheSizeLimitSoft = 500;</span>
+    
+<span class="fc" id="L39">    public static final int cacheSizeLimitHard = (int) (cacheSizeLimitSoft * Math.pow(2, 4));</span>
+    
+    /**
+     * This operation is supposed to be called pretty often, and the log will be flooded with warnings if it happens.
+     * 
+     * Note that the visibility is package private - for testability.
+     */
+<span class="fc" id="L46">    static boolean warningGiven = false;</span>
+
+    public synchronized static String getMD5(String message) {
+        
+<span class="fc" id="L50">        String hash = cache.get(message);</span>
+        
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (hash != null) {</span>
+<span class="fc" id="L53">            return hash;</span>
+        }
+        
+<span class="fc" id="L56">        hash = provider.getMD5(message);</span>
+        
+<span class="fc" id="L58">        cache.put(message, hash);</span>
+        
+<span class="fc" id="L60">        checkSize();</span>
+        
+<span class="fc" id="L62">        return hash;</span>
+    }
+
+    private static void checkSize() {
+
+
+        
+<span class="fc" id="L69">        int cacheSize = cache.size();</span>
+        
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (cacheSize &gt;= cacheSizeLimitHard) {</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">            if (!warningGiven) {</span>
+            
+<span class="fc" id="L75">                logger.fatal(&quot;Cache size (&quot; + cacheSize + &quot;) exceeded hard limet, assumptions are flawed, need to fix this, submit a bug report here: https://github.com/home-climate-control/dz/issues&quot;);</span>
+<span class="fc" id="L76">                warningGiven = true;</span>
+            }
+            
+<span class="fc" id="L79">            return;</span>
+        }
+        
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (cacheSize &gt;= cacheSizeLimitSoft) {</span>
+            
+<span class="fc" id="L84">            cacheSizeLimitSoft *= 2;</span>
+
+<span class="fc" id="L86">            logger.warn(&quot;cache is growing too big (&quot; + cacheSize + &quot; entries), soft limit bumped up to &quot; + cacheSizeLimitSoft);</span>
+        }
+<span class="fc" id="L88">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

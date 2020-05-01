@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MulticastListener.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">MulticastListener.java</span></div><h1>MulticastListener.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 2002 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+package com.dalsemi.onewire.adapter;
+
+import java.io.*;
+import java.net.*;
+
+import org.apache.logging.log4j.LogManager;
+
+/**
+ * Generic Mulitcast broadcast listener.  Listens for a specific message and,
+ * in response, gives the specified reply.  Used by NetAdapterHost for
+ * automatic discovery of host components for the network-based DSPortAdapter.
+ *
+ * @author SH
+ * @version 1.00
+ */
+public class MulticastListener implements Runnable
+{
+   /** boolean flag to turn on debug messages */
+   private static final boolean DEBUG = false;
+
+   /** timeout for socket receive */
+   private static final int timeoutInSeconds = 3;
+
+   /** multicast socket to receive datagram packets on */
+<span class="nc" id="L51">   private MulticastSocket socket = null;</span>
+   /** the message we're expecting to receive on the multicast socket */
+   private byte[] expectedMessage;
+   /** the message we should reply with when we get the expected message */
+   private byte[] returnMessage;
+
+   /** boolean to stop the thread from listening for messages */
+<span class="nc" id="L58">   private volatile boolean listenerStopped = false;</span>
+   /** boolean to check if the thread is still running */
+<span class="nc" id="L60">   private volatile boolean listenerRunning = false;</span>
+
+   /**
+    * Creates a multicast listener on the specified multicast port,
+    * bound to the specified multicast group.  Whenever the byte[]
+    * pattern specified by &quot;expectedMessage&quot; is received, the byte[]
+    * pattern specifed by &quot;returnMessage&quot; is sent to the sender of
+    * the &quot;expected message&quot;.
+    *
+    * @param multicastPort Port to bind this listener to.
+    * @param multicastGroup Group to bind this listener to.
+    * @param expectedMessage the message to look for
+    * @param returnMessage the message to reply with
+    */
+   public MulticastListener(int multicastPort, String multicastGroup,
+                           byte[] expectedMessage, byte[] returnMessage)
+      throws IOException,UnknownHostException
+<span class="nc" id="L77">   {</span>
+<span class="nc" id="L78">      this.expectedMessage = expectedMessage;</span>
+<span class="nc" id="L79">      this.returnMessage = returnMessage;</span>
+
+      //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+      if(DEBUG)
+      {
+         System.out.println(&quot;DEBUG: Creating Multicast Listener&quot;);
+         System.out.println(&quot;DEBUG:    Multicast port: &quot; + multicastPort);
+         System.out.println(&quot;DEBUG:    Multicast group: &quot; + multicastGroup);
+      }
+      //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+
+      // create multicast socket
+<span class="nc" id="L91">      socket = new MulticastSocket(multicastPort);</span>
+      // set timeout at 3 seconds
+<span class="nc" id="L93">      socket.setSoTimeout(timeoutInSeconds*1000);</span>
+      //join the multicast group
+<span class="nc" id="L95">      InetAddress group = InetAddress.getByName(multicastGroup);</span>
+<span class="nc" id="L96">      socket.joinGroup(group);</span>
+<span class="nc" id="L97">   }</span>
+
+   /**
+    * Run method waits for Multicast packets with the specified contents
+    * and replies with the specified message.
+    */
+   public void run()
+   {
+<span class="nc" id="L105">      byte[] receiveBuffer = new byte[expectedMessage.length];</span>
+
+<span class="nc" id="L107">      listenerRunning = true;</span>
+<span class="nc bnc" id="L108" title="All 2 branches missed.">      while(!listenerStopped)</span>
+      {
+         try
+         {
+            // packet for receiving messages
+<span class="nc" id="L113">            DatagramPacket inPacket = new DatagramPacket(receiveBuffer,</span>
+                                                     receiveBuffer.length);
+            //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+            if(DEBUG)
+               System.out.println(&quot;DEBUG: waiting for multicast packet&quot;);
+            //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+            // blocks for message until timeout occurs
+<span class="nc" id="L120">            socket.receive(inPacket);</span>
+
+            // check to see if the received data matches the expected message
+<span class="nc" id="L123">            int length = inPacket.getLength();</span>
+
+            //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+            if(DEBUG)
+            {
+               System.out.println(&quot;DEBUG: packet.length=&quot; + length);
+               System.out.println(&quot;DEBUG: expecting=&quot; + expectedMessage.length);
+            }
+            //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">            if(length==expectedMessage.length)</span>
+            {
+<span class="nc" id="L135">               boolean dataMatch = true;</span>
+<span class="nc bnc" id="L136" title="All 4 branches missed.">               for(int i=0; dataMatch &amp;&amp; i&lt;length; i++)</span>
+               {
+<span class="nc bnc" id="L138" title="All 2 branches missed.">                  dataMatch = (expectedMessage[i]==receiveBuffer[i]);</span>
+               }
+               // check to see if we received the expected message
+<span class="nc bnc" id="L141" title="All 2 branches missed.">               if(dataMatch)</span>
+               {
+                  //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+                  if(DEBUG)
+                  {
+                     System.out.println(&quot;DEBUG: packet match, replying&quot;);
+                  }
+                  //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+                  // packet for sending messages
+<span class="nc" id="L150">                  DatagramPacket outPacket</span>
+                     = new DatagramPacket(returnMessage, returnMessage.length,
+<span class="nc" id="L152">                              inPacket.getAddress(), inPacket.getPort());</span>
+                  // send return message
+<span class="nc" id="L154">                  socket.send(outPacket);</span>
+               }
+            }
+         }
+<span class="nc" id="L158">         catch(IOException ioe){/* drain */}</span>
+      }
+<span class="nc" id="L160">      listenerRunning = false;</span>
+<span class="nc" id="L161">   }</span>
+
+   /**
+    * Waits for datagram listener to finish, with a timeout.
+    */
+    public void stopListener() {
+<span class="nc" id="L167">        listenerStopped = true;</span>
+<span class="nc" id="L168">        int i = 0;</span>
+<span class="nc" id="L169">        int timeout = timeoutInSeconds * 100;</span>
+        
+<span class="nc bnc" id="L171" title="All 4 branches missed.">        while (listenerRunning &amp;&amp; i++ &lt; timeout)</span>
+            try {
+<span class="nc" id="L173">                Thread.sleep(10);</span>
+<span class="nc" id="L174">            } catch (Exception ex) {</span>
+<span class="nc" id="L175">                LogManager.getLogger(getClass()).warn(&quot;Oops&quot;, ex);</span>
+<span class="nc" id="L176">            }</span>
+<span class="nc" id="L177">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

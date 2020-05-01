@@ -1,0 +1,4 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+OWAPI 1.00 Wrapper - 2020,net.sf.dz3.device.sensor.impl.onewire,BusAdapter,132,267,12,14,37,73,13,16,4,12
+OWAPI 1.00 Wrapper - 2020,net.sf.dz3.device.sensor.impl.onewire,OwapiDeviceFactory2020,54,147,3,7,8,35,6,8,3,6
+OWAPI 1.00 Wrapper - 2020,net.sf.dz3.device.sensor.impl.onewire,BusAdapter.new Runnable() {...},0,12,0,0,0,3,0,2,0,2

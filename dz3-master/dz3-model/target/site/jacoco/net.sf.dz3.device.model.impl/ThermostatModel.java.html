@@ -1,0 +1,529 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThermostatModel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">ThermostatModel.java</span></div><h1>ThermostatModel.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.controller.HysteresisController;
+import net.sf.dz3.controller.ProcessController;
+import net.sf.dz3.controller.pid.AbstractPidController;
+import net.sf.dz3.controller.pid.SimplePidController;
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.device.model.ThermostatController;
+import net.sf.dz3.device.model.ThermostatSignal;
+import net.sf.dz3.device.model.ThermostatStatus;
+import net.sf.dz3.device.model.ZoneController;
+import net.sf.dz3.device.model.ZoneStatus;
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * The virtual thermostat implementation.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">public class ThermostatModel implements Thermostat, ThermostatController {</span>
+
+<span class="fc" id="L32">    private final Logger logger = LogManager.getLogger(getClass());</span>
+
+    /**
+     * Lowest acceptable setpoint.
+     *
+     * Setting it lower than this might cause water pipes freeze and burst in the winter.
+     */
+    public static final double SETPOINT_MIN = 10.0;
+
+    /**
+     * Highest acceptable setpoint.
+     *
+     * Setting the thermostat to +35C works just fine on the second floor of a house in
+     * Arizona in the middle of the summer - if you want to set it higher, why don't you
+     * just shut it off?
+     */
+    public static final double SETPOINT_MAX = 40.0;
+
+    /**
+     * Hysteresis boundaries for the {@link #signalRenderer}.
+     *
+     * This value is not to be fiddled with, change {@link #controller}'s P instead.
+     */
+    private static final double HYSTERESIS = 1.0;
+
+
+    /**
+     * Thermostat name.
+     */
+    private final String name;
+
+    /**
+     * Instrumentation signature.
+     */
+    private final String signature;
+
+    /**
+     * Is this zone allowed to initiate the A/C start.
+     * &lt;p/&gt;
+     * Default is true.
+     *
+     * @see #isVoting
+     */
+<span class="fc" id="L75">    private boolean voting = true;</span>
+
+    /**
+     * The current signal.
+     *
+     * @see #stateChanged(AnalogSensor, DataSample&lt;Double&gt;)
+     */
+    private DataSample&lt;Double&gt; lastKnownSignal;
+
+    /**
+     * Current control signal.
+     */
+<span class="fc" id="L87">    private DataSample&lt;Double&gt; controlSignal = null;</span>
+
+    /**
+     * Controller defining this thermostat's dynamic behavior.
+     */
+    private final AbstractPidController controller;
+
+    /**
+     * Sensor which is the data source for this thermostat,
+     */
+    private final AnalogSensor sensor;
+
+    /**
+     * Controller defining this thermostat's output signal.
+     */
+<span class="fc" id="L102">    private final HysteresisController signalRenderer = new HysteresisController(0, HYSTERESIS);</span>
+
+    /**
+     * Thermostat signal broadcaster.
+     */
+<span class="fc" id="L107">    private final DataBroadcaster&lt;ThermostatSignal&gt; dataBroadcaster = new DataBroadcaster&lt;ThermostatSignal&gt;();</span>
+
+    /**
+     * Is this thermostat enabled.
+     * &lt;p/&gt;
+     * If the zone is set to &quot;OFF&quot;, the thermostat will still accept the
+     * notifications, but will not relay the signal to the controller.
+     */
+<span class="fc" id="L115">    private boolean tsEnabled = true;</span>
+
+    /**
+     * Is this thermostat on hold.
+     * &lt;p/&gt;
+     * If it is set to &quot;hold&quot;, the scheduler will not change the settings when
+     * the period changes.
+     */
+<span class="fc" id="L123">    private boolean hold = false;</span>
+
+    /**
+     * Is it possible to use the zone controlled by this thermostat as a dump
+     * zone.
+     * &lt;p/&gt;
+     * 0 (default) means that this zone shouldn't be used as a dump zone, values
+     * greater than 0 mean priority, 1 being the highest. The higher the
+     * priority, the sooner the zone will be used as a dump zone when heating.
+     */
+<span class="fc" id="L133">    private int dumpPriority = 0;</span>
+
+    /**
+     * Full constructor - creates an instance with an arbitrary implementation of {@link AbstractPidController}.
+     *
+     * @param name Human readable name for the zone this thermostat is in. This will be
+     * displayed on the user interface.
+     * @param sensor Sensor to read the data from.
+     * @param controller Process controller to use.
+     */
+<span class="fc" id="L143">    public ThermostatModel(String name, AnalogSensor sensor, AbstractPidController controller) {</span>
+
+<span class="pc bpc" id="L145" title="2 of 4 branches missed.">        if (name == null || &quot;&quot;.equals(name)) {</span>
+<span class="nc" id="L146">            throw new IllegalArgumentException(&quot;name can't be null or empty&quot;);</span>
+        }
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (sensor == null) {</span>
+<span class="nc" id="L150">            throw new IllegalArgumentException(&quot;sensor can't be null or empty&quot;);</span>
+        }
+
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (controller == null) {</span>
+<span class="nc" id="L154">            throw new IllegalArgumentException(&quot;controller can't be null&quot;);</span>
+        }
+
+<span class="fc" id="L157">        this.name = name;</span>
+<span class="fc" id="L158">        this.signature = MessageDigestCache.getMD5(name).substring(0, 19);</span>
+<span class="fc" id="L159">        this.controller = controller;</span>
+<span class="fc" id="L160">        this.sensor = sensor;</span>
+
+<span class="fc" id="L162">        sensor.addConsumer(this);</span>
+<span class="fc" id="L163">    }</span>
+
+    /**
+     * Abbreviated constructor - creates an instance with an instance of {@link SimplePidController}
+     * created on the fly.
+     *
+     * @param name Human readable name for the zone this thermostat is in. This will be
+     * displayed on the user interface.
+     * @param sensor Sensor to read the data from.
+     * @param setpoint Process controller setpoint.
+     * @param P Process controller P component.
+     * @param I Process controller I component.
+     * @param D Process controller D component.
+     * @param saturationLimit Process controller saturation limit.
+     */
+    public ThermostatModel(String name, AnalogSensor sensor, double setpoint, double P, double I, double D, double saturationLimit) {
+
+<span class="nc" id="L180">        this(name, sensor, new SimplePidController(setpoint, P, I, D, saturationLimit));</span>
+<span class="nc" id="L181">    }</span>
+
+    @Override
+    public String getName() {
+
+<span class="fc" id="L186">	return name;</span>
+    }
+
+    @Override
+    public void setVoting(boolean voting) {
+
+<span class="nc" id="L192">	logger.info(&quot;setVoting: &quot; + voting);</span>
+<span class="nc" id="L193">	this.voting = voting;</span>
+<span class="nc" id="L194">	stateChanged();</span>
+<span class="nc" id="L195">    }</span>
+
+    @Override
+    public boolean isVoting() {
+
+<span class="fc" id="L200">	return voting;</span>
+    }
+
+    @Override
+    public void setOnHold(boolean hold) {
+
+<span class="nc" id="L206">	logger.info(&quot;setOnHold: &quot; + hold);</span>
+<span class="nc" id="L207">	this.hold = hold;</span>
+<span class="nc" id="L208">	stateChanged();</span>
+<span class="nc" id="L209">    }</span>
+
+    @Override
+    public boolean isOnHold() {
+
+<span class="fc" id="L214">	return hold;</span>
+    }
+
+    @Override
+    public void setOn(boolean enabled) {
+
+<span class="nc" id="L220">	logger.info(&quot;setOn: &quot; + enabled);</span>
+
+<span class="nc" id="L222">	this.tsEnabled = enabled;</span>
+<span class="nc" id="L223">	stateChanged();</span>
+<span class="nc" id="L224">    }</span>
+
+    @Override
+    public boolean isOn() {
+
+<span class="fc" id="L229">	return tsEnabled;</span>
+    }
+
+    @Override
+    public boolean isError() {
+<span class="pc bpc" id="L234" title="1 of 4 branches missed.">	return lastKnownSignal != null &amp;&amp; lastKnownSignal.isError();</span>
+    }
+
+    @Override
+    public void setDumpPriority(int dumpPriority) {
+<span class="nc" id="L239">	this.dumpPriority = dumpPriority;</span>
+<span class="nc" id="L240">    }</span>
+
+    @Override
+    public int getDumpPriority() {
+
+        // VT: NOTE: The commented out section below causes thermostat settings
+        // to be improperly identified as altered in ThermostatPanel (because
+        // dump priority doesn't match). Following Occam's Razor, this behavior
+        // is disabled - if someone wants their off zones to serve as dump zones,
+        // let them specify this explicitly instead of wondering how the hell
+        // did the zones became dump zones without being asked to.
+
+//	if (!isOn()) {
+//
+//	    // Override. If the zone is shut off, it can be used as a dump zone.
+//
+//	    return 1;
+//	}
+
+<span class="fc" id="L259">	return dumpPriority;</span>
+    }
+
+    @Override
+    public synchronized void consume(DataSample&lt;Double&gt; sample) {
+
+<span class="fc" id="L265">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+<span class="fc bfc" id="L269" title="All 2 branches covered.">            if (sample == null) {</span>
+<span class="fc" id="L270">                throw new IllegalArgumentException(&quot;sample can't be null&quot;);</span>
+            }
+
+<span class="fc" id="L273">            lastKnownSignal = sample;</span>
+
+            // VT: FIXME: At this point, we'll just complain if the reading is
+            // not available. Later, we'll have to open the damper for this zone
+            // and exclude it from the zone controller logic.
+
+<span class="fc bfc" id="L279" title="All 2 branches covered.">            if (sample.isError()) {</span>
+
+<span class="fc" id="L281">                logger.warn(&quot;Sensor failure: &quot; + sample);</span>
+
+                // Can't recalculate the control signal in this case,
+                // but need to notify the zone controller.
+
+<span class="fc" id="L286">                stateChanged();</span>
+<span class="fc" id="L287">                return;</span>
+            }
+
+            // VT: NOTE: Do not be tempted to remove compute() from the logic if
+            // this zone is not tsEnabled - it may seem a pointless calculation,
+            // but it's not. Since the process controller is a time sensitive
+            // entity, it will keep calculating the *correct* value of the
+            // signal, which needs to be done even if it is not currently used.
+
+            // VT: NOTE: Hmm... Which time value to take? The sample comes with its own,
+            // but there may be a delay. Let's see how it works with the original timestamp -
+            // all in all, it should've been delivered back then.
+
+<span class="fc" id="L300">            controlSignal = controller.compute(sample);</span>
+
+<span class="fc" id="L302">            signalRenderer.compute(controlSignal);</span>
+
+<span class="fc" id="L304">            logger.debug(&quot;status: &quot; + this);</span>
+<span class="fc" id="L305">            stateChanged();</span>
+
+        } finally {
+<span class="fc" id="L308">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L310">    }</span>
+
+    /**
+     * Get the adjusted {@link #controlSignal control signal} value.
+     *
+     * @return If {@link #tsEnabled tsEnabled}, the value of the
+     *         {@link #controlSignal control signal}, otherwise 0.
+     */
+    @Override
+    public double getControlSignal() {
+
+<span class="pc bpc" id="L321" title="1 of 4 branches missed.">	return tsEnabled ? (controlSignal == null ? 0 : controlSignal.sample) : 0;</span>
+    }
+
+    public ProcessController getController() {
+
+<span class="nc" id="L326">	return controller;</span>
+    }
+
+    public AnalogSensor getSensor() {
+
+<span class="nc" id="L331">        return sensor;</span>
+    }
+
+    @Override
+    public void raise() {
+
+        // Bump it up for good
+<span class="nc" id="L338">        signalRenderer.consume(new DataSample&lt;Double&gt;(&quot;internal&quot;, signature, HYSTERESIS * 2, null));</span>
+<span class="nc" id="L339">    }</span>
+
+    @Override
+    public double getSetpoint() {
+<span class="fc" id="L343">	return controller.getSetpoint();</span>
+    }
+
+    @Override
+    public void setSetpoint(double setpoint) {
+
+<span class="nc" id="L349">        ThreadContext.push(&quot;setSetpoint&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L353" title="All 4 branches missed.">            if (setpoint &gt; SETPOINT_MAX || setpoint &lt; SETPOINT_MIN) {</span>
+<span class="nc" id="L354">                throw new IllegalArgumentException(&quot;Value (&quot; + setpoint + &quot;) is outside of sane range (&quot;</span>
+                        + SETPOINT_MIN + &quot;...&quot; + SETPOINT_MAX + &quot;)&quot;);
+            }
+
+<span class="nc" id="L358">	    logger.debug(&quot;Old setpoint: &quot; + getSetpoint());</span>
+<span class="nc" id="L359">            logger.info(&quot;New setpoint: &quot; + setpoint);</span>
+
+<span class="nc" id="L361">            controller.setSetpoint(setpoint);</span>
+
+	} finally {
+<span class="nc" id="L364">	    ThreadContext.pop();</span>
+	}
+
+<span class="nc" id="L367">    }</span>
+
+    @Override
+    public String toString() {
+
+<span class="fc" id="L372">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="fc" id="L374">        sb.append(&quot;Thermostat[&quot;).append(getName()).append(&quot;, &quot;).append(getStatus()).append(&quot;]&quot;);</span>
+
+<span class="fc" id="L376">        return sb.toString();</span>
+    }
+
+    @Override
+    public int compareTo(Thermostat other) {
+
+<span class="pc bpc" id="L382" title="1 of 2 branches missed.">	if (other == null) {</span>
+<span class="nc" id="L383">	    throw new IllegalArgumentException(&quot;other can't be null&quot;);</span>
+	}
+
+<span class="fc" id="L386">	return getName().compareTo(other.getName());</span>
+    }
+
+    @JmxAttribute(description = &quot;Thermostat status&quot;)
+    public ThermostatStatus getStatus() {
+<span class="fc" id="L391">	return new ThermostatStatusImpl(getSetpoint(), getControlSignal(), getDumpPriority(), isOn(), isOnHold(), isVoting(), isError());</span>
+    }
+
+    private void stateChanged() {
+<span class="fc" id="L395">        ThermostatSignal signal = getSignal();</span>
+
+        // VT: NOTE: This will not be an error signal even if the original signal is,
+        // the purpose is not control but instrumentation
+
+<span class="fc" id="L400">        DataSample&lt;ThermostatSignal&gt; sample = new DataSample&lt;ThermostatSignal&gt;(signal.demand.timestamp,</span>
+                signal.demand.sourceName, signal.demand.signature, signal, null);
+
+<span class="fc" id="L403">        dataBroadcaster.broadcast(sample);</span>
+<span class="fc" id="L404">    }</span>
+
+    @Override
+    public ThermostatSignal getSignal() {
+
+<span class="pc bpc" id="L409" title="1 of 2 branches missed.">        if (!isOn()) {</span>
+
+            // Demand is always off no matter what is happening to the setpoint,
+            // but the control logic still keeps working so the moment the thermostat is back on,
+            // the rest of the system will kick in  without a jolt
+
+<span class="nc" id="L415">            return new ThermostatSignal(</span>
+                    false,
+<span class="nc" id="L417">                    isOnHold(),</span>
+                    false,
+<span class="nc" id="L419">                    isVoting(),</span>
+<span class="nc" id="L420">                    new DataSample&lt;Double&gt;(controlSignal.timestamp, getName(), signature, 0d, null));</span>
+        }
+
+<span class="fc bfc" id="L423" title="All 2 branches covered.">        if (lastKnownSignal == null) {</span>
+
+            // Must be before receiving any data at all
+
+<span class="fc" id="L427">            return new ThermostatSignal(</span>
+<span class="fc" id="L428">                    isOn(),</span>
+<span class="fc" id="L429">                    isOnHold(),</span>
+<span class="fc" id="L430">                    signalRenderer.getState(),</span>
+                    voting,
+<span class="fc" id="L432">                    new DataSample&lt;Double&gt;(System.currentTimeMillis(), getName(), signature, null, new IllegalStateException(&quot;No data received yet&quot;)));</span>
+        }
+
+<span class="fc bfc" id="L435" title="All 2 branches covered.">        if (lastKnownSignal.isError()) {</span>
+
+<span class="fc" id="L437">            return new ThermostatSignal(</span>
+<span class="fc" id="L438">                    isOn(),</span>
+<span class="fc" id="L439">                    isOnHold(),</span>
+<span class="fc" id="L440">                    signalRenderer.getState(),</span>
+                    voting,
+<span class="fc" id="L442">                    new DataSample&lt;Double&gt;(lastKnownSignal.timestamp, getName(), signature, null, lastKnownSignal.error));</span>
+        }
+
+<span class="pc bpc" id="L445" title="2 of 4 branches missed.">        assert(controlSignal != null);</span>
+
+<span class="fc" id="L447">        return new ThermostatSignal(</span>
+<span class="fc" id="L448">                isOn(),</span>
+<span class="fc" id="L449">                isOnHold(),</span>
+<span class="fc" id="L450">                signalRenderer.getState(),</span>
+                voting,
+<span class="fc" id="L452">                new DataSample&lt;Double&gt;(controlSignal.timestamp, getName(), signature, controlSignal.sample - signalRenderer.getThresholdLow(), null));</span>
+    }
+
+    @Override
+    public void addConsumer(DataSink&lt;ThermostatSignal&gt; consumer) {
+
+<span class="fc bfc" id="L458" title="All 2 branches covered.">    	if (consumer instanceof ZoneController) {</span>
+
+<span class="fc" id="L460">    		StackTraceElement[] trace = Thread.currentThread().getStackTrace();</span>
+
+<span class="fc" id="L462">    		boolean ok = false;</span>
+
+<span class="fc bfc" id="L464" title="All 2 branches covered.">    		for (int offset = 0; offset &lt; trace.length; offset++) {</span>
+
+<span class="fc" id="L466">    			StackTraceElement frame = trace[offset];</span>
+
+<span class="fc bfc" id="L468" title="All 2 branches covered.">    			if (frame.getClassName().equals(&quot;net.sf.dz3.device.model.impl.SimpleZoneController&quot;)) {</span>
+
+    				// It is OK if the zone controller adds itself as a listener from inside the constructor
+
+<span class="fc" id="L472">    				ok = true;</span>
+<span class="fc" id="L473">    				break;</span>
+    			}
+    		}
+
+<span class="fc bfc" id="L477" title="All 2 branches covered.">    		if (!ok) {</span>
+
+    			// A thermostat must be registered with the zone controller in order for the controller
+    			// to make correct decisions. If a controller is simply added as a consumer, it won't recognize
+    			// this thermostat as a source and will refuse to take the signal from it.
+
+<span class="fc" id="L483">    			logger.error(&quot;ZoneController is being added as a consumer, is this really what you want?&quot;,</span>
+    					new IllegalArgumentException(&quot;Read source for details&quot;));
+    		}
+    	}
+
+<span class="fc" id="L488">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="fc" id="L489">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;ThermostatSignal&gt; consumer) {
+
+<span class="nc" id="L494">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L495">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+<span class="nc" id="L499">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Thermostat&quot;,
+<span class="nc" id="L502">                getName(),</span>
+                &quot;Tell the zone controller what to do based on current sensor data, setpoint, and fine tuning parameters&quot;);
+    }
+
+    @Override
+    public void set(ZoneStatus status) {
+
+<span class="nc" id="L509">        ThreadContext.push(&quot;set&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L513" title="All 2 branches missed.">            if (isOnHold()) {</span>
+
+<span class="nc" id="L515">                logger.info(&quot;On hold, set(&quot; + status + &quot;) ignored&quot;);</span>
+<span class="nc" id="L516">                return;</span>
+            }
+
+<span class="nc" id="L519">            setSetpoint(status.getSetpoint());</span>
+<span class="nc" id="L520">            setOn(status.isOn());</span>
+<span class="nc" id="L521">            setVoting(status.isVoting());</span>
+<span class="nc" id="L522">            setDumpPriority(status.getDumpPriority());</span>
+
+        } finally {
+<span class="nc" id="L525">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L527">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

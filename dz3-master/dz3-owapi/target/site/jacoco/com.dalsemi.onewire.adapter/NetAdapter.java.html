@@ -1,0 +1,2026 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">NetAdapter.java</span></div><h1>NetAdapter.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 2002 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.MulticastSocket;
+import java.net.Socket;
+import java.util.Enumeration;
+import java.util.Vector;
+import java.util.concurrent.locks.ReentrantLock;
+
+import com.dalsemi.onewire.OneWireAccessProvider;
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.utils.Address;
+import com.dalsemi.onewire.utils.CRC16;
+import com.dalsemi.onewire.utils.Convert;
+
+/**
+ * &lt;P&gt;NetAdapter is a network-based DSPortAdapter.  It allows for the use of
+ * an actual DSPortAdapter which isn't on the local machine, but rather is
+ * connected to another device which is reachable via a TCP/IP network
+ * connection.&lt;/P&gt;
+ *
+ * &lt;P&gt;The syntax for the &lt;code&gt;selectPort(String)&lt;/code&gt; command is the
+ * hostname of the computer which hosts the actual DSPortAdapter and the
+ * TCP/IP port that the host is listening on.  If the port number is not
+ * specified, a default value of 6161 is used. Here are a few examples to
+ * illustrate the syntax:
+ * &lt;ul&gt;
+ *    &lt;li&gt;my.host.com:6060&lt;/li&gt;
+ *    &lt;li&gt;180.0.2.46:6262&lt;/li&gt;
+ *    &lt;li&gt;my.host.com&lt;/li&gt;
+ *    &lt;li&gt;180.0.2.46&lt;/li&gt;
+ * &lt;/ul&gt;&lt;/P&gt;
+ *
+ * &lt;P?The use of the NetAdapter is virtually identical to the use of any
+ * other DSPortAdapter.  The only significant changes are the necessity
+ * of the 'host' component (see NetAdapterHost)
+ * and the discovery of hosts on your network.  There are currently two
+ * techniques used for discovering all of the hosts: The look-up of each host
+ * from the onewire.properties file and the use of multicast sockets for
+ * automatic discovery.&lt;/P&gt;
+ *
+ * &lt;P&gt;In the onewire.properties file, you can add a host to your list of valid
+ * hosts by making a NetAdapter.host with an integer to distinguish the hosts.
+ * There is no limit on the number of hosts which can appear in this list, but
+ * the first one must be numbered '0'.  These hosts will then be returned in
+ * the list of valid 'ports' from the &lt;code&gt;selectPortNames()&lt;/code&gt; method.
+ * Note that there do not have to be any servers returned from
+ * &lt;code&gt;selectPortNames()&lt;/code&gt; for the NetAdapter to be able to connect
+ * to them (so it isn't necessary to add these entries for it to function),
+ * but applications which allow a user to automatically select an appropriate
+ * adapter and a port from a given list will not function properly without it.
+ * For example:
+ * &lt;ul&gt;
+ *    &lt;li&gt;NetAdapter.host0=my.host.com:6060&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.host1=180.0.2.46:6262&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.host2=my.host.com&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.host3=180.0.2.46&lt;/li&gt;
+ * &lt;/ul&gt;&lt;/P&gt;
+ *
+ * &lt;P&gt;The multicast socket technique allows you to automatically discover
+ * hosts on your subnet which are listening for multicast packets.  By
+ * default, the multicast discovery of NetAdapter hosts is disabled.
+ * When enabled, the NetAdapter creates a multicast socket and looks for servers
+ * every time you call &lt;code&gt;selectPortNames()&lt;/code&gt;.  This will add a
+ * 1 second delay (due to the socket timeout) on calling the method.  If you'd
+ * like to enable this feature, add the following line to your
+ * onewire.properties file:
+ * &lt;ul&gt;
+ *    &lt;li&gt;NetAdapter.MulticastEnabled=true&lt;/li&gt;
+ * &lt;/ul&gt;
+ * The port used and the multicast group used for multicast sockets can
+ * also be changed.  The group however, must fall withing a valid range.
+ * For more information about multicast sockets in Java, see the Java
+ * tutorial on networking at &lt;A HREF=&quot;http://java.sun.com/docs/books/tutorial/&quot;&gt;
+ * http://java.sun.com/docs/books/tutorial/&lt;/A&gt;.  Change the defaults in the
+ * onewire.properties file with the following entries:
+ * &lt;ul&gt;
+ *    &lt;li&gt;NetAdapter.MulticastGroup=228.5.6.7&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.MulticastPort=6163&lt;/li&gt;
+ * &lt;/ul&gt;
+ * &lt;/P&gt;
+ *
+ * &lt;P&gt;Once the NetAdapter is connected with a host, a version check is performed
+ * followed by a simple authentication step.  The authentication is dependent
+ * upon a secret shared between the NetAdapter and the host.  Both will use
+ * a default value, that each will agree with if you don't provide a secret
+ * of your own.  To set the secret, add the following line to your
+ * onewire.properties file:
+ * &lt;ul&gt;
+ *    &lt;li&gt;NetAdapter.secret=&quot;This is my custom secret&quot;&lt;/li&gt;
+ * &lt;/ul&gt;
+ * Optionally, the secret can be specified on a per-host basis by simply
+ * adding the secret after the port number followed by a colon.  If no port
+ * number is specified, a double-colon is required.  Here are examples:
+ * &lt;ul&gt;
+ *    &lt;li&gt;my.host.com:6060:my custom secret&lt;/li&gt;
+ *    &lt;li&gt;180.0.2.46:6262:another custom secret&lt;/li&gt;
+ *    &lt;li&gt;my.host.com::the custom secret without port number&lt;/li&gt;
+ *    &lt;li&gt;180.0.2.46::another example of a custom secret&lt;/li&gt;
+ * &lt;/ul&gt;&lt;/P&gt;
+ *
+ * &lt;P&gt;All of the above mentioned properties can be set on the command-line
+ * as well as being set in the onewire.properties file.  To set the
+ * properties on the command-line, use the -D option:
+ * java -DNetAdapter.Secret=&quot;custom secret&quot; myApplication&lt;/P&gt;
+ *
+ * &lt;P&gt;The following is a list of all parameters that can be set for the
+ * NetAdapter, followed by default values where applicable.&lt;br&gt;
+ * &lt;ul&gt;
+ *    &lt;li&gt;NetAdapter.secret=Adapter Secret Default&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.secret[0-MaxInt]=[no default]&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.host[0-MaxInt]=[no default]&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.MulticastEnabled=false&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.MulticastGroup=228.5.6.7&lt;/li&gt;
+ *    &lt;li&gt;NetAdapter.MulticastPort=6163&lt;/li&gt;
+ * &lt;/ul&gt;&lt;/P&gt;
+ *
+ * &lt;p&gt;If you wanted added security on the communication channel, an SSL socket
+ * (or similar custom socket implementation) can be used by circumventing the
+ * standard DSPortAdapter's &lt;code&gt;selectPort(String)&lt;/code&gt; and using the
+ * NetAdapter-specific &lt;code&gt;selectPort(Socket)&lt;/code&gt;.  For example:
+ * &lt;pre&gt;
+ *    NetAdapter na = new NetAdapter();
+ *
+ *    Socket secureSocket = // insert fancy secure socket implementation here
+ *
+ *    na.selectPort(secureSocket);
+ * &lt;pre&gt;&lt;/P&gt;
+ *
+ * &lt;P&gt;For information on setting up the host component, see the JavaDocs
+ * for the &lt;code&gt;NetAdapterHost&lt;/code&gt;
+ *
+ * @see NetAdapterHost
+ *
+ * @author SH
+ * @version    1.00, 9 Jan 2002
+ */
+public class NetAdapter
+   extends DSPortAdapter
+   implements NetAdapterConstants
+{
+   /** Error message when neither RET_SUCCESS or RET_FAILURE are returned */
+   protected static final String UNSPECIFIED_ERROR = &quot;An unspecified error occurred.&quot;;
+   /** Error message when I/O failure occurs */
+   protected static final String COMM_FAILED = &quot;IO Error: &quot;;
+
+   /** instance for current connection, defaults to EMPTY*/
+<span class="nc" id="L180">   protected Connection conn = EMPTY_CONNECTION;</span>
+
+   /** portName For Reconnecting to Host */
+<span class="nc" id="L183">   protected String portNameForReconnect = null;</span>
+
+   /** secret for authentication with the server */
+<span class="nc" id="L186">   protected byte[] netAdapterSecret = null;</span>
+
+   /** if true, the user used a custom secret */
+<span class="nc" id="L189">   protected boolean useCustomSecret = false;</span>
+
+   //-------
+   //------- Multicast variables
+   //-------
+
+   /** indicates whether or not mulicast is enabled */
+<span class="nc" id="L196">   protected Boolean multicastEnabled = null;</span>
+
+   /** The multicast group to use for NetAdapter Datagram packets */
+<span class="nc" id="L199">   protected String multicastGroup = null;</span>
+
+   /** The port to use for NetAdapter Datagram packets */
+<span class="nc" id="L202">   protected int datagramPort = -1;</span>
+
+  /**
+   * The lock.
+   */
+<span class="nc" id="L207">  private final ReentrantLock theLock = new ReentrantLock();</span>
+
+   /**
+    * Creates an instance of NetAdapter that isn't connected.  Must call
+    * selectPort(String); or selectPort(Socket);
+    */
+   public NetAdapter ()
+<span class="nc" id="L214">   {</span>
+      try
+      {
+<span class="nc" id="L217">         resetSecret();</span>
+      }
+<span class="nc" id="L219">      catch(Throwable t)</span>
+      {
+<span class="nc" id="L221">         setSecret(DEFAULT_SECRET);</span>
+<span class="nc" id="L222">      }</span>
+<span class="nc" id="L223">   }</span>
+
+   /**
+    * Sets the shared secret for authenticating this NetAdapter with
+    * a NetAdapterHost.
+    *
+    * @param secret the new secret for authenticating this client.
+    */
+   public void setSecret(String secret)
+   {
+<span class="nc bnc" id="L233" title="All 2 branches missed.">      if(secret!=null)</span>
+      {
+<span class="nc" id="L235">         this.netAdapterSecret = secret.getBytes();</span>
+      }
+      else
+<span class="nc" id="L238">         resetSecret();</span>
+<span class="nc" id="L239">   }</span>
+
+   /**
+    * Resets the secret to be the default stored in the onewire.properties
+    * file (if there is one), or the default as defined by NetAdapterConstants.
+    */
+   public void resetSecret()
+   {
+<span class="nc" id="L247">      String secret = OneWireAccessProvider.getProperty(&quot;NetAdapter.Secret&quot;);</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">      if(secret!=null)</span>
+<span class="nc" id="L249">         this.netAdapterSecret = secret.getBytes();</span>
+      else
+<span class="nc" id="L251">         this.netAdapterSecret = DEFAULT_SECRET.getBytes();</span>
+<span class="nc" id="L252">   }</span>
+
+   /**
+    * Checks return value from input stream.  Reads one byte.  If that
+    * byte is not equal to RET_SUCCESS, then it tries to create an
+    * appropriate error message.  If it is RET_FAILURE, it reads a
+    * string representing the error message.  If it is neither, it
+    * wraps an error message indicating that an unspecified error
+    * occurred and attemps a reconnect.
+    */
+   private void checkReturnValue(Connection conn)
+      throws IOException, OneWireException, OneWireIOException
+   {
+<span class="nc" id="L265">      byte retVal = conn.input.readByte();</span>
+<span class="nc bnc" id="L266" title="All 2 branches missed.">      if(retVal!=RET_SUCCESS)</span>
+      {
+         // an error occurred
+         String errorMsg;
+<span class="nc bnc" id="L270" title="All 2 branches missed.">         if(retVal==RET_FAILURE)</span>
+         {
+            // should be a standard error message after RET_FAILURE
+<span class="nc" id="L273">            errorMsg = conn.input.readUTF();</span>
+         }
+         else
+         {
+            // didn't even get RET_FAILURE
+<span class="nc" id="L278">            errorMsg = UNSPECIFIED_ERROR;</span>
+
+            // that probably means we have a major communication error.
+            // better to disconnect and reconnect.
+<span class="nc" id="L282">            freePort();</span>
+<span class="nc" id="L283">            selectPort(portNameForReconnect);</span>
+         }
+
+<span class="nc" id="L286">         throw new OneWireIOException(errorMsg);</span>
+      }
+<span class="nc" id="L288">   }</span>
+
+   /**
+    * Sends a ping to the host, just to keep the connection alive.  Although
+    * it currently is not implemented on the standard NetAdapterHost, this
+    * command is used as a signal to the NetAdapterSim to simulate some amount
+    * of time that has run.
+    */
+   public void pingHost()
+      throws OneWireException, OneWireIOException
+   {
+      try
+      {
+<span class="nc" id="L301">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L304">            conn.output.writeByte(CMD_PINGCONNECTION);</span>
+<span class="nc" id="L305">            conn.output.flush();</span>
+
+<span class="nc" id="L307">            checkReturnValue(conn);</span>
+<span class="nc" id="L308">         }</span>
+      }
+<span class="nc" id="L310">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L312">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L313">      }</span>
+<span class="nc" id="L314">   }</span>
+
+   //--------
+   //-------- Methods
+   //--------
+
+   /**
+    * Detects adapter presence on the selected port.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if the adapter is confirmed to be connected to
+    * the selected port, &lt;code&gt;false&lt;/code&gt; if the adapter is not connected.
+    *
+    * @throws OneWireIOException
+    * @throws OneWireException
+    */
+   public boolean adapterDetected ()
+      throws OneWireIOException, OneWireException
+   {
+<span class="nc" id="L332">      synchronized(conn)</span>
+      {
+<span class="nc bnc" id="L334" title="All 4 branches missed.">         return conn!=EMPTY_CONNECTION &amp;&amp; conn.sock!=null;</span>
+      }
+   }
+
+   /**
+    * Retrieves the name of the port adapter as a string.  The 'Adapter'
+    * is a device that connects to a 'port' that allows one to
+    * communicate with an iButton or other 1-Wire device.  As example
+    * of this is 'DS9097U'.
+    *
+    * @return  &lt;code&gt;String&lt;/code&gt; representation of the port adapter.
+    */
+   public String getAdapterName ()
+   {
+<span class="nc" id="L348">      return &quot;NetAdapter&quot;;</span>
+   }
+
+   /**
+    * Retrieves a description of the port required by this port adapter.
+    * An example of a 'Port' would 'serial communication port'.
+    *
+    * @return  &lt;code&gt;String&lt;/code&gt; description of the port type required.
+    */
+   public String getPortTypeDescription ()
+   {
+<span class="nc" id="L359">      return &quot;Network 'Hostname:Port'&quot;;</span>
+   }
+
+   /**
+    * Retrieves a version string for this class.
+    *
+    * @return  version string
+    */
+   public String getClassVersion ()
+   {
+<span class="nc" id="L369">      return &quot;&quot;+versionUID;</span>
+   }
+
+   //--------
+   //-------- Port Selection
+   //--------
+
+   /**
+    * Retrieves a list of the platform appropriate port names for this
+    * adapter.  A port must be selected with the method 'selectPort'
+    * before any other communication methods can be used.  Using
+    * a communcation method before 'selectPort' will result in
+    * a &lt;code&gt;OneWireException&lt;/code&gt; exception.
+    *
+    * @return  &lt;code&gt;Enumeration&lt;/code&gt; of type &lt;code&gt;String&lt;/code&gt; that contains the port
+    * names
+    */
+   public Enumeration getPortNames ()
+   {
+<span class="nc" id="L388">      Vector v = new Vector();</span>
+
+      // figure out if multicast is enabled
+<span class="nc bnc" id="L391" title="All 2 branches missed.">      if(multicastEnabled == null)</span>
+      {
+<span class="nc" id="L393">         String enabled = null;</span>
+         try
+         {
+<span class="nc" id="L396">            enabled = OneWireAccessProvider.getProperty(</span>
+                                                 &quot;NetAdapter.MulticastEnabled&quot;);
+         }
+<span class="nc" id="L399">         catch(Throwable t){;}</span>
+<span class="nc bnc" id="L400" title="All 2 branches missed.">         if(enabled!=null)</span>
+<span class="nc" id="L401">            multicastEnabled = Boolean.valueOf(enabled);</span>
+         else
+<span class="nc" id="L403">            multicastEnabled = Boolean.FALSE;</span>
+      }
+
+      // if multicasting is enabled, we'll look for servers dynamically
+      // and add them to the list
+<span class="nc bnc" id="L408" title="All 2 branches missed.">      if(multicastEnabled.booleanValue())</span>
+      {
+         // figure out what the datagram listen port is
+<span class="nc bnc" id="L411" title="All 2 branches missed.">         if(datagramPort==-1)</span>
+         {
+<span class="nc" id="L413">            String strPort = null;</span>
+            try
+            {
+<span class="nc" id="L416">               strPort = OneWireAccessProvider.getProperty(&quot;NetAdapter.MulticastPort&quot;);</span>
+            }
+<span class="nc" id="L418">            catch(Throwable t){;}</span>
+<span class="nc bnc" id="L419" title="All 2 branches missed.">            if(strPort==null)</span>
+<span class="nc" id="L420">               datagramPort = DEFAULT_MULTICAST_PORT;</span>
+            else
+<span class="nc" id="L422">               datagramPort = Integer.parseInt(strPort);</span>
+         }
+
+         // figure out what the multicast group is
+<span class="nc bnc" id="L426" title="All 2 branches missed.">         if(multicastGroup==null)</span>
+         {
+<span class="nc" id="L428">            String group = null;</span>
+            try
+            {
+<span class="nc" id="L431">               group = OneWireAccessProvider.getProperty(&quot;NetAdapter.MulticastGroup&quot;);</span>
+            }
+<span class="nc" id="L433">            catch(Throwable t){;}</span>
+<span class="nc bnc" id="L434" title="All 2 branches missed.">            if(group==null)</span>
+<span class="nc" id="L435">               multicastGroup = DEFAULT_MULTICAST_GROUP;</span>
+            else
+<span class="nc" id="L437">               multicastGroup = group;</span>
+         }
+
+<span class="nc" id="L440">         MulticastSocket socket = null;</span>
+<span class="nc" id="L441">         InetAddress group = null;</span>
+         try
+         {
+            //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+            if(DEBUG)
+            {
+               System.out.println(&quot;DEBUG: Opening multicast on port: &quot; + datagramPort);
+               System.out.println(&quot;DEBUG: joining group: &quot; + multicastGroup);
+            }
+            //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+
+            // create the multi-cast socket
+<span class="nc" id="L453">            socket = new MulticastSocket(datagramPort);</span>
+            // create the group's InetAddress
+<span class="nc" id="L455">            group = InetAddress.getByName(multicastGroup);</span>
+            // join the group
+<span class="nc" id="L457">            socket.joinGroup(group);</span>
+
+            // convert the versionUID to a byte[]
+<span class="nc" id="L460">            byte[] versionBytes = Convert.toByteArray(versionUID);</span>
+
+            // send a packet with the versionUID
+<span class="nc" id="L463">            DatagramPacket outPacket</span>
+               = new DatagramPacket(versionBytes, 4, group, datagramPort);
+<span class="nc" id="L465">            socket.send(outPacket);</span>
+
+            // set a timeout of 1/2 second for the receive
+<span class="nc" id="L468">            socket.setSoTimeout(500);</span>
+
+<span class="nc" id="L470">            byte[] receiveBuffer = new byte[32];</span>
+            for(;;)
+            {
+               //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+               if(DEBUG)
+                  System.out.println(&quot;DEBUG: waiting for multicast packet&quot;);
+               //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+<span class="nc" id="L477">               DatagramPacket inPacket</span>
+                  = new DatagramPacket(receiveBuffer, receiveBuffer.length);
+<span class="nc" id="L479">               socket.receive(inPacket);</span>
+
+<span class="nc" id="L481">               int length = inPacket.getLength();</span>
+<span class="nc" id="L482">               byte[] data = inPacket.getData();</span>
+               //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+               if(DEBUG)
+               {
+                  System.out.println(&quot;DEBUG: packet.length=&quot; + length);
+                  System.out.println(&quot;DEBUG: expecting=&quot; + 5);
+               }
+               //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//
+<span class="nc bnc" id="L490" title="All 4 branches missed.">               if(length == 5 &amp;&amp; data[4]==(byte)0xFF)</span>
+               {
+<span class="nc" id="L492">                  int listenPort = Convert.toInt(data, 0, 4);</span>
+<span class="nc" id="L493">                  v.addElement(inPacket.getAddress().getHostName()</span>
+                         + &quot;:&quot; + listenPort);
+               }
+<span class="nc" id="L496">            }</span>
+         }
+<span class="nc" id="L498">         catch(Exception e)</span>
+         {/*drain*/;}
+         finally
+         {
+            try
+            {
+<span class="nc" id="L504">               socket.leaveGroup(group);</span>
+<span class="nc" id="L505">               socket.close();</span>
+            }
+<span class="nc" id="L507">            catch(Exception e)</span>
+<span class="nc" id="L508">            {/*drain*/;}</span>
+         }
+      }
+
+      // get all servers from the properties file
+<span class="nc" id="L513">      String server = &quot;&quot;;</span>
+      try
+      {
+<span class="nc bnc" id="L516" title="All 2 branches missed.">         for(int i=0; server!=null; i++)</span>
+         {
+<span class="nc" id="L518">            server = OneWireAccessProvider.getProperty(&quot;NetAdapter.host&quot;+i);</span>
+<span class="nc bnc" id="L519" title="All 2 branches missed.">            if(server!=null)</span>
+<span class="nc" id="L520">               v.addElement(server);</span>
+         }
+      }
+<span class="nc" id="L523">      catch(Throwable t){;}</span>
+
+<span class="nc" id="L525">      return v.elements();</span>
+   }
+
+   /**
+    * Specifies a platform appropriate port name for this adapter.  Note that
+    * even though the port has been selected, it's ownership may be relinquished
+    * if it is not currently held in a 'exclusive' block.  This class will then
+    * try to re-aquire the port when needed.  If the port cannot be re-aquired
+    * ehen the exception &lt;code&gt;PortInUseException&lt;/code&gt; will be thrown.
+    *
+    * @param  portName  Address to connect this NetAdapter to, in the form of
+    * &quot;hostname:port&quot;.  For example, &quot;shughes.dalsemi.com:6161&quot;, where 6161
+    * is the port number to connect to.  The use of NetAdapter.DEFAULT_PORT
+    * is recommended.
+    *
+    * @return &lt;code&gt;true&lt;/code&gt; if the port was aquired, &lt;code&gt;false&lt;/code&gt;
+    * if the port is not available.
+    *
+    * @throws OneWireIOException If port does not exist, or unable to communicate with port.
+    * @throws OneWireException If port does not exist
+    */
+   public boolean selectPort (String portName)
+      throws OneWireIOException, OneWireException
+   {
+<span class="nc" id="L549">      synchronized(conn)</span>
+      {
+<span class="nc" id="L551">         Socket s = null;</span>
+         try
+         {
+<span class="nc" id="L554">            int port = DEFAULT_PORT;</span>
+            // should be of the format &quot;hostname:port&quot; or hostname
+<span class="nc" id="L556">            int index = portName.indexOf(':');</span>
+<span class="nc bnc" id="L557" title="All 2 branches missed.">            if(index&gt;=0)</span>
+            {
+<span class="nc" id="L559">               int index2 = portName.indexOf(':', index+1);</span>
+<span class="nc bnc" id="L560" title="All 2 branches missed.">               if(index2&lt;0) // no custom secret specified</span>
+               {
+<span class="nc" id="L562">                  port = Integer.parseInt(portName.substring(index+1));</span>
+                  // reset the secret to default
+<span class="nc" id="L564">                  resetSecret();</span>
+<span class="nc" id="L565">                  useCustomSecret = false;</span>
+               }
+               else
+               {
+                  // custom secret is specified
+<span class="nc" id="L570">                  setSecret(portName.substring(index2+1));</span>
+<span class="nc" id="L571">                  useCustomSecret = true;</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">                  if(index &lt; index2-1) // port number is specified</span>
+<span class="nc" id="L573">                     port = Integer.parseInt(portName.substring(index+1, index2));</span>
+               }
+<span class="nc" id="L575">               portName = portName.substring(0, index);</span>
+<span class="nc" id="L576">            }</span>
+            else
+            {
+               // reset the secret
+<span class="nc" id="L580">               resetSecret();</span>
+<span class="nc" id="L581">               useCustomSecret = false;</span>
+            }
+<span class="nc" id="L583">            s = new Socket(portName, port);</span>
+         }
+<span class="nc" id="L585">         catch(IOException ioe)</span>
+         {
+<span class="nc" id="L587">            throw new OneWireIOException(&quot;Can't reach server: &quot;+ioe.getMessage());</span>
+<span class="nc" id="L588">         }</span>
+
+<span class="nc" id="L590">         return selectPort(s);</span>
+      }
+   }
+
+   /**
+    * New method, unique to NetAdapter.  Sets the &quot;port&quot;, i.e. the connection
+    * to the server via an already established socket connection.
+    *
+    * @param sock Socket connection to NetAdapterHost
+    *
+    * @return &lt;code&gt;true&lt;/code&gt; if connection to host was successful
+    *
+    * @throws OneWireIOException If port does not exist, or unable to communicate with port.
+    * @throws OneWireException If port does not exist
+    */
+   public boolean selectPort (Socket sock)
+      throws OneWireIOException, OneWireException
+   {
+<span class="nc" id="L608">      boolean bSuccess = false;</span>
+<span class="nc" id="L609">      synchronized(conn)</span>
+      {
+<span class="nc" id="L611">         Connection tmpConn = new Connection();</span>
+<span class="nc" id="L612">         tmpConn.sock = sock;</span>
+
+         try
+         {
+<span class="nc" id="L616">            tmpConn.input = new DataInputStream(sock.getInputStream());</span>
+            if(BUFFERED_OUTPUT)
+            {
+<span class="nc" id="L619">               tmpConn.output</span>
+                  = new DataOutputStream(new BufferedOutputStream(
+<span class="nc" id="L621">                                                  sock.getOutputStream()));</span>
+            }
+            else
+            {
+               tmpConn.output
+                  = new DataOutputStream(sock.getOutputStream());
+            }
+
+            // check host version
+<span class="nc" id="L630">            int hostVersionUID = tmpConn.input.readInt();</span>
+
+<span class="nc bnc" id="L632" title="All 2 branches missed.">            if(hostVersionUID==versionUID)</span>
+            {
+               // tell the server that the versionUID matched
+<span class="nc" id="L635">               tmpConn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L636">               tmpConn.output.flush();</span>
+
+               // if the versionUID matches, we need to authenticate ourselves
+               // using the challenge from the server.
+<span class="nc" id="L640">               byte[] chlg = new byte[8];</span>
+<span class="nc" id="L641">               tmpConn.input.read(chlg, 0, 8);</span>
+
+               // compute the crc of the secret and the challenge
+<span class="nc" id="L644">               int crc = CRC16.compute(netAdapterSecret, 0);</span>
+<span class="nc" id="L645">               crc = CRC16.compute(chlg, crc);</span>
+               // and send it back to the server
+<span class="nc" id="L647">               tmpConn.output.writeInt(crc);</span>
+<span class="nc" id="L648">               tmpConn.output.flush();</span>
+
+               // check to see if it matched
+<span class="nc" id="L651">               checkReturnValue(tmpConn);</span>
+
+<span class="nc" id="L653">               bSuccess = true;</span>
+<span class="nc" id="L654">            }</span>
+            else
+            {
+<span class="nc" id="L657">               tmpConn.output.writeByte(RET_FAILURE);</span>
+<span class="nc" id="L658">               tmpConn.output.flush();</span>
+<span class="nc" id="L659">               tmpConn = null;</span>
+            }
+         }
+<span class="nc" id="L662">         catch(IOException e)</span>
+         {
+<span class="nc" id="L664">            bSuccess = false;</span>
+<span class="nc" id="L665">            tmpConn = null;</span>
+<span class="nc" id="L666">         }</span>
+
+<span class="nc bnc" id="L668" title="All 2 branches missed.">         if(bSuccess)</span>
+         {
+<span class="nc" id="L670">            portNameForReconnect = sock.getInetAddress().getHostName() +</span>
+<span class="nc" id="L671">                                   &quot;:&quot; + sock.getPort();</span>
+<span class="nc" id="L672">            conn = tmpConn;</span>
+         }
+<span class="nc" id="L674">      }</span>
+
+      // invalid response or version number
+<span class="nc" id="L677">      return bSuccess;</span>
+   }
+
+   /**
+    * Frees ownership of the selected port, if it is currently owned, back
+    * to the system.  This should only be called if the recently
+    * selected port does not have an adapter, or at the end of
+    * your application's use of the port.
+    *
+    * @throws OneWireException If port does not exist
+    */
+   public void freePort ()
+      throws OneWireException
+   {
+      try
+      {
+<span class="nc" id="L693">         synchronized(conn)</span>
+         {
+<span class="nc" id="L695">            conn.output.writeByte(CMD_CLOSECONNECTION);</span>
+<span class="nc" id="L696">            conn.output.flush();</span>
+<span class="nc" id="L697">            conn.sock.close();</span>
+<span class="nc" id="L698">            conn = EMPTY_CONNECTION;</span>
+<span class="nc" id="L699">         }</span>
+      }
+<span class="nc" id="L701">      catch(Exception e)</span>
+      {
+<span class="nc" id="L703">         throw new OneWireException(COMM_FAILED + e.getMessage());</span>
+<span class="nc" id="L704">      }</span>
+<span class="nc" id="L705">   }</span>
+
+   /**
+    * Retrieves the name of the selected port as a &lt;code&gt;String&lt;/code&gt;.
+    *
+    * @return  &lt;code&gt;String&lt;/code&gt; of selected port
+    *
+    * @throws OneWireException if valid port not yet selected
+    */
+   public String getPortName ()
+      throws OneWireException
+   {
+<span class="nc" id="L717">      synchronized(conn)</span>
+      {
+<span class="nc bnc" id="L719" title="All 2 branches missed.">         if(!adapterDetected())</span>
+<span class="nc" id="L720">            return &quot;Not Connected&quot;;</span>
+<span class="nc bnc" id="L721" title="All 2 branches missed.">         else if (useCustomSecret)</span>
+<span class="nc" id="L722">            return conn.sock.getInetAddress().getHostName() +</span>
+<span class="nc" id="L723">                   &quot;:&quot; + conn.sock.getPort() +</span>
+                   &quot;:&quot; + new String(this.netAdapterSecret);
+         else
+<span class="nc" id="L726">            return conn.sock.getInetAddress().getHostName() +</span>
+<span class="nc" id="L727">                   &quot;:&quot; + conn.sock.getPort();</span>
+      }
+   }
+
+   /**
+    * Returns whether adapter can physically support overdrive mode.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if this port adapter can do OverDrive,
+    * &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error with the adapter
+    * @throws OneWireException on a setup error with the 1-Wire
+    *         adapter
+    */
+   public boolean canOverdrive ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L746">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L749">            conn.output.writeByte(CMD_CANOVERDRIVE);</span>
+<span class="nc" id="L750">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L753">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from beginExclusive
+<span class="nc" id="L756">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L759">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L761">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Returns whether the adapter can physically support hyperdrive mode.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if this port adapter can do HyperDrive,
+    * &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error with the adapter
+    * @throws OneWireException on a setup error with the 1-Wire
+    *         adapter
+    */
+   public boolean canHyperdrive ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L780">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L783">            conn.output.writeByte(CMD_CANHYPERDRIVE);</span>
+<span class="nc" id="L784">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L787">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from beginExclusive
+<span class="nc" id="L790">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L793">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L795">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Returns whether the adapter can physically support flex speed mode.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if this port adapter can do flex speed,
+    * &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error with the adapter
+    * @throws OneWireException on a setup error with the 1-Wire
+    *         adapter
+    */
+   public boolean canFlex ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L814">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L817">            conn.output.writeByte(CMD_CANFLEX);</span>
+<span class="nc" id="L818">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L821">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from beginExclusive
+<span class="nc" id="L824">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L827">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L829">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Returns whether adapter can physically support 12 volt power mode.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if this port adapter can do Program voltage,
+    * &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error with the adapter
+    * @throws OneWireException on a setup error with the 1-Wire
+    *         adapter
+    */
+   public boolean canProgram ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L848">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L851">            conn.output.writeByte(CMD_CANPROGRAM);</span>
+<span class="nc" id="L852">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L855">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from beginExclusive
+<span class="nc" id="L858">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L861">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L863">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Returns whether the adapter can physically support strong 5 volt power
+    * mode.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if this port adapter can do strong 5 volt
+    * mode, &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error with the adapter
+    * @throws OneWireException on a setup error with the 1-Wire
+    *         adapter
+    */
+   public boolean canDeliverPower ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L883">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L886">            conn.output.writeByte(CMD_CANDELIVERPOWER);</span>
+<span class="nc" id="L887">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L890">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from beginExclusive
+<span class="nc" id="L893">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L896">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L898">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Returns whether the adapter can physically support &quot;smart&quot; strong 5
+    * volt power mode.  &quot;smart&quot; power delivery is the ability to deliver
+    * power until it is no longer needed.  The current drop it detected
+    * and power delivery is stopped.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if this port adapter can do &quot;smart&quot; strong
+    * 5 volt mode, &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error with the adapter
+    * @throws OneWireException on a setup error with the 1-Wire
+    *         adapter
+    */
+   public boolean canDeliverSmartPower ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L920">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L923">            conn.output.writeByte(CMD_CANDELIVERSMARTPOWER);</span>
+<span class="nc" id="L924">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L927">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from beginExclusive
+<span class="nc" id="L930">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L933">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L935">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Returns whether adapter can physically support 0 volt 'break' mode.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if this port adapter can do break,
+    * &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error with the adapter
+    * @throws OneWireException on a setup error with the 1-Wire
+    *         adapter
+    */
+   public boolean canBreak ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L954">         synchronized(conn)</span>
+         {
+            // send beginExclusive command
+<span class="nc" id="L957">            conn.output.writeByte(CMD_CANBREAK);</span>
+<span class="nc" id="L958">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L961">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from beginExclusive
+<span class="nc" id="L964">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L967">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L969">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   //--------
+   //-------- Finding iButton/1-Wire device options
+   //--------
+
+   /**
+    * Returns &lt;code&gt;true&lt;/code&gt; if the first iButton or 1-Wire device
+    * is found on the 1-Wire Network.
+    * If no devices are found, then &lt;code&gt;false&lt;/code&gt; will be returned.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if an iButton or 1-Wire device is found.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public boolean findFirstDevice ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L992">         synchronized(conn)</span>
+         {
+            // send findFirstDevice command
+<span class="nc" id="L995">            conn.output.writeByte(CMD_FINDFIRSTDEVICE);</span>
+<span class="nc" id="L996">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L999">            checkReturnValue(conn);</span>
+
+            // return boolean from findFirstDevice
+<span class="nc" id="L1002">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L1005">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1007">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Returns &lt;code&gt;true&lt;/code&gt; if the next iButton or 1-Wire device
+    * is found. The previous 1-Wire device found is used
+    * as a starting point in the search.  If no more devices are found
+    * then &lt;code&gt;false&lt;/code&gt; will be returned.
+    *
+    * @return  &lt;code&gt;true&lt;/code&gt; if an iButton or 1-Wire device is found.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public boolean findNextDevice ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1027">         synchronized(conn)</span>
+         {
+            // send findNextDevice command
+<span class="nc" id="L1030">            conn.output.writeByte(CMD_FINDNEXTDEVICE);</span>
+<span class="nc" id="L1031">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1034">            checkReturnValue(conn);</span>
+
+            // return boolean from findNextDevice
+<span class="nc" id="L1037">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L1040">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1042">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+
+   /**
+    * Copies the 'current' 1-Wire device address being used by the adapter into
+    * the array.  This address is the last iButton or 1-Wire device found
+    * in a search (findNextDevice()...).
+    * This method copies into a user generated array to allow the
+    * reuse of the buffer.  When searching many iButtons on the one
+    * wire network, this will reduce the memory burn rate.
+    *
+    * @param  address An array to be filled with the current iButton address.
+    * @see    Address
+    */
+   public void getAddress (byte[] address)
+   {
+      try
+      {
+<span class="nc" id="L1062">         synchronized(conn)</span>
+         {
+            // send getAddress command
+<span class="nc" id="L1065">            conn.output.writeByte(CMD_GETADDRESS);</span>
+<span class="nc" id="L1066">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1069">            checkReturnValue(conn);</span>
+
+            // get the address
+<span class="nc" id="L1072">            conn.input.read(address, 0, 8);</span>
+<span class="nc" id="L1073">         }</span>
+      }
+<span class="nc" id="L1075">      catch(Exception e)</span>
+<span class="nc" id="L1076">      { /* drain */ }</span>
+<span class="nc" id="L1077">   }</span>
+
+   /**
+    * Sets the 1-Wire Network search to find only iButtons and 1-Wire
+    * devices that are in an 'Alarm' state that signals a need for
+    * attention.  Not all iButton types
+    * have this feature.  Some that do: DS1994, DS1920, DS2407.
+    * This selective searching can be canceled with the
+    * 'setSearchAllDevices()' method.
+    *
+    * @see #setNoResetSearch
+    */
+   public void setSearchOnlyAlarmingDevices ()
+   {
+      try
+      {
+<span class="nc" id="L1093">         synchronized(conn)</span>
+         {
+            // send setSearchOnlyAlarmingDevices command
+<span class="nc" id="L1096">            conn.output.writeByte(CMD_SETSEARCHONLYALARMINGDEVICES);</span>
+<span class="nc" id="L1097">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1100">            checkReturnValue(conn);</span>
+<span class="nc" id="L1101">         }</span>
+      }
+<span class="nc" id="L1103">      catch(Exception e)</span>
+<span class="nc" id="L1104">      { /* drain */ }</span>
+<span class="nc" id="L1105">   }</span>
+
+
+   /**
+    * Sets the 1-Wire Network search to not perform a 1-Wire
+    * reset before a search.  This feature is chiefly used with
+    * the DS2409 1-Wire coupler.
+    * The normal reset before each search can be restored with the
+    * 'setSearchAllDevices()' method.
+    */
+   public void setNoResetSearch ()
+   {
+      try
+      {
+<span class="nc" id="L1119">         synchronized(conn)</span>
+         {
+            // send setNoResetSearch command
+<span class="nc" id="L1122">            conn.output.writeByte(CMD_SETNORESETSEARCH);</span>
+<span class="nc" id="L1123">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1126">            checkReturnValue(conn);</span>
+<span class="nc" id="L1127">         }</span>
+      }
+<span class="nc" id="L1129">      catch(Exception e)</span>
+<span class="nc" id="L1130">      { /* drain */ }</span>
+<span class="nc" id="L1131">   }</span>
+
+
+   /**
+    * Sets the 1-Wire Network search to find all iButtons and 1-Wire
+    * devices whether they are in an 'Alarm' state or not and
+    * restores the default setting of providing a 1-Wire reset
+    * command before each search. (see setNoResetSearch() method).
+    *
+    * @see #setNoResetSearch
+    */
+   public void setSearchAllDevices ()
+   {
+      try
+      {
+<span class="nc" id="L1146">         synchronized(conn)</span>
+         {
+            // send setSearchAllDevices command
+<span class="nc" id="L1149">            conn.output.writeByte(CMD_SETSEARCHALLDEVICES);</span>
+<span class="nc" id="L1150">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1153">            checkReturnValue(conn);</span>
+<span class="nc" id="L1154">         }</span>
+      }
+<span class="nc" id="L1156">      catch(Exception e)</span>
+<span class="nc" id="L1157">      { /* drain */ }</span>
+<span class="nc" id="L1158">   }</span>
+
+
+   /**
+    * Removes any selectivity during a search for iButtons or 1-Wire devices
+    * by family type.  The unique address for each iButton and 1-Wire device
+    * contains a family descriptor that indicates the capabilities of the
+    * device.
+    * @see    #targetFamily
+    * @see    #targetFamily(byte[])
+    * @see    #excludeFamily
+    * @see    #excludeFamily(byte[])
+    */
+   public void targetAllFamilies ()
+   {
+      try
+      {
+<span class="nc" id="L1175">         synchronized(conn)</span>
+         {
+            // send targetAllFamilies command
+<span class="nc" id="L1178">            conn.output.writeByte(CMD_TARGETALLFAMILIES);</span>
+<span class="nc" id="L1179">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1182">            checkReturnValue(conn);</span>
+<span class="nc" id="L1183">         }</span>
+      }
+<span class="nc" id="L1185">      catch(Exception e)</span>
+<span class="nc" id="L1186">      { /* drain */ }</span>
+<span class="nc" id="L1187">   }</span>
+
+
+   /**
+    * Takes an integer to selectively search for this desired family type.
+    * If this method is used, then no devices of other families will be
+    * found by any of the search methods.
+    *
+    * @param  family   the code of the family type to target for searches
+    * @see    Address
+    * @see    #targetAllFamilies
+    */
+   public void targetFamily (int family)
+   {
+      try
+      {
+<span class="nc" id="L1203">         synchronized(conn)</span>
+         {
+            // send targetFamily command
+<span class="nc" id="L1206">            conn.output.writeByte(CMD_TARGETFAMILY);</span>
+<span class="nc" id="L1207">            conn.output.writeInt(1);</span>
+<span class="nc" id="L1208">            conn.output.writeByte((byte)family);</span>
+<span class="nc" id="L1209">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1212">            checkReturnValue(conn);</span>
+<span class="nc" id="L1213">         }</span>
+      }
+<span class="nc" id="L1215">      catch(Exception e)</span>
+<span class="nc" id="L1216">      { /* drain */ }</span>
+<span class="nc" id="L1217">   }</span>
+
+   /**
+    * Takes an array of bytes to use for selectively searching for acceptable
+    * family codes.  If used, only devices with family codes in this array
+    * will be found by any of the search methods.
+    *
+    * @param  family  array of the family types to target for searches
+    * @see    Address
+    * @see    #targetAllFamilies
+    */
+   public void targetFamily (byte family [])
+   {
+      try
+      {
+<span class="nc" id="L1232">         synchronized(conn)</span>
+         {
+            // send targetFamily command
+<span class="nc" id="L1235">            conn.output.writeByte(CMD_TARGETFAMILY);</span>
+<span class="nc" id="L1236">            conn.output.writeInt(family.length);</span>
+<span class="nc" id="L1237">            conn.output.write(family, 0, family.length);</span>
+<span class="nc" id="L1238">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1241">            checkReturnValue(conn);</span>
+<span class="nc" id="L1242">         }</span>
+      }
+<span class="nc" id="L1244">      catch(Exception e)</span>
+<span class="nc" id="L1245">      { /* drain */ }</span>
+<span class="nc" id="L1246">   }</span>
+
+
+   /**
+    * Takes an integer family code to avoid when searching for iButtons.
+    * or 1-Wire devices.
+    * If this method is used, then no devices of this family will be
+    * found by any of the search methods.
+    *
+    * @param  family   the code of the family type NOT to target in searches
+    * @see    Address
+    * @see    #targetAllFamilies
+    */
+   public void excludeFamily (int family)
+   {
+      try
+      {
+<span class="nc" id="L1263">         synchronized(conn)</span>
+         {
+            // send excludeFamily command
+<span class="nc" id="L1266">            conn.output.writeByte(CMD_EXCLUDEFAMILY);</span>
+<span class="nc" id="L1267">            conn.output.writeInt(1);</span>
+<span class="nc" id="L1268">            conn.output.writeByte((byte)family);</span>
+<span class="nc" id="L1269">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1272">            checkReturnValue(conn);</span>
+<span class="nc" id="L1273">         }</span>
+      }
+<span class="nc" id="L1275">      catch(Exception e)</span>
+<span class="nc" id="L1276">      { /* drain */ }</span>
+<span class="nc" id="L1277">   }</span>
+
+
+   /**
+    * Takes an array of bytes containing family codes to avoid when finding
+    * iButtons or 1-Wire devices.  If used, then no devices with family
+    * codes in this array will be found by any of the search methods.
+    *
+    * @param  family  array of family cods NOT to target for searches
+    * @see    Address
+    * @see    #targetAllFamilies
+    */
+   public void excludeFamily (byte family [])
+   {
+      try
+      {
+<span class="nc" id="L1293">         synchronized(conn)</span>
+         {
+            // send excludeFamily command
+<span class="nc" id="L1296">            conn.output.writeByte(CMD_EXCLUDEFAMILY);</span>
+<span class="nc" id="L1297">            conn.output.writeInt(family.length);</span>
+<span class="nc" id="L1298">            conn.output.write(family, 0, family.length);</span>
+<span class="nc" id="L1299">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1302">            checkReturnValue(conn);</span>
+<span class="nc" id="L1303">         }</span>
+      }
+<span class="nc" id="L1305">      catch(Exception e)</span>
+<span class="nc" id="L1306">      { /* drain */ }</span>
+<span class="nc" id="L1307">   }</span>
+
+
+   //--------
+   //-------- 1-Wire Network Semaphore methods
+
+//--------
+
+  /**
+   * Gets exclusive use of the 1-Wire to communicate with an iButton or
+   * 1-Wire Device.
+   * This method should be used for critical sections of code where a
+   * sequence of commands must not be interrupted by communication of
+   * threads with other iButtons, and it is permissible to sustain
+   * a delay in the special case that another thread has already been
+   * granted exclusive access and this access has not yet been
+   * relinquished. &lt;p&gt;
+   *
+   * It can be called through the OneWireContainer
+   * class by the end application if they want to ensure exclusive
+   * use.  If it is not called around several methods then it
+   * will be called inside each method.
+   *
+   * @throws OneWireException on a setup error with the 1-Wire adapter
+   */
+  public void beginExclusive ()throws OneWireException {
+
+<span class="nc" id="L1334">    boolean bGotServerBlock = false;</span>
+
+<span class="nc" id="L1336">    theLock.lock();</span>
+
+    try {
+<span class="nc" id="L1339">      synchronized(conn) {</span>
+        // send beginExclusive command
+<span class="nc" id="L1341">        conn.output.writeByte(CMD_BEGINEXCLUSIVE);</span>
+<span class="nc" id="L1342">        conn.output.writeBoolean(true);</span>
+<span class="nc" id="L1343">        conn.output.flush();</span>
+
+        // check return value for success
+<span class="nc" id="L1346">        checkReturnValue(conn);</span>
+
+        // next parameter should be the return from beginExclusive
+<span class="nc bnc" id="L1349" title="All 2 branches missed.">        if (!conn.input.readBoolean()) {</span>
+<span class="nc" id="L1350">          throw new IllegalStateException(&quot;Remote uses obsolete beginExclusive(false)&quot;);</span>
+        }
+<span class="nc" id="L1352">      }</span>
+    }
+<span class="nc" id="L1354">    catch(IOException ioe)</span>
+    {
+<span class="nc" id="L1356">      throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1357">    }</span>
+<span class="nc" id="L1358">  }</span>
+
+   /**
+    * Relinquishes exclusive control of the 1-Wire Network.
+    * This command dynamically marks the end of a critical section and
+    * should be used when exclusive control is no longer needed.
+    */
+   public void endExclusive () {
+
+<span class="nc" id="L1367">     theLock.unlock();</span>
+     try
+     {
+<span class="nc" id="L1370">        synchronized(conn)</span>
+        {
+           // send endExclusive command
+<span class="nc" id="L1373">           conn.output.writeByte(CMD_ENDEXCLUSIVE);</span>
+<span class="nc" id="L1374">           conn.output.flush();</span>
+
+           // check return value for success
+<span class="nc" id="L1377">           checkReturnValue(conn);</span>
+<span class="nc" id="L1378">        }</span>
+     }
+<span class="nc" id="L1380">     catch(Exception e)</span>
+     {
+
+<span class="nc" id="L1383">     }</span>
+<span class="nc" id="L1384">   }</span>
+
+   //--------
+   //-------- Primitive 1-Wire Network data methods
+   //--------
+
+   /**
+    * Sends a Reset to the 1-Wire Network.
+    *
+    * @return  the result of the reset. Potential results are:
+    * &lt;ul&gt;
+    * &lt;li&gt; 0 (RESET_NOPRESENCE) no devices present on the 1-Wire Network.
+    * &lt;li&gt; 1 (RESET_PRESENCE) normal presence pulse detected on the 1-Wire
+    *        Network indicating there is a device present.
+    * &lt;li&gt; 2 (RESET_ALARM) alarming presence pulse detected on the 1-Wire
+    *        Network indicating there is a device present and it is in the
+    *        alarm condition.  This is only provided by the DS1994/DS2404
+    *        devices.
+    * &lt;li&gt; 3 (RESET_SHORT) inticates 1-Wire appears shorted.  This can be
+    *        transient conditions in a 1-Wire Network.  Not all adapter types
+    *        can detect this condition.
+    * &lt;/ul&gt;
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public int reset()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1415">         synchronized(conn)</span>
+         {
+            // send reset command
+<span class="nc" id="L1418">            conn.output.writeByte(CMD_RESET);</span>
+<span class="nc" id="L1419">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1422">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from reset
+<span class="nc" id="L1425">            return conn.input.readInt();</span>
+         }
+      }
+<span class="nc" id="L1428">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1430">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Sends a bit to the 1-Wire Network.
+    *
+    * @param  bitValue  the bit value to send to the 1-Wire Network.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public void putBit (boolean bitValue)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1447">         synchronized(conn)</span>
+         {
+            // send putBit command
+<span class="nc" id="L1450">            conn.output.writeByte(CMD_PUTBIT);</span>
+            // followed by the bit
+<span class="nc" id="L1452">            conn.output.writeBoolean(bitValue);</span>
+<span class="nc" id="L1453">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1456">            checkReturnValue(conn);</span>
+<span class="nc" id="L1457">         }</span>
+      }
+<span class="nc" id="L1459">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1461">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1462">      }</span>
+<span class="nc" id="L1463">   }</span>
+
+   /**
+    * Gets a bit from the 1-Wire Network.
+    *
+    * @return  the bit value recieved from the the 1-Wire Network.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public boolean getBit ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1478">         synchronized(conn)</span>
+         {
+            // send getBit command
+<span class="nc" id="L1481">            conn.output.writeByte(CMD_GETBIT);</span>
+<span class="nc" id="L1482">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1485">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from getBit
+<span class="nc" id="L1488">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L1491">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1493">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Sends a byte to the 1-Wire Network.
+    *
+    * @param  byteValue  the byte value to send to the 1-Wire Network.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public void putByte (int byteValue)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1510">         synchronized(conn)</span>
+         {
+            // send putByte command
+<span class="nc" id="L1513">            conn.output.writeByte(CMD_PUTBYTE);</span>
+            // followed by the byte
+<span class="nc" id="L1515">            conn.output.writeByte(byteValue);</span>
+<span class="nc" id="L1516">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1519">            checkReturnValue(conn);</span>
+<span class="nc" id="L1520">         }</span>
+      }
+<span class="nc" id="L1522">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1524">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1525">      }</span>
+<span class="nc" id="L1526">   }</span>
+
+   /**
+    * Gets a byte from the 1-Wire Network.
+    *
+    * @return  the byte value received from the the 1-Wire Network.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public int getByte ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1541">         synchronized(conn)</span>
+         {
+            // send getByte command
+<span class="nc" id="L1544">            conn.output.writeByte(CMD_GETBYTE);</span>
+<span class="nc" id="L1545">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1548">            checkReturnValue(conn);</span>
+
+            // next parameter should be the return from getByte
+<span class="nc" id="L1551">            return conn.input.readByte()&amp;0x0FF;</span>
+         }
+      }
+<span class="nc" id="L1554">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1556">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Gets a block of data from the 1-Wire Network.
+    *
+    * @param  len  length of data bytes to receive
+    *
+    * @return  the data received from the 1-Wire Network.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public byte[] getBlock (int len)
+      throws OneWireIOException, OneWireException
+   {
+<span class="nc" id="L1573">      byte[] buffer = new byte[len];</span>
+<span class="nc" id="L1574">      getBlock(buffer,0,len);</span>
+<span class="nc" id="L1575">      return buffer;</span>
+   }
+
+   /**
+    * Gets a block of data from the 1-Wire Network and write it into
+    * the provided array.
+    *
+    * @param  arr     array in which to write the received bytes
+    * @param  len     length of data bytes to receive
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public void getBlock (byte[] arr, int len)
+      throws OneWireIOException, OneWireException
+   {
+<span class="nc" id="L1591">      getBlock(arr, 0, len);</span>
+<span class="nc" id="L1592">   }</span>
+
+   /**
+    * Gets a block of data from the 1-Wire Network and write it into
+    * the provided array.
+    *
+    * @param  arr     array in which to write the received bytes
+    * @param  off     offset into the array to start
+    * @param  len     length of data bytes to receive
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public void getBlock (byte[] arr, int off, int len)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1610">         synchronized(conn)</span>
+         {
+            // send getBlock command
+<span class="nc" id="L1613">            conn.output.writeByte(CMD_GETBLOCK);</span>
+            // followed by the number of bytes to get
+<span class="nc" id="L1615">            conn.output.writeInt(len);</span>
+<span class="nc" id="L1616">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1619">            checkReturnValue(conn);</span>
+
+            // next should be the bytes
+<span class="nc" id="L1622">            conn.input.readFully(arr, off, len);</span>
+<span class="nc" id="L1623">         }</span>
+      }
+<span class="nc" id="L1625">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1627">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1628">      }</span>
+<span class="nc" id="L1629">   }</span>
+
+   /**
+    * Sends a block of data and returns the data received in the same array.
+    * This method is used when sending a block that contains reads and writes.
+    * The 'read' portions of the data block need to be pre-loaded with 0xFF's.
+    * It starts sending data from the index at offset 'off' for length 'len'.
+    *
+    * @param  dataBlock array of data to transfer to and from the 1-Wire Network.
+    * @param  off       offset into the array of data to start
+    * @param  len       length of data to send / receive starting at 'off'
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public void dataBlock (byte[] dataBlock, int off, int len)
+      throws OneWireIOException, OneWireException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;DataBlock called for &quot; + len + &quot; bytes&quot;);
+      }
+      try
+      {
+<span class="nc" id="L1653">         synchronized(conn)</span>
+         {
+            // send dataBlock command
+<span class="nc" id="L1656">            conn.output.writeByte(CMD_DATABLOCK);</span>
+            // followed by the number of bytes to block
+<span class="nc" id="L1658">            conn.output.writeInt(len);</span>
+            // followed by the bytes
+<span class="nc" id="L1660">            conn.output.write(dataBlock, off, len);</span>
+<span class="nc" id="L1661">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1664">            checkReturnValue(conn);</span>
+
+            // next should be the bytes returned
+<span class="nc" id="L1667">            conn.input.readFully(dataBlock, off, len);</span>
+<span class="nc" id="L1668">         }</span>
+      }
+<span class="nc" id="L1670">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1672">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1673">      }</span>
+      if(DEBUG)
+      {
+         System.out.println(&quot;   Done DataBlocking&quot;);
+      }
+<span class="nc" id="L1678">   }</span>
+
+   //--------
+   //-------- 1-Wire Network power methods
+   //--------
+
+   /**
+    * Sets the duration to supply power to the 1-Wire Network.
+    * This method takes a time parameter that indicates the program
+    * pulse length when the method startPowerDelivery().&lt;p&gt;
+    *
+    * Note: to avoid getting an exception,
+    * use the canDeliverPower() and canDeliverSmartPower()
+    * method to check it's availability. &lt;p&gt;
+    *
+    * @param timeFactor
+    * &lt;ul&gt;
+    * &lt;li&gt;   0 (DELIVERY_HALF_SECOND) provide power for 1/2 second.
+    * &lt;li&gt;   1 (DELIVERY_ONE_SECOND) provide power for 1 second.
+    * &lt;li&gt;   2 (DELIVERY_TWO_SECONDS) provide power for 2 seconds.
+    * &lt;li&gt;   3 (DELIVERY_FOUR_SECONDS) provide power for 4 seconds.
+    * &lt;li&gt;   4 (DELIVERY_SMART_DONE) provide power until the
+    *          the device is no longer drawing significant power.
+    * &lt;li&gt;   5 (DELIVERY_INFINITE) provide power until the
+    *          setPowerNormal() method is called.
+    * &lt;/ul&gt;
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public void setPowerDuration (int timeFactor)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1713">         synchronized(conn)</span>
+         {
+            // send setPowerDuration command
+<span class="nc" id="L1716">            conn.output.writeByte(CMD_SETPOWERDURATION);</span>
+            // followed by the timeFactor
+<span class="nc" id="L1718">            conn.output.writeInt(timeFactor);</span>
+<span class="nc" id="L1719">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1722">            checkReturnValue(conn);</span>
+<span class="nc" id="L1723">         }</span>
+      }
+<span class="nc" id="L1725">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1727">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1728">      }</span>
+<span class="nc" id="L1729">   }</span>
+
+   /**
+    * Sets the 1-Wire Network voltage to supply power to a 1-Wire device.
+    * This method takes a time parameter that indicates whether the
+    * power delivery should be done immediately, or after certain
+    * conditions have been met. &lt;p&gt;
+    *
+    * Note: to avoid getting an exception,
+    * use the canDeliverPower() and canDeliverSmartPower()
+    * method to check it's availability. &lt;p&gt;
+    *
+    * @param changeCondition
+    * &lt;ul&gt;
+    * &lt;li&gt;   0 (CONDITION_NOW) operation should occur immediately.
+    * &lt;li&gt;   1 (CONDITION_AFTER_BIT) operation should be pending
+    *           execution immediately after the next bit is sent.
+    * &lt;li&gt;   2 (CONDITION_AFTER_BYTE) operation should be pending
+    *           execution immediately after next byte is sent.
+    * &lt;/ul&gt;
+    *
+    * @return &lt;code&gt;true&lt;/code&gt; if the voltage change was successful,
+    * &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public boolean startPowerDelivery (int changeCondition)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1761">         synchronized(conn)</span>
+         {
+            // send startPowerDelivery command
+<span class="nc" id="L1764">            conn.output.writeByte(CMD_STARTPOWERDELIVERY);</span>
+            // followed by the changeCondition
+<span class="nc" id="L1766">            conn.output.writeInt(changeCondition);</span>
+<span class="nc" id="L1767">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1770">            checkReturnValue(conn);</span>
+
+            // and get the return value from startPowerDelivery
+<span class="nc" id="L1773">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L1776">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1778">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Sets the duration for providing a program pulse on the
+    * 1-Wire Network.
+    * This method takes a time parameter that indicates the program
+    * pulse length when the method startProgramPulse().&lt;p&gt;
+    *
+    * Note: to avoid getting an exception,
+    * use the canDeliverPower() method to check it's
+    * availability. &lt;p&gt;
+    *
+    * @param timeFactor
+    * &lt;ul&gt;
+    * &lt;li&gt;   7 (DELIVERY_EPROM) provide program pulse for 480 microseconds
+    * &lt;li&gt;   5 (DELIVERY_INFINITE) provide power until the
+    *          setPowerNormal() method is called.
+    * &lt;/ul&gt;
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    */
+   public void setProgramPulseDuration (int timeFactor)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1807">         synchronized(conn)</span>
+         {
+            // send setProgramPulseDuration command
+<span class="nc" id="L1810">            conn.output.writeByte(CMD_SETPROGRAMPULSEDURATION);</span>
+            // followed by the timeFactor
+<span class="nc" id="L1812">            conn.output.writeInt(timeFactor);</span>
+<span class="nc" id="L1813">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1816">            checkReturnValue(conn);</span>
+<span class="nc" id="L1817">         }</span>
+      }
+<span class="nc" id="L1819">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1821">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1822">      }</span>
+<span class="nc" id="L1823">   }</span>
+
+   /**
+    * Sets the 1-Wire Network voltage to eprom programming level.
+    * This method takes a time parameter that indicates whether the
+    * power delivery should be done immediately, or after certain
+    * conditions have been met. &lt;p&gt;
+    *
+    * Note: to avoid getting an exception,
+    * use the canProgram() method to check it's
+    * availability. &lt;p&gt;
+    *
+    * @param changeCondition
+    * &lt;ul&gt;
+    * &lt;li&gt;   0 (CONDITION_NOW) operation should occur immediately.
+    * &lt;li&gt;   1 (CONDITION_AFTER_BIT) operation should be pending
+    *           execution immediately after the next bit is sent.
+    * &lt;li&gt;   2 (CONDITION_AFTER_BYTE) operation should be pending
+    *           execution immediately after next byte is sent.
+    * &lt;/ul&gt;
+    *
+    * @return &lt;code&gt;true&lt;/code&gt; if the voltage change was successful,
+    * &lt;code&gt;false&lt;/code&gt; otherwise.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    *         or the adapter does not support this operation
+    */
+   public boolean startProgramPulse (int changeCondition)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1856">         synchronized(conn)</span>
+         {
+            // send startProgramPulse command
+<span class="nc" id="L1859">            conn.output.writeByte(CMD_STARTPROGRAMPULSE);</span>
+            // followed by the changeCondition
+<span class="nc" id="L1861">            conn.output.writeInt(changeCondition);</span>
+<span class="nc" id="L1862">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1865">            checkReturnValue(conn);</span>
+
+            // and get the return value from startPowerDelivery
+<span class="nc" id="L1868">            return conn.input.readBoolean();</span>
+         }
+      }
+<span class="nc" id="L1871">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1873">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+      }
+   }
+
+   /**
+    * Sets the 1-Wire Network voltage to 0 volts.  This method is used
+    * rob all 1-Wire Network devices of parasite power delivery to force
+    * them into a hard reset.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    *         or the adapter does not support this operation
+    */
+   public void startBreak ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1891">         synchronized(conn)</span>
+         {
+            // send startBreak command
+<span class="nc" id="L1894">            conn.output.writeByte(CMD_STARTBREAK);</span>
+<span class="nc" id="L1895">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1898">            checkReturnValue(conn);</span>
+<span class="nc" id="L1899">         }</span>
+      }
+<span class="nc" id="L1901">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1903">         throw new OneWireException(COMM_FAILED);</span>
+<span class="nc" id="L1904">      }</span>
+<span class="nc" id="L1905">   }</span>
+
+   /**
+    * Sets the 1-Wire Network voltage to normal level.  This method is used
+    * to disable 1-Wire conditions created by startPowerDelivery and
+    * startProgramPulse.  This method will automatically be called if
+    * a communication method is called while an outstanding power
+    * command is taking place.
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    *         or the adapter does not support this operation
+    */
+   public void setPowerNormal ()
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1923">         synchronized(conn)</span>
+         {
+            // send startBreak command
+<span class="nc" id="L1926">            conn.output.writeByte(CMD_SETPOWERNORMAL);</span>
+<span class="nc" id="L1927">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1930">            checkReturnValue(conn);</span>
+<span class="nc" id="L1931">         }</span>
+      }
+<span class="nc" id="L1933">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1935">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1936">      }</span>
+<span class="nc" id="L1937">   }</span>
+
+   //--------
+   //-------- 1-Wire Network speed methods
+   //--------
+
+   /**
+    * Sets the new speed of data
+    * transfer on the 1-Wire Network. &lt;p&gt;
+    *
+    * @param speed
+    * &lt;ul&gt;
+    * &lt;li&gt;     0 (SPEED_REGULAR) set to normal communciation speed
+    * &lt;li&gt;     1 (SPEED_FLEX) set to flexible communciation speed used
+    *            for long lines
+    * &lt;li&gt;     2 (SPEED_OVERDRIVE) set to normal communciation speed to
+    *            overdrive
+    * &lt;li&gt;     3 (SPEED_HYPERDRIVE) set to normal communciation speed to
+    *            hyperdrive
+    * &lt;li&gt;    &gt;3 future speeds
+    * &lt;/ul&gt;
+    *
+    * @throws OneWireIOException on a 1-Wire communication error
+    * @throws OneWireException on a setup error with the 1-Wire adapter
+    *         or the adapter does not support this operation
+    */
+   public void setSpeed (int speed)
+      throws OneWireIOException, OneWireException
+   {
+      try
+      {
+<span class="nc" id="L1968">         synchronized(conn)</span>
+         {
+            // send startBreak command
+<span class="nc" id="L1971">            conn.output.writeByte(CMD_SETSPEED);</span>
+            // followed by the speed
+<span class="nc" id="L1973">            conn.output.writeInt(speed);</span>
+<span class="nc" id="L1974">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L1977">            checkReturnValue(conn);</span>
+<span class="nc" id="L1978">         }</span>
+      }
+<span class="nc" id="L1980">      catch(IOException ioe)</span>
+      {
+<span class="nc" id="L1982">         throw new OneWireException(COMM_FAILED + ioe.getMessage());</span>
+<span class="nc" id="L1983">      }</span>
+<span class="nc" id="L1984">   }</span>
+
+   /**
+    * Returns the current data transfer speed on the 1-Wire Network. &lt;p&gt;
+    *
+    * @return &lt;code&gt;int&lt;/code&gt; representing the current 1-Wire speed
+    * &lt;ul&gt;
+    * &lt;li&gt;     0 (SPEED_REGULAR) set to normal communication speed
+    * &lt;li&gt;     1 (SPEED_FLEX) set to flexible communication speed used
+    *            for long lines
+    * &lt;li&gt;     2 (SPEED_OVERDRIVE) set to normal communication speed to
+    *            overdrive
+    * &lt;li&gt;     3 (SPEED_HYPERDRIVE) set to normal communication speed to
+    *            hyperdrive
+    * &lt;li&gt;    &gt;3 future speeds
+    * &lt;/ul&gt;
+    */
+   public int getSpeed ()
+   {
+      try
+      {
+<span class="nc" id="L2005">         synchronized(conn)</span>
+         {
+            // send startBreak command
+<span class="nc" id="L2008">            conn.output.writeByte(CMD_GETSPEED);</span>
+<span class="nc" id="L2009">            conn.output.flush();</span>
+
+            // check return value for success
+<span class="nc" id="L2012">            checkReturnValue(conn);</span>
+
+            // and return the return value from getSpeed()
+<span class="nc" id="L2015">            return conn.input.readInt();</span>
+         }
+      }
+<span class="nc" id="L2018">      catch(Exception e)</span>
+      {
+         /* drain */
+      }
+
+<span class="nc" id="L2023">      return -1;</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

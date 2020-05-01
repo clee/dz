@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HvacDriverHeatpump.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">HvacDriverHeatpump.java</span></div><h1>HvacDriverHeatpump.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.io.IOException;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Single stage heatpump driver, energize to heat.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class HvacDriverHeatpump extends AbstractHvacDriver {
+
+    private final Switch switchMode;
+    private final Switch switchRunning;
+    private final Switch switchFan;
+
+    private final boolean reverseMode;
+    private final boolean reverseRunning;
+    private final boolean reverseFan;
+
+<span class="fc" id="L26">    private boolean enabled = true;</span>
+
+    /**
+     * HVAC mode mirror, to keep track of what it should actually be.
+     */
+    private HvacMode mode;
+
+    /**
+     * Create an instance with all straight switches.
+     *
+     * @param switchMode Switch to pull to change the operating mode.
+     * @param switchRunning Switch to pull to turn on the compressor.
+     * @param switchFan Switch to pull to turn on the air handler.
+     */
+    public HvacDriverHeatpump(Switch switchMode, Switch switchRunning, Switch switchFan) {
+
+<span class="fc" id="L42">        this(switchMode, false, switchRunning, false, switchFan, false);</span>
+<span class="fc" id="L43">    }</span>
+
+    /**
+     * Create an instance with some switches possibly reverse.
+     *
+     * @param switchMode Switch to pull to change the operating mode.
+     * @param reverseMode {@code true} if the &quot;off&quot; mode position corresponds to logical one.
+     * @param switchRunning Switch to pull to turn on the compressor.
+     * @param reverseMode {@code true} if the &quot;off&quot; running position corresponds to logical one.
+     * @param switchFan Switch to pull to turn on the air handler.
+     * @param reverseMode {@code true} if the &quot;off&quot; fan position corresponds to logical one.
+     */
+    public HvacDriverHeatpump(
+            Switch switchMode, boolean reverseMode,
+            Switch switchRunning, boolean reverseRunning,
+<span class="fc" id="L58">            Switch switchFan, boolean reverseFan) {</span>
+
+<span class="fc" id="L60">        check(switchMode, &quot;mode&quot;);</span>
+<span class="fc" id="L61">        check(switchRunning, &quot;running&quot;);</span>
+<span class="fc" id="L62">        check(switchFan, &quot;fan&quot;);</span>
+
+<span class="fc" id="L64">        this.switchMode = switchMode;</span>
+<span class="fc" id="L65">        this.switchRunning = switchRunning;</span>
+<span class="fc" id="L66">        this.switchFan = switchFan;</span>
+
+<span class="fc" id="L68">        this.reverseMode = reverseMode;</span>
+<span class="fc" id="L69">        this.reverseRunning = reverseRunning;</span>
+<span class="fc" id="L70">        this.reverseFan = reverseFan;</span>
+<span class="fc" id="L71">    }</span>
+
+    private void check(Switch s, String purpose) {
+
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (s == null) {</span>
+<span class="nc" id="L76">            throw new IllegalArgumentException(purpose + &quot;Switch can't be null&quot;);</span>
+        }
+<span class="fc" id="L78">    }</span>
+
+    @Override
+    protected synchronized void doSetMode(HvacMode mode) throws IOException {
+
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (mode == null) {</span>
+<span class="fc" id="L84">            throw new IllegalArgumentException(&quot;mode can't be null&quot;);</span>
+        }
+
+<span class="nc" id="L87">        checkEnabled();</span>
+
+        // Let's remember what this is, in case there's a power loss
+<span class="nc" id="L90">        this.mode = mode;</span>
+
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        boolean state = HvacMode.HEATING == mode;</span>
+<span class="nc bnc" id="L93" title="All 4 branches missed.">        switchMode.setState(reverseMode ? !state : state);</span>
+<span class="nc" id="L94">    }</span>
+
+    @Override
+    protected synchronized void doSetStage(int stage) throws IOException {
+
+<span class="fc" id="L99">        checkEnabled();</span>
+
+        // Let's make sure that the mode is what it actually is supposed to be - but it only makes sense
+        // if we're switching ON, not off
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (stage &gt; 0) {</span>
+
+<span class="nc" id="L106">            doSetMode(mode);</span>
+        }
+
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        boolean state = stage &gt; 0 ? true: false;</span>
+<span class="pc bpc" id="L110" title="3 of 4 branches missed.">        switchRunning.setState(reverseRunning ? !state : state);</span>
+<span class="fc" id="L111">    }</span>
+
+    @Override
+    protected synchronized void doSetFanSpeed(double speed) throws IOException {
+
+<span class="nc" id="L116">        checkEnabled();</span>
+
+        // We don't have to restore the mode here
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        boolean state = speed &gt; 0 ? true: false;</span>
+<span class="nc bnc" id="L120" title="All 4 branches missed.">        switchFan.setState(reverseFan ? !state : state);</span>
+<span class="nc" id="L121">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L126">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Single Stage Heatpump Driver (energize to heat)&quot;,
+<span class="nc" id="L129">                Integer.toHexString(hashCode()),</span>
+                &quot;Controls single stage heat pump&quot;);
+    }
+
+    private void checkEnabled() {
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">        if (!enabled) {</span>
+<span class="nc" id="L135">            throw new IllegalStateException(&quot;powerOff() was called already&quot;);</span>
+        }
+<span class="fc" id="L137">    }</span>
+
+    @Override
+    public synchronized void powerOff() {
+
+<span class="nc" id="L142">        ThreadContext.push(&quot;powerOff&quot;);</span>
+
+        try {
+
+<span class="nc" id="L146">            logger.warn(&quot;Powering off&quot;);</span>
+
+            {
+                // won't catch the exception, because if there was a problem shutting down
+                // the unit, then better leave the fan on to avoid a complete meltdown
+
+<span class="nc" id="L152">                setStage(0);</span>
+            }
+
+<span class="nc" id="L155">            setFanSpeed(0);</span>
+
+            // It is safe to do it here because this method is synchronized
+<span class="nc" id="L158">            enabled = false;</span>
+
+<span class="nc" id="L160">            logger.info(&quot;shut down.&quot;);</span>
+
+<span class="nc" id="L162">        } catch (IOException ex) {</span>
+
+            // We're being shut down, and there's a problem??? Better alert the user
+
+<span class="nc" id="L166">            logger.fatal(&quot;Shutdown failure&quot;, ex);</span>
+        } finally {
+<span class="nc" id="L168">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L170">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

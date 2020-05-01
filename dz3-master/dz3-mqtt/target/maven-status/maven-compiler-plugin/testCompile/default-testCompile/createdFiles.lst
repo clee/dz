@@ -1,0 +1,4 @@
+net/sf/dz3/view/mqtt/v1/MqttDeviceFactoryTest$SensorListener.class
+net/sf/dz3/view/mqtt/v1/MqttDeviceFactoryTest.class
+net/sf/dz3/view/mqtt/v1/MqttDeviceFactoryTestBase.class
+net/sf/dz3/view/mqtt/v1/MqttDeviceFactoryTestSlow.class

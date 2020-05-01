@@ -1,0 +1,5 @@
+net/sf/dz3/device/actuator/servomaster/LimitCalibration.class
+net/sf/dz3/device/actuator/servomaster/DamperFactory.class
+net/sf/dz3/device/actuator/servomaster/Calibration.class
+net/sf/dz3/device/actuator/servomaster/RangeCalibration.class
+net/sf/dz3/device/actuator/servomaster/ServoDamper.class

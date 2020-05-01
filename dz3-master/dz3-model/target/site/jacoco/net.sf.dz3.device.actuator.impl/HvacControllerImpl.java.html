@@ -1,0 +1,512 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HvacControllerImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">HvacControllerImpl.java</span></div><h1>HvacControllerImpl.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.io.IOException;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.actuator.HvacController;
+import net.sf.dz3.device.actuator.HvacDriver;
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.model.HvacSignal;
+import net.sf.dz3.device.model.Unit;
+import net.sf.dz3.device.model.UnitSignal;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxAware;
+import net.sf.jukebox.jmx.JmxDescriptor;
+import net.sf.jukebox.logger.LogAware;
+
+/**
+ * Base class for HVAC hardware drivers.
+ * 
+ * Provides common functions - input sanity checks, mode switching, signal rebroadcasts, etc.
+ *  
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class HvacControllerImpl extends LogAware implements HvacController, JmxAware {
+    
+    /**
+     * The unit name.
+     */
+    private final String name;
+
+    /**
+     * Instrumentation signature.
+     */
+    private final String signature;
+    
+    /**
+     * HVAC hardware driver.
+     */
+    private final HvacDriver hvacDriver;
+
+<span class="nc" id="L51">    private DataBroadcaster&lt;HvacSignal&gt; dataBroadcaster = new DataBroadcaster&lt;HvacSignal&gt;();</span>
+    
+    /**
+     * Last known state. 
+     */
+    private DataSample&lt;HvacSignal&gt; state;
+    
+<span class="nc" id="L58">    private final BlockingQueue&lt;Runnable&gt; commandQueue = new LinkedBlockingQueue&lt;Runnable&gt;();</span>
+    private final ThreadPoolExecutor executor;
+    
+    /**
+     * Create a named instance that is not connected to anything and is off.
+     */
+    public HvacControllerImpl(String name, HvacDriver hvacDriver) {
+    
+<span class="nc" id="L66">        this(name, hvacDriver, &quot;off&quot;, null);</span>
+<span class="nc" id="L67">    }</span>
+    
+    /**
+     * Create a named instance with nothing connected to it.
+     * 
+     * @param name Unit name.
+     * @param mode Initial operating mode.
+     */
+    public HvacControllerImpl(String name, HvacDriver hvacDriver, String mode) {
+
+<span class="nc" id="L77">        this(name, hvacDriver, mode, null);</span>
+<span class="nc" id="L78">    }</span>
+
+    /**
+     * Create an instance that is listening to a given data source.
+     * 
+     * @param source Data source to listen to.
+     */
+<span class="nc" id="L85">    public HvacControllerImpl(String name, HvacDriver hvacDriver, String mode, DataSource&lt;UnitSignal&gt; source) {</span>
+        
+<span class="nc bnc" id="L87" title="All 4 branches missed.">        if (name == null || &quot;&quot;.equals(name)) {</span>
+<span class="nc" id="L88">            throw new IllegalArgumentException(&quot;name can't be null or empty&quot;);</span>
+        }
+        
+<span class="nc" id="L91">        this.name = name;</span>
+<span class="nc" id="L92">        signature = MessageDigestCache.getMD5(name).substring(0, 19);</span>
+        
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if (hvacDriver == null) {</span>
+<span class="nc" id="L95">            throw new IllegalArgumentException(&quot;hvacDriver can't be null&quot;);</span>
+        }
+        
+<span class="nc" id="L98">        this.hvacDriver = hvacDriver;</span>
+    
+<span class="nc" id="L100">        executor = new ThreadPoolExecutor(1, 1, 60, TimeUnit.SECONDS, commandQueue);</span>
+        
+        // Shut it off in case it was left on by a dead process
+<span class="nc" id="L103">        setMode(mode);</span>
+<span class="nc" id="L104">        hardwareSetRunning(false);</span>
+<span class="nc" id="L105">        hardwareSetDemand(0.0);</span>
+
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if (source != null) {</span>
+<span class="nc" id="L108">            source.addConsumer(this);</span>
+        }
+<span class="nc" id="L110">    }</span>
+    
+    /**
+     * Set initial mode.
+     * 
+     * This method should only be called from the constructor, the reason for its existence is to reduce clutter there.
+     * 
+     * @param mode Mode to set, as a string.
+     */
+    private void setMode(String mode) {
+        
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (&quot;off&quot;.equalsIgnoreCase(mode)) {</span>
+            
+<span class="nc" id="L123">            this.state = new DataSample&lt;HvacSignal&gt;(name, signature, new HvacSignal(HvacMode.OFF, 0.0, false, 0), null);</span>
+            
+<span class="nc bnc" id="L125" title="All 2 branches missed.">        } else if (&quot;cooling&quot;.equalsIgnoreCase(mode)) {</span>
+
+<span class="nc" id="L127">            this.state = new DataSample&lt;HvacSignal&gt;(name, signature, new HvacSignal(HvacMode.COOLING, 0.0, false, 0), null);</span>
+<span class="nc" id="L128">            hardwareChangeMode(HvacMode.OFF, HvacMode.COOLING);</span>
+            
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        } else if (&quot;heating&quot;.equalsIgnoreCase(mode)) {</span>
+            
+<span class="nc" id="L132">            this.state = new DataSample&lt;HvacSignal&gt;(name, signature, new HvacSignal(HvacMode.HEATING, 0.0, false, 0), null);</span>
+<span class="nc" id="L133">            hardwareChangeMode(HvacMode.OFF, HvacMode.HEATING);</span>
+            
+        } else {
+            
+<span class="nc" id="L137">            throw new IllegalArgumentException(&quot;Unknown mode '&quot; + mode + &quot;', valid values are 'off', 'cooling' and 'heating'&quot;);</span>
+        }
+<span class="nc" id="L139">    }</span>
+    
+    @Override
+    public final synchronized HvacMode getMode() {
+        
+<span class="nc" id="L144">        return state.sample.mode;</span>
+    }
+
+    @Override
+    public final synchronized void setMode(HvacMode mode) {
+        
+<span class="nc" id="L150">        ThreadContext.push(&quot;setMode&quot;);</span>
+        
+        try {
+        
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            if (this.state.sample.mode.equals(mode)) {</span>
+                // Do absolutely nothing
+<span class="nc" id="L156">                return;</span>
+            }
+            
+<span class="nc" id="L159">            logger.info(&quot;Changing mode from &quot; + this.state.sample.mode + &quot; to &quot; + mode);</span>
+<span class="nc" id="L160">            hardwareChangeMode(this.state.sample.mode, mode);</span>
+            
+<span class="nc" id="L162">            state = new DataSample&lt;HvacSignal&gt;(System.currentTimeMillis(),</span>
+                    name,
+                    signature,
+                    new HvacSignal(mode, state.sample.demand, state.sample.running, state.sample.uptime), null);
+            
+<span class="nc" id="L167">            stateChanged(); </span>
+        
+        } finally {
+<span class="nc" id="L170">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L172">    }</span>
+
+    /**
+     * Switch the unit on or off.
+     * 
+     * This method should not be called more often than it is necessary.
+     * Nevertheless, it must be idempotent to increase fault tolerance.
+     * 
+     * @param running Desired running mode.
+     * @param timestamp 
+     */
+    private synchronized void setRunning(boolean running, long timestamp) {
+        
+        // VT: FIXME: uptime
+<span class="nc" id="L186">        state = new DataSample&lt;HvacSignal&gt;(timestamp,</span>
+                name,
+                signature,
+                new HvacSignal(state.sample.mode, state.sample.demand, running, 0), null);
+        
+<span class="nc" id="L191">        hardwareSetRunning(running);</span>
+<span class="nc" id="L192">        stateChanged(); </span>
+<span class="nc" id="L193">    }</span>
+
+    private synchronized void setDemand(double demand, long timestamp) {
+        
+        // VT: FIXME: uptime
+<span class="nc" id="L198">        state = new DataSample&lt;HvacSignal&gt;(timestamp,</span>
+                name,
+                signature,
+                new HvacSignal(state.sample.mode, demand, state.sample.running, 0), null);
+        
+<span class="nc" id="L203">        hardwareSetDemand(demand);</span>
+<span class="nc" id="L204">        stateChanged(); </span>
+<span class="nc" id="L205">    }</span>
+
+    /**
+     * Change the HVAC hardware operating mode.
+     * 
+     * This operation must be asynchronous, return immediately and never throw any exceptions.
+     * Whatever problems that may have been encountered must be reported via separate channels.
+     * 
+     * @param modeFrom Mode to change from.
+     * @param modeTo Mode to change to.
+     */
+    private void hardwareChangeMode(HvacMode modeFrom, HvacMode modeTo) {
+        
+<span class="nc" id="L218">        executor.execute(new CommandChangeMode(hvacDriver, modeTo));</span>
+<span class="nc" id="L219">    }</span>
+    
+    /**
+     * Change hardware running state.
+     * 
+     * This operation must be asynchronous, return immediately and never throw any exceptions.
+     * Whatever problems that may have been encountered must be reported via separate channels.
+     * 
+     * @param running {@code true} to start, {@code false} to stop.
+     */
+    private void hardwareSetRunning(boolean running) {
+        
+<span class="nc" id="L231">        executor.execute(new CommandSetRunning(hvacDriver, running));</span>
+<span class="nc" id="L232">    }</span>
+    
+    /**
+     * Pass the demand value to hardware. 
+     * This operation must be asynchronous, return immediately and never throw any exceptions.
+     * Whatever problems that may have been encountered must be reported via separate channels.
+     * 
+     * @param demand Demand to set.
+     */
+    private void hardwareSetDemand(double demand) {
+        
+<span class="nc" id="L243">        executor.execute(new CommandSetDemand(hvacDriver, demand));</span>
+<span class="nc" id="L244">    }</span>
+
+    @Override
+    public final String getName() {
+        
+<span class="nc bnc" id="L249" title="All 2 branches missed.">        if ( name == null ) {</span>
+
+<span class="nc" id="L251">            throw new IllegalStateException(&quot;Not Initialized&quot;);</span>
+        }
+
+<span class="nc" id="L254">        return name;</span>
+    }
+
+    /**
+     * Determine what to do with the HVAC hardware based on the command received.
+     * 
+     * @param signal Signal produced by {@link Unit}, with a twist (to be documented later).
+     */
+    @Override
+    public final void consume(DataSample&lt;UnitSignal&gt; signal) {
+
+<span class="nc" id="L265">        ThreadContext.push(&quot;consume&quot;);</span>
+        
+        try {
+            
+<span class="nc" id="L269">            check(signal);</span>
+            
+<span class="nc" id="L271">            logger.debug(&quot;demand (old, new): (&quot; + state.sample.demand + &quot;, &quot; + signal.sample + &quot;)&quot;);</span>
+            
+<span class="nc bnc" id="L273" title="All 2 branches missed.">            if (state.sample.mode.equals(HvacMode.OFF)) {</span>
+                
+                // No need to do anything at all
+<span class="nc" id="L276">                logger.info(&quot;Unit is off, input ignored&quot;);</span>
+                
+<span class="nc" id="L278">                return;</span>
+            }
+            
+<span class="nc bnc" id="L281" title="All 4 branches missed.">            if (signal.sample.demand &gt; 0 &amp;&amp; !isRunning()) {</span>
+                
+<span class="nc" id="L283">                logger.info(&quot;Turning ON&quot;);</span>
+<span class="nc" id="L284">                setRunning(true, signal.timestamp);</span>
+                
+<span class="nc bnc" id="L286" title="All 4 branches missed.">            } else if (signal.sample.demand == 0 &amp;&amp; isRunning()) {</span>
+                
+<span class="nc" id="L288">                logger.info(&quot;Turning OFF&quot;);</span>
+<span class="nc" id="L289">                setRunning(false, signal.timestamp);</span>
+                
+            } else {
+                
+<span class="nc" id="L293">                logger.debug(&quot;no change&quot;);</span>
+            }
+            
+        } finally {
+            
+<span class="nc" id="L298">            setDemand(signal.sample.demand, signal.timestamp);</span>
+<span class="nc" id="L299">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L301">    }</span>
+
+    /**
+     * Make sure the signal given to {@link #consume(DataSample)} is sane.
+     * 
+     * @param signal Signal to check.
+     */
+    private void check(DataSample&lt;UnitSignal&gt; signal) {
+        
+<span class="nc" id="L310">        ThreadContext.push(&quot;check&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L314" title="All 2 branches missed.">            if (signal == null) {</span>
+<span class="nc" id="L315">                throw new IllegalArgumentException(&quot;signal can't be null&quot;);</span>
+            }
+
+<span class="nc bnc" id="L318" title="All 2 branches missed.">            if (signal.isError()) {</span>
+                
+<span class="nc" id="L320">                logger.error(&quot;Should not have propagated all the way here&quot;, signal.error);</span>
+<span class="nc" id="L321">                throw new IllegalArgumentException(&quot;Error signal should have been handled by zone controller&quot;);</span>
+            }
+            
+        } finally {
+<span class="nc" id="L325">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L327">    }</span>
+
+    /**
+     * Broadcast the state change.
+     */
+    private void stateChanged() {
+        
+<span class="nc" id="L334">        dataBroadcaster.broadcast(state);</span>
+<span class="nc" id="L335">    }</span>
+
+    @Override
+    public final void addConsumer(DataSink&lt;HvacSignal&gt; consumer) {
+        
+<span class="nc" id="L340">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="nc" id="L341">    }</span>
+
+    @Override
+    public final void removeConsumer(DataSink&lt;HvacSignal&gt; consumer) {
+        
+<span class="nc" id="L346">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L347">    }</span>
+
+    @Override
+    public final int compareTo(HvacController o) {
+
+<span class="nc" id="L352">        return getName().compareTo(o.getName());</span>
+    }
+
+    @JmxAttribute(description=&quot;Last Known Signal&quot;)
+    public final HvacSignal getSignal() {
+        
+<span class="nc" id="L358">        return state.sample;</span>
+    }
+
+    public final boolean isRunning() {
+<span class="nc" id="L362">        return state.sample.running;</span>
+    }
+    
+    @Override
+    public String toString() {
+
+<span class="nc" id="L368">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L370">        sb.append(&quot;AbstractHvacDriver(&quot;).append(name).append(&quot;, &quot;);</span>
+<span class="nc" id="L371">        sb.append(getSignal());</span>
+<span class="nc" id="L372">        sb.append(&quot;)&quot;);</span>
+
+<span class="nc" id="L374">        return sb.toString();</span>
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+        
+<span class="nc" id="L380">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;HVAC Controller&quot;,
+                name,
+                &quot;Analyzes Unit output and issues commands to HVAC hardware driver&quot;);
+    }
+    
+    private abstract class Command implements Runnable {
+
+        protected final HvacDriver target;
+        
+<span class="nc" id="L391">        public Command(HvacDriver target) {</span>
+<span class="nc" id="L392">            this.target = target;</span>
+<span class="nc" id="L393">        }</span>
+        
+        @Override
+        public final void run() {
+
+<span class="nc" id="L398">            int retry = 0;</span>
+            while (true) {
+                
+<span class="nc bnc" id="L401" title="All 2 branches missed.">                ThreadContext.push(&quot;run&quot; + (retry &gt; 0 ? &quot;#retry-&quot; + retry : &quot;&quot;));</span>
+                
+                try {
+
+<span class="nc" id="L405">                    logger.debug(&quot;Running &quot; + toString());</span>
+                    
+<span class="nc" id="L407">                    execute();</span>
+                    
+<span class="nc" id="L409">                    logger.debug(&quot;Success&quot;);</span>
+<span class="nc" id="L410">                    return;</span>
+
+<span class="nc" id="L412">                } catch (Throwable t) {</span>
+
+<span class="nc" id="L414">                    logger.fatal(&quot;Failed to execute &quot; + getClass().getSimpleName(), t);</span>
+                    
+                    // We're going to retry this till the end of time, because
+                    // hardware operations are critical
+                    
+<span class="nc" id="L419">                    retry++;</span>
+                    
+                    try {
+                    
+<span class="nc" id="L423">                        Thread.sleep(1000);</span>
+                    
+<span class="nc" id="L425">                    } catch (InterruptedException ex) {</span>
+                        
+<span class="nc" id="L427">                        logger.error(&quot;Interrupted, ignored&quot;, ex);</span>
+<span class="nc" id="L428">                    }</span>
+
+                } finally {
+<span class="nc" id="L431">                    ThreadContext.pop();</span>
+<span class="nc" id="L432">                    ThreadContext.clearStack();</span>
+<span class="nc" id="L433">                }</span>
+            }
+        }
+
+        protected abstract void execute() throws IOException;
+    }
+    
+    private class CommandChangeMode extends Command {
+
+        private final HvacMode mode;
+        
+<span class="nc" id="L444">        public CommandChangeMode(HvacDriver target, HvacMode mode) {</span>
+<span class="nc" id="L445">            super(target);</span>
+            
+<span class="nc" id="L447">            this.mode = mode;</span>
+<span class="nc" id="L448">        }</span>
+
+        @Override
+        protected void execute() throws IOException {
+            
+<span class="nc" id="L453">            target.setMode(mode);</span>
+<span class="nc" id="L454">        }</span>
+        
+        @Override
+        public String toString() {
+
+<span class="nc" id="L459">            return &quot;setMode(&quot; + mode + &quot;)&quot;;</span>
+        }
+    }
+
+    private class CommandSetRunning extends Command {
+
+        private final boolean running;
+        
+<span class="nc" id="L467">        public CommandSetRunning(HvacDriver target, boolean running) {</span>
+<span class="nc" id="L468">            super(target);</span>
+            
+<span class="nc" id="L470">            this.running = running;</span>
+<span class="nc" id="L471">        }</span>
+
+        @Override
+        protected void execute() throws IOException {
+            
+            // VT: FIXME: Simplified
+            
+<span class="nc bnc" id="L478" title="All 2 branches missed.">            target.setStage(running ? 1 : 0);</span>
+<span class="nc bnc" id="L479" title="All 2 branches missed.">            target.setFanSpeed(running ? 1.0 : 0.0);</span>
+<span class="nc" id="L480">        }</span>
+
+        @Override
+        public String toString() {
+
+<span class="nc" id="L485">            return &quot;setRunning(&quot; + running + &quot;)&quot;;</span>
+        }
+    }
+
+    private class CommandSetDemand extends Command {
+
+        private final double demand;
+        
+<span class="nc" id="L493">        public CommandSetDemand(HvacDriver target, double demand) {</span>
+<span class="nc" id="L494">            super(target);</span>
+            
+<span class="nc" id="L496">            this.demand = demand;</span>
+<span class="nc" id="L497">        }</span>
+
+        @Override
+        protected void execute() throws IOException {
+
+<span class="nc" id="L502">            logger.debug(&quot;ignored: setDemand(&quot; + demand + &quot;)&quot;);</span>
+<span class="nc" id="L503">        }</span>
+
+        @Override
+        public String toString() {
+
+<span class="nc" id="L508">            return &quot;setDemand(&quot; + demand + &quot;)&quot;;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

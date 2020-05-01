@@ -1,0 +1,238 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UAdapterState.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">UAdapterState.java</span></div><h1>UAdapterState.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+// imports
+import com.dalsemi.onewire.adapter.UParameterSettings;
+import com.dalsemi.onewire.adapter.OneWireState;
+
+
+/** UAdapterState contains the communication state of the DS2480
+ *  based COM port adapter.
+ *  //\\//\\ This class is very preliminary and not all
+ *           functionality is complete or debugged.  This
+ *           class is subject to change.                  //\\//\\
+ *
+ *  @version    0.00, 28 Aug 2000
+ *  @author     DS
+ */
+class UAdapterState
+{
+
+   //--------
+   //-------- Finals
+   //--------
+   //------- DS9097U brick baud rates expressed for the DS2480 ichip  
+
+   /** DS9097U brick baud rate expressed for the DS2480 ichip, 9600 baud   */
+   public static final char BAUD_9600 = 0x00;
+
+   /** DS9097U brick baud rate expressed for the DS2480 ichip, 19200 baud  */
+   public static final char BAUD_19200 = 0x02;
+
+   /** DS9097U brick baud rate expressed for the DS2480 ichip, 57600 baud  */
+   public static final char BAUD_57600 = 0x04;
+
+   /** DS9097U brick baud rate expressed for the DS2480 ichip, 115200 baud */
+   public static final char BAUD_115200 = 0x06;
+
+   //------- DS9097U speed modes
+
+   /** DS9097U speed mode, regular speed                         */
+   public static final char USPEED_REGULAR = 0x00;
+
+   /** DS9097U speed mode, flexible speed for long lines         */
+   public static final char USPEED_FLEX = 0x04;
+
+   /** DS9097U speed mode, overdrive speed                       */
+   public static final char USPEED_OVERDRIVE = 0x08;
+
+   /** DS9097U speed mode, pulse, for program and power delivery */
+   public static final char USPEED_PULSE = 0x0C;
+
+   //------- DS9097U modes
+
+   /** DS9097U data mode                                  */
+   public static final char MODE_DATA = 0x00E1;
+
+   /** DS9097U command mode                               */
+   public static final char MODE_COMMAND = 0x00E3;
+
+   /** DS9097U pulse mode                                 */
+   public static final char MODE_STOP_PULSE = 0x00F1;
+
+   /** DS9097U special mode (in revision 1 silicon only)  */
+   public static final char MODE_SPECIAL = 0x00F3;
+
+   //------- DS9097U chip revisions and state
+
+   /** DS9097U chip revision 1  */
+   public static final char CHIP_VERSION1 = 0x04;
+
+   /** DS9097U chip revision mask  */
+   public static final char CHIP_VERSION_MASK = 0x1C;
+
+   /** DS9097U program voltage available mask  */
+   public static final char PROGRAM_VOLTAGE_MASK = 0x20;
+
+   /** DS9097U program voltage available mask  */
+   public static final int MAX_ALARM_COUNT = 3000;
+
+   //--------
+   //-------- Variables
+   //--------
+
+   /**
+    * Parameter settings for the three logical modes
+    */
+   public UParameterSettings uParameters [];
+
+   /**
+    * The OneWire State object reference
+    */
+   public OneWireState oneWireState;
+
+   /**
+    * Flag true if can stream bits
+    */
+   public boolean streamBits;
+
+   /**
+    * Flag true if can stream bytes
+    */
+   public boolean streamBytes;
+
+   /**
+    * Flag true if can stream search
+    */
+   public boolean streamSearches;
+
+   /**
+    * Flag true if can stream resets
+    */
+   public boolean streamResets;
+
+   /**
+    * Current baud rate that we are communicating with the DS9097U
+    * expressed for the DS2480 ichip. &lt;p&gt;
+    * Valid values can be:
+    *  &lt;ul&gt;
+    *  &lt;li&gt; BAUD_9600
+    *  &lt;li&gt; BAUD_19200
+    *  &lt;li&gt; BAUD_57600
+    *  &lt;li&gt; BAUD_115200
+    *  &lt;/ul&gt;
+    */
+   public char ubaud;
+
+   /**
+    * This is the current 'real' speed that the OneWire is operating at.
+    * This is used to represent the actual mode that the DS2480 is operting
+    * in.  For example the logical speed might be USPEED_REGULAR but for
+    * RF emission reasons we may put the actual DS2480 in SPEED_FLEX. &lt;p&gt;
+    * The valid values for this are:
+    *  &lt;ul&gt;
+    *  &lt;li&gt; USPEED_REGULAR
+    *  &lt;li&gt; USPEED_FLEX
+    *  &lt;li&gt; USPEED_OVERDRIVE
+    *  &lt;li&gt; USPEED_PULSE
+    *  &lt;/ul&gt;
+    */
+   public char uSpeedMode;
+
+   /**
+    * This is the current state of the DS2480 adapter on program
+    * voltage availablity.  'true' if available.
+    */
+   public boolean programVoltageAvailable;
+
+   /**
+    * True when DS2480 is currently in command mode.  False when it is in
+    * data mode.
+    */
+   public boolean inCommandMode;
+
+   /**
+    * The DS2480 revision number.  The current value values are 1 and 2.
+    */
+   public char revision;
+
+   /**
+    * Flag to indicate need to search for long alarm check
+    */
+   protected boolean longAlarmCheck;
+
+   /**
+    * Count of how many resets have been seen without Alarms
+    */
+   protected int lastAlarmCount;
+
+   //--------
+   //-------- Constructors
+   //--------
+
+   /**
+    * Construct the state of the U brick with the defaults
+    */
+   public UAdapterState (OneWireState newOneWireState)
+<span class="nc" id="L204">   {</span>
+
+      // get a pointer to the OneWire state object
+<span class="nc" id="L207">      oneWireState = newOneWireState;</span>
+
+      // set the defaults
+<span class="nc" id="L210">      ubaud                   = BAUD_9600;</span>
+<span class="nc" id="L211">      uSpeedMode              = USPEED_FLEX;</span>
+<span class="nc" id="L212">      revision                = 0;</span>
+<span class="nc" id="L213">      inCommandMode           = true;</span>
+<span class="nc" id="L214">      streamBits              = true;</span>
+<span class="nc" id="L215">      streamBytes             = true;</span>
+<span class="nc" id="L216">      streamSearches          = true;</span>
+<span class="nc" id="L217">      streamResets            = false;</span>
+<span class="nc" id="L218">      programVoltageAvailable = false;</span>
+<span class="nc" id="L219">      longAlarmCheck          = false;</span>
+<span class="nc" id="L220">      lastAlarmCount          = 0;</span>
+
+      // create the three speed logical parameter settings
+<span class="nc" id="L223">      uParameters     = new UParameterSettings [4];</span>
+<span class="nc" id="L224">      uParameters [0] = new UParameterSettings();</span>
+<span class="nc" id="L225">      uParameters [1] = new UParameterSettings();</span>
+<span class="nc" id="L226">      uParameters [2] = new UParameterSettings();</span>
+<span class="nc" id="L227">      uParameters [3] = new UParameterSettings();</span>
+
+      // adjust flex time 
+<span class="nc" id="L230">      uParameters [DSPortAdapter.SPEED_FLEX].pullDownSlewRate =</span>
+         UParameterSettings.SLEWRATE_0p83Vus;
+<span class="nc" id="L232">      uParameters [DSPortAdapter.SPEED_FLEX].write1LowTime    =</span>
+         UParameterSettings.WRITE1TIME_12us;
+<span class="nc" id="L234">      uParameters [DSPortAdapter.SPEED_FLEX].sampleOffsetTime =</span>
+         UParameterSettings.SAMPLEOFFSET_TIME_10us;
+<span class="nc" id="L236">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

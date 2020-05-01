@@ -1,0 +1,10 @@
+net/sf/dz3/util/counter/CounterStrategy.class
+net/sf/dz3/util/counter/ResourceUsageCounter.class
+net/sf/dz3/util/counter/TimeBasedUsage.class
+net/sf/dz3/util/counter/FileUsageCounter.class
+net/sf/dz3/instrumentation/Marker.class
+net/sf/dz3/util/counter/AbstractUsageCounter$CounterState.class
+net/sf/dz3/util/counter/TransientUsageCounter.class
+net/sf/dz3/util/counter/AbstractUsageCounter.class
+net/sf/dz3/util/SSLContextFactory.class
+net/sf/dz3/util/digest/MessageDigestCache.class

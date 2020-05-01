@@ -1,0 +1,70 @@
+21:03:11,125 WARN Container main [run] Usage: dz <configuration file>
+21:03:11,129 WARN Container main [run] Trying to load a sample configuration from 'raspberry-pi.xml'
+21:03:11,130 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@d86a6f#2892d68: (loadConfiguration(raspberry-pi.xml)) started
+21:03:11,222 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:11,223 INFO ShellSensor pool-2-thread-1 [startup] starting 'vcgencmd measure_temp|sed -e "s:temp=::;s:'C::;"'
+21:03:11,225 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:11,227 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:11,227 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:11,231 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#67835584, consume] Sensor failure: DataSample[2021-04-13T21:03:11.225#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:11,232 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:11,232 INFO AbstractZoneController main [run, loadConfiguration(raspberry-pi.xml)] Consumer: vcgencmd: Thermostat[vcgencmd, setpoint=40.0, controlSignal=0.0, enabled, voting, error]
+21:03:11,233 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:11,233 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:11,260 WARN Console main [run, loadConfiguration(raspberry-pi.xml)] use 'init-method="activate"' instead of 'init-method="show"'
+21:03:11,261 WARN Console main [run, loadConfiguration(raspberry-pi.xml), activate, findScheduler] No scheduler was given, is this intentional?
+21:03:11,514 INFO Connector main [run, loadConfiguration(raspberry-pi.xml), activate, createComponentMap] Created net.sf.dz3.view.swing.thermostat.ThermostatPanel[,0,0,0x0,invalid,layout=java.awt.GridBagLayout,alignmentX=0.0,alignmentY=0.0,border=javax.swing.border.TitledBorder@557a1e2d,flags=9,maximumSize=,minimumSize=,preferredSize=]  for Thermostat[vcgencmd, setpoint=40.0, controlSignal=0.0, enabled, voting, error]
+21:03:11,562 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@d86a6f#2892d68: (loadConfiguration(raspberry-pi.xml)) completed in 428 ms (0:00:00.428)
+21:03:11,562 INFO Container main [run] Sleeping until killed
+21:03:11,573 INFO FasterChart AWT-EventQueue-0 [] width changed from 0 to 458
+21:03:11,573 INFO FasterChart AWT-EventQueue-0 [] ms per pixel: 23580
+21:03:12,241 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#3affa665, consume] Sensor failure: DataSample[2021-04-13T21:03:12.232#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:12,243 ERROR AbstractZoneController pool-2-thread-1 [execute@SoC, broadcast#3affa665, consume, broadcast#10098202, stateChanged] FIXME: process the error:(+..V, DataSample[2021-04-13T21:03:12.232#vcgencmd#sig(50e59b94a0ee65640f4), sample(null, error(empty String))])
+21:03:13,260 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#555c6c0f, consume] Sensor failure: DataSample[2021-04-13T21:03:13.251#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:14,271 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#7512c8f4, consume] Sensor failure: DataSample[2021-04-13T21:03:14.263#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:15,282 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#1f7df34d, consume] Sensor failure: DataSample[2021-04-13T21:03:15.274#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:16,293 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#4a435fdf, consume] Sensor failure: DataSample[2021-04-13T21:03:16.285#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:16,958 INFO ZonePanel AWT-EventQueue-0 [keyPressed] java.awt.event.KeyEvent[KEY_PRESSED,keyCode=17,keyText=Ctrl,keyChar=Undefined keyChar,modifiers=Ctrl,extModifiers=Ctrl,keyLocation=KEY_LOCATION_LEFT,rawCode=37,primaryLevelUnicode=0,scancode=0,extendedKeyCode=0x11] on null.contentPane
+21:03:17,305 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#7ef32624, consume] Sensor failure: DataSample[2021-04-13T21:03:17.297#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:18,315 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#2e7f3423, consume] Sensor failure: DataSample[2021-04-13T21:03:18.308#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:19,326 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#4536e5c3, consume] Sensor failure: DataSample[2021-04-13T21:03:19.318#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:20,250 INFO ZonePanel AWT-EventQueue-0 [keyPressed] java.awt.event.KeyEvent[KEY_PRESSED,keyCode=67,keyText=C,keyChar='',modifiers=Ctrl,extModifiers=Ctrl,keyLocation=KEY_LOCATION_STANDARD,rawCode=54,primaryLevelUnicode=99,scancode=0,extendedKeyCode=0x43] on null.contentPane
+21:03:20,336 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#5c122345, consume] Sensor failure: DataSample[2021-04-13T21:03:20.328#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:21,346 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#25b5a6dd, consume] Sensor failure: DataSample[2021-04-13T21:03:21.339#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:22,358 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#7970d728, consume] Sensor failure: DataSample[2021-04-13T21:03:22.350#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:23,368 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#4e0a0770, consume] Sensor failure: DataSample[2021-04-13T21:03:23.360#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:28,500 WARN Container main [run] Usage: dz <configuration file>
+21:03:28,503 WARN Container main [run] Trying to load a sample configuration from 'raspberry-pi.xml'
+21:03:28,504 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@2794eab6#6340e5f0: (loadConfiguration(raspberry-pi.xml)) started
+21:03:28,597 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:28,598 INFO ShellSensor pool-2-thread-1 [startup] starting 'vcgencmd measure_temp|sed -e "s:temp=::;s:'C::;"'
+21:03:28,600 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:28,602 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:28,602 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:28,606 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#6b653bb5, consume] Sensor failure: DataSample[2021-04-13T21:03:28.600#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:28,607 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:28,608 INFO AbstractZoneController main [run, loadConfiguration(raspberry-pi.xml)] Consumer: vcgencmd: Thermostat[vcgencmd, setpoint=40.0, controlSignal=0.0, enabled, voting, error]
+21:03:28,608 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:28,608 INFO DataBroadcaster main [run, loadConfiguration(raspberry-pi.xml)] Async: 'null'
+21:03:28,636 WARN Console main [run, loadConfiguration(raspberry-pi.xml)] use 'init-method="activate"' instead of 'init-method="show"'
+21:03:28,636 WARN Console main [run, loadConfiguration(raspberry-pi.xml), activate, findScheduler] No scheduler was given, is this intentional?
+21:03:28,871 INFO Connector main [run, loadConfiguration(raspberry-pi.xml), activate, createComponentMap] Created net.sf.dz3.view.swing.thermostat.ThermostatPanel[,0,0,0x0,invalid,layout=java.awt.GridBagLayout,alignmentX=0.0,alignmentY=0.0,border=javax.swing.border.TitledBorder@6e1d8f9e,flags=9,maximumSize=,minimumSize=,preferredSize=]  for Thermostat[vcgencmd, setpoint=40.0, controlSignal=0.0, enabled, voting, error]
+21:03:28,906 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@2794eab6#6340e5f0: (loadConfiguration(raspberry-pi.xml)) completed in 399 ms (0:00:00.399)
+21:03:28,906 INFO Container main [run] Sleeping until killed
+21:03:28,917 INFO FasterChart AWT-EventQueue-0 [] width changed from 0 to 458
+21:03:28,917 INFO FasterChart AWT-EventQueue-0 [] ms per pixel: 23580
+21:03:29,617 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#6279a27c, consume] Sensor failure: DataSample[2021-04-13T21:03:29.607#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:29,629 ERROR AbstractZoneController pool-2-thread-1 [execute@SoC, broadcast#6279a27c, consume, broadcast#a33d055, stateChanged] FIXME: process the error:(+..V, DataSample[2021-04-13T21:03:29.607#vcgencmd#sig(50e59b94a0ee65640f4), sample(null, error(empty String))])
+21:03:30,639 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#597b1e2b, consume] Sensor failure: DataSample[2021-04-13T21:03:30.631#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:31,157 INFO ZonePanel AWT-EventQueue-0 [keyPressed] java.awt.event.KeyEvent[KEY_PRESSED,keyCode=18,keyText=Alt,keyChar=Undefined keyChar,modifiers=Alt,extModifiers=Alt,keyLocation=KEY_LOCATION_LEFT,rawCode=64,primaryLevelUnicode=0,scancode=0,extendedKeyCode=0x12] on null.contentPane
+21:03:31,652 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#6cfc3e27, consume] Sensor failure: DataSample[2021-04-13T21:03:31.644#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:32,663 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#55e21b12, consume] Sensor failure: DataSample[2021-04-13T21:03:32.655#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:33,675 WARN ThermostatModel pool-2-thread-1 [execute@SoC, broadcast#d395d83, consume] Sensor failure: DataSample[2021-04-13T21:03:33.667#SoC#sig(SoC), sample(null, error(empty String))]
+21:03:46,366 WARN Container main [run] Usage: dz <configuration file>
+21:03:46,368 WARN Container main [run] Trying to load a sample configuration from 'raspberry-pi.xml'
+21:03:46,369 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@2794eab6#6340e5f0: (loadConfiguration(raspberry-pi.xml)) started
+21:03:46,401 WARN Container main [run, loadConfiguration(raspberry-pi.xml)] Failed to load raspberry-pi.xml, reason: IOException parsing XML document from file [/home/vt/dev/dz/raspberry-pi.xml]; nested exception is java.io.FileNotFoundException: raspberry-pi.xml (No such file or directory)
+21:03:46,403 WARN Container main [run, loadConfiguration(raspberry-pi.xml)] Failed to load raspberry-pi.xml, reason: IOException parsing XML document from class path resource [raspberry-pi.xml]; nested exception is java.io.FileNotFoundException: class path resource [raspberry-pi.xml] cannot be opened because it does not exist
+21:03:46,405 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@2794eab6#6340e5f0: (loadConfiguration(raspberry-pi.xml)) completed in 33 ms (0:00:00.033)
+21:03:46,405 ERROR Container main [run] No configuration was found, terminating
+21:03:46,405 FATAL Container main [run] Shutting down

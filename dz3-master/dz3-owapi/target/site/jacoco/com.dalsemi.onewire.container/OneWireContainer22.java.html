@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireContainer22.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.container</a> &gt; <span class="el_source">OneWireContainer22.java</span></div><h1>OneWireContainer22.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.container;
+
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+
+//----------------------------------------------------------------------------
+
+/**
+ * &lt;P&gt; 1-Wire container for temperature iButton which measures temperatures
+ * from -55&amp;#176C to +125&amp;#176C, DS1822.  This container encapsulates the
+ * functionality of the iButton family type &lt;B&gt;22&lt;/B&gt; (hex)&lt;/P&gt;
+ *
+ * &lt;H3&gt; Features &lt;/H3&gt;
+ * &lt;UL&gt;
+ *   &lt;LI&gt; Measures temperatures from -55&amp;#176C to +125&amp;#176C. Fahrenheit
+ *        equivalent is -67&amp;#176F to +257&amp;#176F
+ *   &lt;LI&gt; Power supply range is 3.0V to 5.5V
+ *   &lt;LI&gt; Zero standby power
+ *   &lt;LI&gt; +/- 2&amp;#176C accuracy from -10&amp;#176C to +85&amp;#176C
+ *   &lt;LI&gt; Thermometer resolution programmable from 9 to 12 bits
+ *   &lt;LI&gt; Converts 12-bit temperature to digital word in 750 ms (max.)
+ *   &lt;LI&gt; User-definable, nonvolatile temperature alarm settings
+ *   &lt;LI&gt; Alarm search command identifies and addresses devices whose temperature is
+ *        outside of programmed limits (temperature alarm condition)
+ *   &lt;LI&gt; Software compatible with DS18B20 (family type &lt;B&gt;28&lt;/B&gt; hex)
+ * &lt;/UL&gt;
+ *
+ * &lt;H3&gt; Usage &lt;/H3&gt;
+ *
+ * &lt;DL&gt;
+ * &lt;DD&gt; See the usage example in
+ * {@link com.dalsemi.onewire.container.TemperatureContainer TemperatureContainer}
+ * for temperature specific operations.
+ * &lt;/DL&gt;
+ *
+ * &lt;H3&gt; DataSheet &lt;/H3&gt;
+ * &lt;DL&gt;
+ * &lt;DD&gt;&lt;A HREF=&quot;http://pdfserv.maxim-ic.com/arpdf/DS1822.pdf&quot;&gt; http://pdfserv.maxim-ic.com/arpdf/DS1822.pdf&lt;/A&gt;
+ * &lt;/DL&gt;
+ *
+ * @see com.dalsemi.onewire.container.TemperatureContainer
+ *
+ * @version    1.10, 26 September 2001
+ * @author DalSemi
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class OneWireContainer22 extends OneWireContainer28 {
+
+    //-------------------------------------------------------------------------
+    //-------- Static Final Variables
+    //-------------------------------------------------------------------------
+
+    /**
+     * Creates an empty &lt;code&gt;OneWireContainer22&lt;/code&gt;.  Must call
+     * &lt;code&gt;setupContainer()&lt;/code&gt; before using this new container.&lt;p&gt;
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer22&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer22&lt;/code&gt; with
+     * parameters.
+     *
+     * @see #OneWireContainer22(DSPortAdapter,byte[])
+     * @see #OneWireContainer22(DSPortAdapter,long)
+     * @see #OneWireContainer22(DSPortAdapter,String)
+     */
+<span class="nc" id="L92">    public OneWireContainer22() {</span>
+<span class="nc" id="L93">    }</span>
+
+    /**
+     * Creates a &lt;code&gt;OneWireContainer22&lt;/code&gt; with the provided adapter
+     * object and the address of this One-Wire device.
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer22&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer22&lt;/code&gt; with
+     * different parameters types.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this One-Wire device
+     * @param  newAddress        address of this One-Wire device
+     *
+     * @see com.dalsemi.onewire.utils.Address
+     * @see #OneWireContainer22()
+     * @see #OneWireContainer22(DSPortAdapter,long)
+     * @see #OneWireContainer22(DSPortAdapter,String)
+     */
+    public OneWireContainer22(DSPortAdapter sourceAdapter, byte[] newAddress) {
+<span class="nc" id="L113">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L114">    }</span>
+
+    /**
+     * Creates a &lt;code&gt;OneWireContainer22&lt;/code&gt; with the provided adapter
+     * object and the address of this One-Wire device.
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer22&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer22&lt;/code&gt; with
+     * different parameters types.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this One-Wire device
+     * @param  newAddress        address of this One-Wire device
+     *
+     * @see com.dalsemi.onewire.utils.Address
+     * @see #OneWireContainer22()
+     * @see #OneWireContainer22(DSPortAdapter,byte[])
+     * @see #OneWireContainer22(DSPortAdapter,String)
+     */
+    public OneWireContainer22(DSPortAdapter sourceAdapter, long newAddress) {
+<span class="nc" id="L134">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L135">    }</span>
+
+    /**
+     * Creates a &lt;code&gt;OneWireContainer22&lt;/code&gt; with the provided adapter
+     * object and the address of this One-Wire device.
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer22&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer22&lt;/code&gt; with
+     * different parameters types.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this One-Wire device
+     * @param  newAddress        address of this One-Wire device
+     *
+     * @see com.dalsemi.onewire.utils.Address
+     * @see #OneWireContainer22()
+     * @see #OneWireContainer22(DSPortAdapter,byte[])
+     * @see #OneWireContainer22(DSPortAdapter,long)
+     */
+    public OneWireContainer22(DSPortAdapter sourceAdapter, String newAddress) {
+<span class="nc" id="L155">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L156">    }</span>
+
+    //--------
+    //-------- Information methods
+    //--------
+
+    /**
+     * Retrieves the Dallas Semiconductor part number of this
+     * &lt;code&gt;OneWireContainer22&lt;/code&gt; as a &lt;code&gt;String&lt;/code&gt;.
+     * For example 'DS1822'.
+     *
+     * @return this &lt;code&gt;OneWireContainer22&lt;/code&gt; name
+     */
+    public String getName() {
+<span class="nc" id="L170">        return &quot;DS1822&quot;;</span>
+    }
+
+    /**
+     * Retrieves the alternate Dallas Semiconductor part numbers or names.
+     * A 'family' of 1-Wire Network devices may have more than one part number
+     * depending on packaging.  There can also be nicknames such as
+     * 'Crypto iButton'.
+     *
+     * @return this &lt;code&gt;OneWireContainer22&lt;/code&gt; alternate names
+     */
+    public String getAlternateNames() {
+<span class="nc" id="L182">        return &quot;&quot;;</span>
+    }
+
+    /**
+     * Retrieves a short description of the function of this
+     * &lt;code&gt;OneWireContainer22&lt;/code&gt; type.
+     *
+     * @return &lt;code&gt;OneWireContainer22&lt;/code&gt; functional description
+     */
+    public String getDescription() {
+<span class="nc" id="L192">        return &quot;Digital thermometer measures temperatures from &quot;</span>
+        + &quot;-55C to 125C in 0.75 seconds (max).  +/- 2C &quot;
+        + &quot;accuracy between -10C and 85C. Thermometer &quot;
+        + &quot;resolution is programmable at 9, 10, 11, and 12 bits. &quot;;
+    }
+
+    //--------
+    //-------- Temperature Feature methods
+    //--------
+
+    //--------
+    //-------- Temperature I/O Methods
+    //--------
+
+    //--------
+    //-------- Temperature 'get' Methods
+    //--------
+
+    //--------
+    //-------- Temperature 'set' Methods
+    //--------
+
+    //--------
+    //-------- Custom Methods for this iButton Type
+    //--------
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,12 @@
+diff --git a/dz3-master/dz3-owapi2020/src/test/resources/log4j2.xml b/dz3-master/dz3-owapi2020/src/test/resources/log4j2.xml
+index 9f4ce2f..d00a350 100644
+--- a/dz3-master/dz3-owapi2020/src/test/resources/log4j2.xml
++++ b/dz3-master/dz3-owapi2020/src/test/resources/log4j2.xml
+@@ -6,6 +6,7 @@
+         </Console>
+     </Appenders>
+     <Loggers>
++        <Logger name="com.dalsemi" level="info" />
+         <Root level="DEBUG">
+             <AppenderRef ref="CONSOLE"/>
+         </Root>

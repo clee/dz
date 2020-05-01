@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractAnalogSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl</a> &gt; <span class="el_source">AbstractAnalogSensor.java</span></div><h1>AbstractAnalogSensor.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl;
+
+import java.io.IOException;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.jukebox.conf.ConfigurableProperty;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.service.ActiveService;
+
+/**
+ * An abstract analog sensor.
+ *
+ * Supports common configuration and listener notification features.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public abstract class AbstractAnalogSensor extends ActiveService implements AnalogSensor {
+
+    /**
+     * Current signal value.
+     *
+     * &lt;p&gt;
+     *
+     * This value has to be updated by {@link #execute()} and used by {@link #getSignal()} in order to provide a fast
+     * response.
+     *
+     * &lt;p&gt;
+     *
+     * If the value is &lt;code&gt;null&lt;/code&gt;, it means that no signal readings are available yet.
+     *
+     * VT: FIXME: Visibility of this member is set to protected to allow reverse update mechanism - see
+     * &lt;code&gt;AbstractDeviceFactory$SensorProxy&lt;/code&gt;.
+     */
+<span class="fc" id="L39">    protected DataSample&lt;Double&gt; currentSignal = null;</span>
+
+    /**
+     * Logger data broadcaster.
+     */
+<span class="fc" id="L44">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;Double&gt;();</span>
+
+    /**
+     * The poll interval.
+     *
+     * &lt;p&gt;
+     *
+     * Sleep this many milliseconds between measuring the temperature and possibly reporting it.
+     *
+     * &lt;p&gt;
+     *
+     * 5000ms is a reasonable default for most applications.
+     */
+<span class="fc" id="L57">    private long pollIntervalMillis = 5000;</span>
+
+    /**
+     * Hardware address of the sensor on the remote end to watch for.
+     */
+    private final String address;
+
+<span class="fc" id="L64">    public AbstractAnalogSensor(String address, int pollIntervalMillis) {</span>
+
+        // Sensor address will never change, we will only accept it in the constructor.
+<span class="fc" id="L67">        this.address = address;</span>
+
+<span class="fc" id="L69">        setPollInterval(pollIntervalMillis);</span>
+<span class="fc" id="L70">    }</span>
+
+    @JmxAttribute(description = &quot;Poll interval, milliseconds&quot;)
+    public final long getPollInterval() {
+<span class="nc" id="L74">        return pollIntervalMillis;</span>
+    }
+
+    @ConfigurableProperty(propertyName = &quot;pollIntervalMillis&quot;, description = &quot;Poll interval, milliseconds&quot;)
+    public final void setPollInterval(long pollIntervalMillis) {
+
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        if (pollIntervalMillis &lt; 0) {</span>
+<span class="nc" id="L81">            throw new IllegalArgumentException(&quot;Poll interval must be positive&quot;);</span>
+        }
+
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if (pollIntervalMillis &lt; 1000) {</span>
+<span class="nc" id="L85">            logger.warn(&quot;Unreasonably short poll interval (&quot; + pollIntervalMillis + &quot;)&quot;);</span>
+        }
+
+<span class="fc" id="L88">        this.pollIntervalMillis = pollIntervalMillis;</span>
+<span class="fc" id="L89">    }</span>
+
+    @Override
+    public final String getAddress() {
+
+<span class="fc" id="L94">        return address;</span>
+    }
+
+    @Override
+    public final DataSample&lt;Double&gt; getSignal() {
+
+<span class="nc" id="L100">        return currentSignal;</span>
+    }
+
+    @Override
+    protected void execute() {
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        if (getPollInterval() &lt; 0) {</span>
+
+<span class="nc" id="L108">            throw new IllegalStateException(&quot;Negative poll interval (&quot; + getPollInterval() + &quot;)???&quot;);</span>
+        }
+
+<span class="nc" id="L111">        ThreadContext.push(&quot;execute@&quot; + getAddress());</span>
+
+        try {
+
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            while (isEnabled()) {</span>
+
+<span class="nc" id="L117">                currentSignal = getSensorSignal();</span>
+
+<span class="nc" id="L119">                logger.debug(&quot;Current signal: &quot; + currentSignal);</span>
+
+                // VT: NOTE: We will notify the listeners even if the
+                // signal hasn't changed - their processing logic may
+                // suck and just get stuck if they don't get frequent
+                // notifications
+
+<span class="nc" id="L126">                broadcast(currentSignal);</span>
+
+<span class="nc" id="L128">                Thread.sleep(pollIntervalMillis);</span>
+            }
+
+<span class="nc" id="L131">        } catch (Throwable t) {</span>
+<span class="nc" id="L132">            logger.fatal(&quot;Unexpected problem, shutting down:&quot;, t);</span>
+        } finally {
+<span class="nc" id="L134">            ThreadContext.pop();</span>
+<span class="nc" id="L135">            ThreadContext.clearStack();</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    protected final void broadcast(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L141">        dataBroadcaster.broadcast(signal);</span>
+<span class="nc" id="L142">    }</span>
+
+    /**
+     * Get the actual hardware device signal.
+     *
+     * @return The sensor signal.
+     *
+     * @exception IOException
+     *                if there was a problem communicating with the hardware sensor.
+     */
+    public abstract DataSample&lt;Double&gt; getSensorSignal() throws IOException;
+
+    @Override
+    public void addConsumer(DataSink&lt;Double&gt; consumer) {
+<span class="fc" id="L156">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="fc" id="L157">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;Double&gt; consumer) {
+<span class="nc" id="L161">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L162">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

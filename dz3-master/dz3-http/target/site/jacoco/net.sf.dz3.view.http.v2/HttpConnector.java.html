@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpConnector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.v2</a> &gt; <span class="el_source">HttpConnector.java</span></div><h1>HttpConnector.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.v2;
+
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.net.URL;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+
+import org.apache.http.HttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.ThreadContext;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import net.sf.dz3.device.model.impl.ThermostatModel;
+import net.sf.dz3.scheduler.Scheduler;
+import net.sf.dz3.view.Connector;
+import net.sf.dz3.view.ConnectorFactory;
+import net.sf.dz3.view.http.common.BufferedExchanger;
+import net.sf.dz3.view.http.common.QueueFeeder;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * HTTP client side interface.
+ * 
+ * This object is supposed to be instantiated via Spring configuration file, with objects
+ * that are supposed to be rendered and/or controlled being present in a set passed to the constructor.
+ * 
+ * See {@code net.sf.dz3.view.swing.Console} for more information.
+ * 
+ * {@code init-method=&quot;start&quot;} attribute must be used in Spring bean definition, otherwise
+ * the connector will not work.
+ * 
+ * Unlike {@link net.sf.dz3.view.http.v1.HttpConnector previous implementation} which turned out to have
+ * too much request data transfer and processing overhead, this connector caches data from all sources
+ * and then submits them in bigger packets more rarely. 
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class HttpConnector extends Connector&lt;JsonRenderer&gt;{
+
+<span class="nc" id="L51">    private final BlockingQueue&lt;ZoneSnapshot&gt; upstreamQueue = new LinkedBlockingQueue&lt;ZoneSnapshot&gt;();</span>
+    private final URL serverContextRoot;
+    private final BufferedExchanger&lt;ZoneSnapshot&gt; exchanger;
+<span class="nc" id="L54">    private final Gson gson = new Gson();</span>
+
+    /**
+     * Create an instance and fill it up with objects to render.
+     * 
+     * @param initSet Objects to display.
+     */
+    public HttpConnector(URL serverContextRoot, String username, String password, Set&lt;Object&gt; initSet) {
+
+<span class="nc" id="L63">        super(initSet);</span>
+        
+<span class="nc" id="L65">        this.serverContextRoot = serverContextRoot;</span>
+        
+<span class="nc" id="L67">        exchanger = new ZoneSnapshotExchanger(serverContextRoot, username, password, upstreamQueue);</span>
+        
+<span class="nc" id="L69">        Scheduler scheduler = null;</span>
+        
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        for (Iterator&lt;Object&gt; i = initSet.iterator(); i.hasNext(); ) {</span>
+            
+<span class="nc" id="L73">            Object maybeScheduler = i.next();</span>
+            
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            if (maybeScheduler instanceof Scheduler) {</span>
+                
+<span class="nc" id="L77">                logger.debug(&quot;Found scheduler: &quot; + maybeScheduler);</span>
+<span class="nc" id="L78">                scheduler = (Scheduler) maybeScheduler;</span>
+            }
+<span class="nc" id="L80">        }</span>
+        
+<span class="nc" id="L82">        logger.info(&quot;Using scheduler: &quot; + scheduler);</span>
+        
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (scheduler == null) {</span>
+
+<span class="nc" id="L86">            logger.error(&quot;No scheduler found, no schedule deviations will be reported to remote controls&quot;);</span>
+        }
+
+<span class="nc" id="L89">        register(ThermostatModel.class, new ThermostatFactory(scheduler));</span>
+<span class="nc" id="L90">    }</span>
+
+    /**
+     * Create an instance and fill it up with objects to render,
+     * using custom factory set.
+     * 
+     * @param initSet Objects to display.
+     * @param factorySet Set of {@link ConnectorFactory} objects to use for component creation.
+     */
+    public HttpConnector(URL serverBase, String username, String password, Set&lt;Object&gt; initSet, Set&lt;ConnectorFactory&lt;JsonRenderer&gt;&gt; factorySet) {
+        
+<span class="nc" id="L101">        super(initSet, factorySet);</span>
+        
+<span class="nc" id="L103">        this.serverContextRoot = serverBase;</span>
+
+<span class="nc" id="L105">        exchanger = new ZoneSnapshotExchanger(serverContextRoot, username, password, upstreamQueue);</span>
+<span class="nc" id="L106">    }</span>
+
+    @Override
+    protected void activate2() {
+
+<span class="nc" id="L111">        exchanger.start();</span>
+<span class="nc" id="L112">    }</span>
+
+    @Override
+    protected Map&lt;String, Object&gt; createContext() {
+
+<span class="nc" id="L117">        Map&lt;String, Object&gt; context = new TreeMap&lt;String, Object&gt;();</span>
+        
+<span class="nc" id="L119">        context.put(QueueFeeder.QUEUE_KEY, upstreamQueue);</span>
+<span class="nc" id="L120">        return context;</span>
+    }
+
+    @Override
+    protected void deactivate2() {
+
+<span class="nc" id="L126">        exchanger.stop();</span>
+<span class="nc" id="L127">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L132">        int port = serverContextRoot.getPort();</span>
+
+<span class="nc" id="L134">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="nc" id="L136">                getClass().getSimpleName(),</span>
+<span class="nc" id="L137">                serverContextRoot.getProtocol()</span>
+<span class="nc" id="L138">                + &quot; &quot; + serverContextRoot.getHost()</span>
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                + (port == -1 ? &quot;&quot; : &quot; port &quot; + port)</span>
+<span class="nc" id="L140">                + &quot; &quot; + serverContextRoot.getPath(),</span>
+                &quot;HTTP Client v2&quot;);
+    }
+    
+    @JmxAttribute(description = &quot;Upstream queue size&quot;)
+    public final int getQueueSize() {
+        
+<span class="nc" id="L147">        return upstreamQueue.size();</span>
+    }
+
+    @JmxAttribute(description=&quot;Maximum age of the buffer before it gets sent, in milliseconds&quot;)
+    public long getMaxBufferAgeMillis() {
+        
+<span class="nc" id="L153">        return exchanger.getMaxBufferAgeMillis();</span>
+    }
+
+    /**
+     * Set the maximum buffer age.
+     * 
+     * @param maxBufferAgeMillis Maximum buffer age, in milliseconds.
+     */
+    public void setMaxBufferAgeMillis(long maxBufferAgeMillis) {
+        
+<span class="nc" id="L163">        exchanger.setMaxBufferAgeMillis(maxBufferAgeMillis);</span>
+<span class="nc" id="L164">    }</span>
+
+    private class ZoneSnapshotExchanger extends BufferedExchanger&lt;ZoneSnapshot&gt; {
+
+        public ZoneSnapshotExchanger(URL serverContextRoot,
+                String username, String password, 
+<span class="nc" id="L170">                BlockingQueue&lt;ZoneSnapshot&gt; upstreamQueue) {</span>
+
+<span class="nc" id="L172">            super(serverContextRoot, username, password, upstreamQueue);</span>
+<span class="nc" id="L173">        }</span>
+
+        @Override
+        protected final void exchange(List&lt;ZoneSnapshot&gt; buffer) {
+            
+<span class="nc" id="L178">            ThreadContext.push(&quot;exchange&quot;);</span>
+            
+            try {
+
+<span class="nc" id="L182">                logger.debug(&quot;Sending: &quot; + buffer);</span>
+                
+<span class="nc" id="L184">                String encoded = gson.toJson(buffer);</span>
+
+<span class="nc" id="L186">                logger.debug(&quot;JSON: &quot; + encoded);</span>
+
+<span class="nc" id="L188">                URL targetUrl = serverContextRoot;</span>
+<span class="nc" id="L189">                URIBuilder builder = new URIBuilder(targetUrl.toString());</span>
+                
+<span class="nc" id="L191">                builder.addParameter(&quot;snapshot&quot;, encoded);</span>
+<span class="nc" id="L192">                HttpPost post = new HttpPost(builder.toString());</span>
+                
+                try {
+
+<span class="nc" id="L196">                    HttpResponse rsp = httpClient.execute(post, context);</span>
+<span class="nc" id="L197">                    int rc = rsp.getStatusLine().getStatusCode();</span>
+
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                    if (rc != 200) {</span>
+
+<span class="nc" id="L201">                        logger.error(&quot;HTTP rc=&quot; + rc + &quot;, text follows:&quot;);</span>
+<span class="nc" id="L202">                        logger.error(EntityUtils.toString(rsp.getEntity()));</span>
+                        
+<span class="nc" id="L204">                        throw new IOException(&quot;Request failed with HTTP code &quot; + rc);</span>
+                    }
+                    
+<span class="nc" id="L207">                    processResponse(EntityUtils.toString(rsp.getEntity()));</span>
+                    
+                } finally {
+<span class="nc" id="L210">                    post.releaseConnection();</span>
+                }
+                
+<span class="nc" id="L213">            } catch (Throwable t) {</span>
+                
+                // VT: FIXME: For now, this is not a recoverable problem, the snapshot is
+                // irretrievably lost. Need to see if this matters at all
+                
+<span class="nc" id="L218">                logger.error(&quot;Buffer exchange failed&quot;, t);</span>
+            
+            } finally {
+<span class="nc" id="L221">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L223">        }</span>
+
+        private void processResponse(String rsp) {
+
+<span class="nc" id="L227">            ThreadContext.push(&quot;processResponse&quot;);</span>
+            
+            try {
+                
+<span class="nc" id="L231">                logger.debug(&quot;JSON: &quot; + rsp);</span>
+                
+<span class="nc" id="L233">                Type setType = new TypeToken&lt;Set&lt;ZoneCommand&gt;&gt;(){}.getType();</span>
+<span class="nc" id="L234">                Set&lt;ZoneCommand&gt; buffer = gson.fromJson(rsp, setType);</span>
+                
+<span class="nc" id="L236">                logger.debug(&quot;Commands received: &quot; + buffer.size());</span>
+                
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                if (buffer.isEmpty()) {</span>
+<span class="nc" id="L239">                    return;</span>
+                }
+                
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                for (Iterator&lt;ZoneCommand&gt; i = buffer.iterator(); i.hasNext(); ) {</span>
+                    
+<span class="nc" id="L244">                    executeCommand(i.next());</span>
+                }
+            
+            } finally {
+<span class="nc" id="L248">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L250">        }</span>
+
+        private void executeCommand(ZoneCommand command) {
+            
+<span class="nc" id="L254">            ThreadContext.push(&quot;executeCommand&quot;);</span>
+            
+            try {
+                
+<span class="nc" id="L258">                logger.debug(&quot;Command: &quot; + command);</span>
+                
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                for (Iterator&lt;Object&gt; i = getInitSet().iterator(); i.hasNext(); ) {</span>
+                    
+<span class="nc" id="L262">                    Object next = i.next();</span>
+                    
+<span class="nc bnc" id="L264" title="All 2 branches missed.">                    if (!(next instanceof ThermostatModel)) {</span>
+                        
+<span class="nc" id="L266">                        continue;</span>
+                    }
+                    
+<span class="nc" id="L269">                    ThermostatModel ts =  (ThermostatModel) next;</span>
+                    
+<span class="nc bnc" id="L271" title="All 2 branches missed.">                    if (ts.getName().equals(command.name)) {</span>
+                        
+<span class="nc" id="L273">                        logger.debug(&quot;Matched: &quot; + command.name);</span>
+                        
+<span class="nc" id="L275">                        ts.setSetpoint(command.setpointTemperature);</span>
+<span class="nc" id="L276">                        ts.setOn(command.enabled);</span>
+<span class="nc" id="L277">                        ts.setOnHold(command.onHold);</span>
+<span class="nc" id="L278">                        ts.setVoting(command.voting);</span>
+                    }
+<span class="nc" id="L280">                }</span>
+                
+            } finally {
+<span class="nc" id="L283">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L285">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

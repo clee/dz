@@ -1,0 +1,8 @@
+01:07:21,290 WARN Container main [run] Usage: dz <configuration file>
+01:07:21,295 WARN Container main [run] Trying to load a sample configuration from 'raspberry-pi.xml'
+01:07:21,296 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@28261e8e#d737b89: (loadConfiguration(raspberry-pi.xml)) started
+01:07:21,325 WARN Container main [run, loadConfiguration(raspberry-pi.xml)] Failed to load raspberry-pi.xml, reason: IOException parsing XML document from file [/home/vt/dev/dz/raspberry-pi.xml]; nested exception is java.io.FileNotFoundException: raspberry-pi.xml (No such file or directory)
+01:07:21,326 WARN Container main [run, loadConfiguration(raspberry-pi.xml)] Failed to load raspberry-pi.xml, reason: IOException parsing XML document from class path resource [raspberry-pi.xml]; nested exception is java.io.FileNotFoundException: class path resource [raspberry-pi.xml] cannot be opened because it does not exist
+01:07:21,328 DEBUG Marker main [run, loadConfiguration(raspberry-pi.xml)] marker@28261e8e#d737b89: (loadConfiguration(raspberry-pi.xml)) completed in 30 ms (0:00:00.030)
+01:07:21,328 ERROR Container main [run] No configuration was found, terminating
+01:07:21,329 FATAL Container main [run] Shutting down

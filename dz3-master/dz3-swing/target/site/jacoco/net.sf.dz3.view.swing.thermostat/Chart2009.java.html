@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Chart2009.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing.thermostat</a> &gt; <span class="el_source">Chart2009.java</span></div><h1>Chart2009.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing.thermostat;
+
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.time.Clock;
+import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import net.sf.dz3.controller.DataSet;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+
+/**
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ * @deprecated Use {@link Chart2016} instead.
+ *
+ * VT: NOTE: squid:S110 - I don't care, I didn't create those parents, Sun did. I need mine.
+ */
+<span class="nc bnc" id="L23" title="All 2 branches missed.">@SuppressWarnings(&quot;squid:S110&quot;)</span>
+@Deprecated
+public class Chart2009 extends AbstractChart2009 {
+
+    private static final long serialVersionUID = -8138341010404232436L;
+
+    public Chart2009(Clock clock, long chartLengthMillis) {
+
+<span class="nc" id="L31">        super(clock, chartLengthMillis);</span>
+<span class="nc" id="L32">    }</span>
+
+    @Override
+    public synchronized void consume(DataSample&lt;TintedValueAndSetpoint&gt; signal) {
+
+<span class="nc bnc" id="L37" title="All 4 branches missed.">        assert(signal != null);</span>
+<span class="nc bnc" id="L38" title="All 4 branches missed.">        assert(signal.sample != null);</span>
+
+<span class="nc" id="L40">        String channel = signal.sourceName;</span>
+<span class="nc" id="L41">        DataSet&lt;TintedValue&gt; ds = channel2dsValue.get(channel);</span>
+
+<span class="nc bnc" id="L43" title="All 2 branches missed.">        if (ds == null) {</span>
+
+<span class="nc" id="L45">            ds = new DataSet&lt;TintedValue&gt;(chartLengthMillis);</span>
+<span class="nc" id="L46">            channel2dsValue.put(channel, ds);</span>
+        }
+
+<span class="nc" id="L49">        ds.record(signal.timestamp, signal.sample);</span>
+<span class="nc" id="L50">        adjustVerticalLimits(signal.timestamp, signal.sample.value, signal.sample.setpoint);</span>
+
+<span class="nc" id="L52">        repaint();</span>
+<span class="nc" id="L53">    }</span>
+
+    @Override
+    protected void paintChart(Graphics2D g2d, Dimension boundary, Insets insets,
+            long now, double x_scale, long x_offset, double y_scale, double y_offset,
+            String channel, DataSet&lt;TintedValue&gt; dsValues, DataSet&lt;Double&gt; dsSetpoints) {
+
+<span class="nc" id="L60">        DataSet&lt;TintedValue&gt; sparceSet = spaceOut(dsValues, boundary.width);</span>
+
+<span class="nc" id="L62">        Long time_trailer = null;</span>
+<span class="nc" id="L63">        TintedValue trailer = null;</span>
+
+        // Flag to reduce the color changes
+<span class="nc" id="L66">        boolean dead = false;</span>
+
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        for (Iterator&lt;Long&gt; di = sparceSet.iterator(); di.hasNext();) {</span>
+
+<span class="nc" id="L70">            long time_now = di.next();</span>
+<span class="nc" id="L71">            TintedValue cursor = sparceSet.get(time_now);</span>
+
+<span class="nc bnc" id="L73" title="All 2 branches missed.">            if (time_trailer != null) {</span>
+
+<span class="nc" id="L75">                double x0 = (time_trailer - x_offset) * x_scale</span>
+                        + insets.left;
+<span class="nc" id="L77">                double y0 = (y_offset - trailer.value) * y_scale</span>
+                        + insets.top;
+
+<span class="nc" id="L80">                double x1 = (time_now - x_offset) * x_scale</span>
+                        + insets.left;
+<span class="nc" id="L82">                double y1 = (y_offset - cursor.value) * y_scale</span>
+                        + insets.top;
+
+                // Decide whether the line is alive or dead
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">                if (time_now - time_trailer &lt;= DEAD_TIMEOUT) {</span>
+
+                } else {
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                    if (!dead) {</span>
+
+<span class="nc" id="L93">                        dead = true;</span>
+                    }
+
+                    // Paint the horizontal line in dead color
+                    // and skew the x0 so the next part will be
+                    // painted vertical
+
+<span class="nc" id="L100">                    Color startColor = signal2color(trailer.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+<span class="nc" id="L101">                    Color endColor = getBackground();</span>
+
+<span class="nc" id="L103">                    drawGradientLine(g2d, x0, y0, x1, y0, startColor, endColor, cursor.emphasize);</span>
+
+<span class="nc" id="L105">                    x0 = x1;</span>
+                }
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                if (dead) {</span>
+<span class="nc" id="L109">                    dead = false;</span>
+                }
+
+<span class="nc" id="L112">                Color startColor = signal2color(trailer.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+<span class="nc" id="L113">                Color endColor = signal2color(cursor.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+
+<span class="nc" id="L115">                drawGradientLine(g2d, x0, y0, x1, y1, startColor, endColor, cursor.emphasize);</span>
+            }
+
+<span class="nc" id="L118">            time_trailer = time_now;</span>
+
+<span class="nc" id="L120">            trailer = new TintedValue(cursor.value, cursor.tint, cursor.emphasize);</span>
+<span class="nc" id="L121">        }</span>
+
+<span class="nc bnc" id="L123" title="All 4 branches missed.">        if (time_trailer != null &amp;&amp; now - time_trailer &gt; DEAD_TIMEOUT) {</span>
+
+            // There's a gap on the right, let's fill it
+
+<span class="nc" id="L127">            double x0 = (time_trailer - x_offset) * x_scale</span>
+                    + insets.left;
+<span class="nc" id="L129">            double x1 = (now - x_offset) * x_scale + insets.left;</span>
+<span class="nc" id="L130">            double y = (y_offset - trailer.value) * y_scale + insets.top;</span>
+
+<span class="nc" id="L132">            Color startColor = signal2color(trailer.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+<span class="nc" id="L133">            Color endColor = getBackground();</span>
+
+<span class="nc" id="L135">            drawGradientLine(g2d, x0, y, x1, y, startColor, endColor, false);</span>
+        }
+
+        // Store the values so the readings can be displayed
+        // over the curves
+
+        //		if (value_trailer != null) {
+        //			values.put(name, value_trailer);
+        //		}
+<span class="nc" id="L144">    }</span>
+
+    private DataSet&lt;TintedValue&gt; spaceOut(DataSet&lt;TintedValue&gt; source, int width) {
+
+<span class="nc" id="L148">        DataSet&lt;TintedValue&gt; target = new DataSet&lt;TintedValue&gt;(source.getExpirationInterval());</span>
+<span class="nc" id="L149">        long step = chartLengthMillis / width;</span>
+
+<span class="nc" id="L151">        logger.info(&quot;Source: &quot; + source.size() + &quot; samples&quot;);</span>
+<span class="nc" id="L152">        logger.info(&quot;ms per pixel: &quot; + step);</span>
+
+<span class="nc" id="L154">        step *= 2;</span>
+
+<span class="nc" id="L156">        SortedMap&lt;Long, TintedValue&gt; overflow = new TreeMap&lt;Long, TintedValue&gt;();</span>
+<span class="nc" id="L157">        SortedMap&lt;Long, TintedValue&gt; buffer = new TreeMap&lt;Long, TintedValue&gt;();</span>
+<span class="nc" id="L158">        Long cutoff = null;</span>
+
+<span class="nc bnc" id="L160" title="All 2 branches missed.">        for (Iterator&lt;Long&gt; i = source.iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L162">            long timestamp = i.next();</span>
+<span class="nc" id="L163">            TintedValue value = source.get(timestamp);</span>
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            if (cutoff == null) {</span>
+
+<span class="nc" id="L167">                cutoff = timestamp;</span>
+<span class="nc" id="L168">                buffer.put(timestamp, value);</span>
+
+<span class="nc" id="L170">                continue;</span>
+            }
+
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            if (!overflow.isEmpty()) {</span>
+
+<span class="nc" id="L175">                Long key = overflow.firstKey();</span>
+<span class="nc" id="L176">                buffer.put(key, overflow.get(key));</span>
+<span class="nc" id="L177">                overflow.clear();</span>
+
+<span class="nc" id="L179">                cutoff = key;</span>
+            }
+
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            if (timestamp &gt; cutoff + step) {</span>
+
+<span class="nc" id="L184">                overflow.put(timestamp, value);</span>
+<span class="nc" id="L185">                Long last = buffer.lastKey();</span>
+<span class="nc" id="L186">                target.record(last, spaceOut(buffer));</span>
+
+<span class="nc" id="L188">                continue;</span>
+            }
+
+<span class="nc" id="L191">            buffer.put(timestamp, value);</span>
+<span class="nc" id="L192">        }</span>
+
+<span class="nc" id="L194">        logger.info(&quot;Target: &quot; + target.size() + &quot; samples&quot;);</span>
+
+<span class="nc" id="L196">        return target;</span>
+    }
+
+    private TintedValue spaceOut(SortedMap&lt;Long, TintedValue&gt; buffer) {
+
+<span class="nc" id="L201">        int size = buffer.size();</span>
+
+<span class="nc bnc" id="L203" title="All 4 branches missed.">        assert(size &gt; 0);</span>
+
+<span class="nc" id="L205">        double valueAccumulator = 0;</span>
+<span class="nc" id="L206">        double tintAccumulator = 0;</span>
+<span class="nc" id="L207">        int emphasizeAccumulator = 0;</span>
+
+<span class="nc bnc" id="L209" title="All 2 branches missed.">        for (Iterator&lt;Entry&lt;Long, TintedValue&gt;&gt; i = buffer.entrySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L211">            Entry&lt;Long, TintedValue&gt; entry = i.next();</span>
+<span class="nc" id="L212">            TintedValue signal = entry.getValue();</span>
+
+<span class="nc" id="L214">            valueAccumulator += signal.value;</span>
+<span class="nc" id="L215">            tintAccumulator += signal.tint;</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            emphasizeAccumulator += signal.emphasize ? 1 : 0;</span>
+
+<span class="nc" id="L218">            i.remove();</span>
+<span class="nc" id="L219">        }</span>
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        return new TintedValue(valueAccumulator / size, tintAccumulator / size, emphasizeAccumulator &gt; 0);</span>
+    }
+
+    @Override
+    protected void checkWidth(Dimension boundary) {
+        // Does nothing here
+<span class="nc" id="L227">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

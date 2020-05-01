@@ -270,7 +270,6 @@ public class XBeeDeviceFactory extends AbstractDeviceFactory<XBeeDeviceContainer
 
             logger.debug("Node discovery timeout is {} milliseconds", nodeDiscoveryTimeout);
 
-
             logger.debug("Sending node discover command");
             target.sendAsynchronous(new AtCommand("ND"));
 

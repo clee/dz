@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThermostatFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.v2</a> &gt; <span class="el_source">ThermostatFactory.java</span></div><h1>ThermostatFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.v2;
+
+import java.util.Map;
+
+import net.sf.dz3.device.model.impl.ThermostatModel;
+import net.sf.dz3.scheduler.Scheduler;
+import net.sf.dz3.view.ConnectorFactory;
+
+/**
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2011
+ */
+public class ThermostatFactory extends ConnectorFactory&lt;JsonRenderer&gt; {
+    
+    private final Scheduler scheduler;
+    
+    /**
+     * Create an instance.
+     * 
+     * @param scheduler The scheduler. Can be {@code null}.
+     */
+<span class="nc" id="L21">    public ThermostatFactory(Scheduler scheduler) {</span>
+    
+<span class="nc" id="L23">        this.scheduler = scheduler;</span>
+        
+<span class="nc bnc" id="L25" title="All 2 branches missed.">        if (scheduler != null) {</span>
+            
+            // Lest there be a situation when someone adds more than one and forgets which one it is
+<span class="nc" id="L28">            logger.info(&quot;Using scheduler: &quot; + scheduler);</span>
+        }
+<span class="nc" id="L30">    }</span>
+
+    @Override
+    public JsonRenderer createComponent(Object source, Map&lt;String, Object&gt; context) {
+
+<span class="nc" id="L35">        return new ThermostatRenderer((ThermostatModel) source, context, scheduler);</span>
+    }
+
+    @Override
+    public Class&lt;?&gt; getSourceClass() {
+
+<span class="nc" id="L41">        return ThermostatModel.class;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -38,7 +38,7 @@ public class NullDamper extends AbstractDamper {
 	ThreadContext.push("moveDamper");
 
 	try {
-	
+
 	    logger.debug("new position: " + throttle);
 	    this.throttle = throttle;
 
@@ -53,15 +53,16 @@ public class NullDamper extends AbstractDamper {
 	}
     }
 
+    @Override
     public double getPosition() throws IOException {
-	
+
 	ThreadContext.push("getThrottle");
-	
+
 	try {
 
 	    logger.debug("returning: " + throttle);
 	    return throttle;
-        
+
 	} finally {
 	    ThreadContext.pop();
 	}
@@ -69,7 +70,7 @@ public class NullDamper extends AbstractDamper {
 
     @Override
     public JmxDescriptor getJmxDescriptor() {
-        
+
         return new JmxDescriptor(
                 "dz",
                 "Null damper",

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HvacUnit2020.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dz3-hvac2020</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator</a> &gt; <span class="el_source">HvacUnit2020.java</span></div><h1>HvacUnit2020.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator;
+
+import java.util.concurrent.Future;
+
+import net.sf.dz3.device.model.HvacMode;
+import com.homeclimatecontrol.jukebox.datastream.signal.model.DataSink;
+import com.homeclimatecontrol.jukebox.jmx.JmxAttribute;
+import com.homeclimatecontrol.jukebox.jmx.JmxAware;
+
+/**
+ * The 2020 abstraction for HVAC units.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public interface HvacUnit2020 extends JmxAware, DataSink&lt;Double&gt;, Comparable&lt;HvacUnit2020&gt;, PowerOffCapable&lt;HvacUnit2020.Status&gt; {
+
+    public static class Status {
+
+        public final HvacMode mode;
+        public final double demand;
+        public final double fanSpeed;
+
+<span class="fc" id="L23">        public Status(HvacMode mode, double demand, double fanSpeed) {</span>
+<span class="fc" id="L24">            this.mode = mode;</span>
+<span class="fc" id="L25">            this.demand = demand;</span>
+<span class="fc" id="L26">            this.fanSpeed = fanSpeed;</span>
+<span class="fc" id="L27">        }</span>
+    }
+
+    /**
+     * Get the name of the unit.
+     */
+    @JmxAttribute(description=&quot;Unit name&quot;)
+    String getName();
+
+    /**
+     * @return Requested status.
+     */
+    @JmxAttribute(description=&quot;Current status (requested)&quot;)
+    Status getStatus();
+
+    /**
+     * @return Actual status. May be different from {@link #getStatus()} due to hardware delays.
+     */
+    @JmxAttribute(description=&quot;Current status (actual)&quot;)
+    Status getActualStatus();
+
+    /**
+     * Set operating mode.
+     *
+     * @param mode Mode to set.
+     * @return The future that becomes done when the hardware completes the operation.
+     */
+    Future&lt;Status&gt; setMode(HvacMode mode);
+
+    /**
+     * Set the unit demand.
+     *
+     * Any value greater than {@code 0} will cause the unit to switch on.
+     *
+     * Any value equal or less than {@code 0} will cause the unit to switch off.
+     *
+     * This is true for both heating and cooling mode; it is up to the
+     * implementation how to translate the demand into hardware instructions.
+     *
+     * @param demand Demand to set.
+     * @return The future that becomes done when the hardware completes the operation.
+     */
+    Future&lt;Status&gt; setDemand(double demand);
+
+    /**
+     * Set the fan speed.
+     *
+     * Any value greater than {@code 0} will cause the fan to switch on.
+     *
+     * Any value equal or less than {@code 0} will cause the unit to switch off.
+     *
+     * Any value greater than {@code 1} is considered a programming error and
+     * must cause the implementation to throw an {@code IllegalArgumentException}.
+     *
+     * This is true for both heating and cooling mode; it is up to the
+     * implementation how to translate the demand into hardware instructions.
+     *
+     * @param demand Demand to set.
+     * @return The future that becomes done when the hardware completes the operation.
+     */
+    Future&lt;Status&gt; setFanSpeed(double speed);
+
+    /**
+     * Power off the device in a safe way, synchronously.
+     *
+     * NOTE: This method is provided to provide background compatibility with the
+     * synchronous {@link HvacDriver#powerOff()}, use {@link #powerOffAsync()}
+     * instead if possible.
+     */
+    @Override
+    void powerOff();
+
+    /**
+     * Power off the device in a safe way, asynchronously.
+     *
+     * NOTE: The method specification is asynchronous. Extreme caution must be paid by the caller
+     * not to shut down the JVM before the operation is complete.
+     *
+     * @return The future that becomes done when the hardware completes the operation.
+     */
+    @Override
+    Future&lt;Status&gt; powerOffAsync();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

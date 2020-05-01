@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZoneStatusImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">ZoneStatusImpl.java</span></div><h1>ZoneStatusImpl.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import java.io.Serializable;
+
+import net.sf.dz3.device.model.ZoneStatus;
+
+public class ZoneStatusImpl implements ZoneStatus, Serializable {
+
+    private static final long serialVersionUID = 7691993493568700451L;
+    public final double setpoint;
+    public final int dumpPriority;
+    public final boolean enabled;
+    public final boolean voting;
+
+<span class="fc" id="L15">    public ZoneStatusImpl(double setpoint, int dumpPriority, boolean enabled, boolean voting) {</span>
+
+<span class="fc bfc" id="L17" title="All 6 branches covered.">        if (Double.compare(setpoint, Double.NaN) == 0 || setpoint == Double.NEGATIVE_INFINITY || setpoint == Double.POSITIVE_INFINITY) {</span>
+<span class="fc" id="L18">            throw new IllegalArgumentException(&quot;Invalid setpoint &quot; + setpoint);</span>
+        }
+
+<span class="fc bfc" id="L21" title="All 2 branches covered.">        if (dumpPriority &lt; 0) {</span>
+
+<span class="fc" id="L23">            throw new IllegalArgumentException(&quot;Dump priority must be non-negative (&quot; + dumpPriority + &quot; given)&quot;);</span>
+        }
+
+<span class="fc" id="L26">        this.setpoint = setpoint;</span>
+<span class="fc" id="L27">        this.dumpPriority = dumpPriority;</span>
+<span class="fc" id="L28">        this.enabled = enabled;</span>
+<span class="fc" id="L29">        this.voting = voting;</span>
+<span class="fc" id="L30">    }</span>
+
+    @Override
+    public double getSetpoint() {
+<span class="fc" id="L34">        return setpoint;</span>
+    }
+
+    @Override
+    public int getDumpPriority() {
+<span class="fc" id="L39">        return dumpPriority;</span>
+    }
+
+    @Override
+    public boolean isOn() {
+<span class="fc" id="L44">        return enabled;</span>
+    }
+
+    @Override
+    public boolean isVoting() {
+<span class="fc" id="L49">        return voting;</span>
+    }
+
+    @Override
+    public String toString() {
+
+<span class="fc" id="L55">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="fc" id="L57">        sb.append(&quot;setpoint=&quot;).append(setpoint);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        sb.append(enabled ? &quot;, enabled&quot; : &quot;, disabled&quot;);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        sb.append(voting ? &quot;, voting&quot; : &quot;, not voting&quot;);</span>
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        sb.append(dumpPriority != 0 ? &quot;, dump priority=&quot; + dumpPriority : &quot;&quot;);</span>
+
+<span class="fc" id="L62">        return sb.toString();</span>
+    }
+
+    @Override
+    public boolean equals(Object other) {
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (other == null) {</span>
+<span class="fc" id="L69">            return false;</span>
+        }
+
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (!(other instanceof ZoneStatus)) {</span>
+<span class="fc" id="L73">            return false;</span>
+        }
+
+<span class="fc" id="L76">        ZoneStatus otherStatus = (ZoneStatus) other;</span>
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        return (Double.compare(getSetpoint(), otherStatus.getSetpoint()) == 0)</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            &amp;&amp; (getDumpPriority() == otherStatus.getDumpPriority())</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">            &amp;&amp; (isOn() == otherStatus.isOn())</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            &amp;&amp; (isVoting() == otherStatus.isVoting());</span>
+    }
+
+    @Override
+    public int hashCode() {
+
+<span class="fc" id="L87">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="fc" id="L89">        return sb.append(setpoint).append(enabled).append(voting).append(dumpPriority).toString().hashCode();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

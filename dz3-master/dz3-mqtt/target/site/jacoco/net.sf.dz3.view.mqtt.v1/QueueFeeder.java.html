@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>QueueFeeder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">MQTT Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.mqtt.v1</a> &gt; <span class="el_source">QueueFeeder.java</span></div><h1>QueueFeeder.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.mqtt.v1;
+
+import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+
+import net.sf.jukebox.util.MessageDigestFactory;
+
+/**
+ * Basic contraption to feed the {@link #upstreamQueue}.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2019
+ */
+public abstract class QueueFeeder&lt;DataBlock&gt; {
+    
+    /**
+     * Key to extract the {@link #upstreamQueue queue} from the map given to the constructor.
+     */
+    public final static String QUEUE_KEY = &quot;upstream queue&quot;;
+
+<span class="nc" id="L20">    private final MessageDigestFactory digestFactory = new MessageDigestFactory();</span>
+
+    /**
+     * Queue to put notifications into.
+     * 
+     *  {@link #emit(UpstreamBlock)} will take care of that.
+     */
+    private final BlockingQueue&lt;DataBlock&gt; upstreamQueue;
+    
+    /**
+     * Create an instance.
+     * 
+     * @param context A map that contains the {@link #upstreamQueue} object under
+     * {@link #QUEUE_KEY} key. 
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+<span class="nc" id="L36">    public QueueFeeder(Map&lt;String, Object&gt; context) {</span>
+
+<span class="nc bnc" id="L38" title="All 2 branches missed.">        if (context == null) {</span>
+<span class="nc" id="L39">            throw new IllegalArgumentException(&quot;null context, doesn't make sense&quot;);</span>
+        }
+
+<span class="nc" id="L42">        upstreamQueue = (BlockingQueue&lt;DataBlock&gt;) context.get(QUEUE_KEY);</span>
+
+<span class="nc bnc" id="L44" title="All 2 branches missed.">        if (upstreamQueue == null) {</span>
+<span class="nc" id="L45">            throw new IllegalArgumentException(&quot;null queue, doesn't make sense&quot;);</span>
+        }
+<span class="nc" id="L47">    }</span>
+
+    /**
+     * Queue the notification.
+     * 
+     * @param b Data block to queue.
+     */
+    protected final void emit(DataBlock b) {
+        
+<span class="nc" id="L56">        upstreamQueue.add(b);</span>
+<span class="nc" id="L57">    }</span>
+
+    protected String getMessageDigest(String source) {
+
+        // VT: NOTE: MD5 is cryptographically weak, but probably sufficient for this purpose
+
+<span class="nc" id="L63">        return digestFactory.getMD5(source);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,510 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Scheduler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Scheduler</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.scheduler</a> &gt; <span class="el_source">Scheduler.java</span></div><h1>Scheduler.java</h1><pre class="source lang-java linenums">package net.sf.dz3.scheduler;
+
+import java.io.IOException;
+import java.text.DecimalFormat;
+import java.util.EmptyStackException;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+import org.joda.time.DateTime;
+
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.device.model.ZoneStatus;
+import net.sf.dz3.device.model.impl.ZoneStatusImpl;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxAware;
+import net.sf.jukebox.jmx.JmxDescriptor;
+import net.sf.jukebox.sem.ACT;
+import net.sf.jukebox.sem.EventSemaphore;
+import net.sf.jukebox.service.StoppableService;
+
+/**
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class Scheduler implements Runnable, StoppableService, JmxAware {
+
+<span class="fc" id="L35">    private final Logger logger = LogManager.getLogger(getClass());</span>
+<span class="fc" id="L36">    private final static DecimalFormat df = new DecimalFormat(&quot;#0.0###;-#0.0###&quot;);</span>
+
+<span class="fc" id="L38">    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);</span>
+    private final ScheduleUpdater updater;
+
+    /**
+     * Schedule check and execution granularity, in milliseconds.
+     */
+<span class="fc" id="L44">    private long scheduleGranularityMillis = 60 * 1000;</span>
+
+    /**
+     * The schedule.
+     */
+<span class="fc" id="L49">    private final Map&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt; schedule = new TreeMap&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt;();</span>
+
+    /**
+     * Current settings.
+     *
+     * VT: NOTE: It is possible to get rid of this using {@link ZoneStatusImpl#equals(Object)}
+     * implementation, but let's think of it later, premature optimization is the mother of all evil.
+     */
+<span class="fc" id="L57">    private final Map&lt;Thermostat, ZoneStatus&gt; currentStatus = new TreeMap&lt;Thermostat, ZoneStatus&gt;();</span>
+
+    /**
+     * Mapping of selected period to a thermostat.
+     */
+<span class="fc" id="L62">    private final Map&lt;Thermostat, Period&gt; currentPeriod = new TreeMap&lt;Thermostat, Period&gt;();</span>
+
+    /**
+     * Create an instance using no updater with empty schedule.
+     */
+    public Scheduler() {
+
+<span class="fc" id="L69">        this(null, null);</span>
+<span class="fc" id="L70">    }</span>
+
+    /**
+     * Create an instance using no updater and initialize it with a given schedule.
+     *
+     * @param schedule Schedule to initialize with.
+     */
+    public Scheduler(Map&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt; schedule) {
+
+<span class="fc" id="L79">        this(null, schedule);</span>
+<span class="fc" id="L80">    }</span>
+
+    /**
+     * Create an instance using a given updater and rely on updater to fetch the schedule.
+     *
+     * @param updater Updater to use.
+     */
+    public Scheduler(ScheduleUpdater updater) {
+
+<span class="fc" id="L89">        this(updater, null);</span>
+<span class="fc" id="L90">    }</span>
+
+    /**
+     * Create an instance using a given updater and initialize it with a given schedule.
+     *
+     * @param updater Updater to use.
+     * @param schedule Schedule to initialize with.
+     */
+<span class="fc" id="L98">    public Scheduler(ScheduleUpdater updater, Map&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt; schedule) {</span>
+
+<span class="fc" id="L100">        this.updater = updater;</span>
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (schedule == null) {</span>
+<span class="fc" id="L103">            logger.warn(&quot;schedule is null, ignored&quot;);</span>
+<span class="fc" id="L104">            return;</span>
+        }
+
+<span class="fc" id="L107">        this.schedule.putAll(schedule);</span>
+<span class="fc" id="L108">    }</span>
+
+    /**
+     * Start with default delay.
+     *
+     * This method needs to be called in order for the scheduler to start functioning.
+     * @return
+     *
+     * @see #start(long)
+     */
+    @Override
+    public EventSemaphore start() {
+
+        // There has to be some initial delay to let sensors settle,
+        // otherwise there'll be NullPointerExceptions everywhere
+
+        // VT: FIXME: I don't like the statement above, it suggest flakiness. Let's see
+        // if this restriction can be removed.
+
+<span class="fc" id="L127">        return start(10000);</span>
+    }
+
+    /**
+     * Start with a given initial delay.
+     *
+     * This method needs to be called in order for the scheduler to start functioning.
+     *
+     * @param initialDelayMillis Initial delay.
+     *
+     * @see #start()
+     */
+    public EventSemaphore start(long initialDelayMillis) {
+
+<span class="fc" id="L141">        logger.warn(&quot;VT: FIXME: Synchronize to the minute boundary&quot;);</span>
+
+<span class="fc" id="L143">        scheduler.scheduleAtFixedRate(this, initialDelayMillis, getScheduleGranularity(), TimeUnit.MILLISECONDS);</span>
+
+        // We're cheating, for simplicity
+
+<span class="fc" id="L147">        ACT started = new ACT();</span>
+
+<span class="fc" id="L149">        started.post();</span>
+
+<span class="fc" id="L151">        return started;</span>
+    }
+
+    /**
+     * Stop the scheduler.
+     *
+     * @return
+     */
+    @Override
+    public EventSemaphore stop() {
+
+<span class="fc" id="L162">        ThreadContext.push(&quot;stop&quot;);</span>
+
+        try {
+
+<span class="fc" id="L166">            logger.info(&quot;stopping&quot;);</span>
+
+<span class="fc" id="L168">            scheduler.shutdown();</span>
+
+            try {
+
+<span class="fc" id="L172">                scheduler.awaitTermination(10000, TimeUnit.MILLISECONDS);</span>
+
+<span class="nc" id="L174">            } catch (InterruptedException ex) {</span>
+
+<span class="nc" id="L176">                logger.warn(&quot;Failed to shut down the scheduler cleanly&quot;, ex);</span>
+<span class="fc" id="L177">            }</span>
+
+<span class="fc" id="L179">            logger.info(&quot;stopped&quot;);</span>
+
+            // We're cheating, for simplicity
+
+<span class="fc" id="L183">            ACT stopped = new ACT();</span>
+
+<span class="fc" id="L185">            stopped.post();</span>
+
+<span class="fc" id="L187">            return stopped;</span>
+
+        } finally {
+<span class="fc" id="L190">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * @return {@link #scheduleGranularityMillis}.
+     */
+    @JmxAttribute(description = &quot;Schedule check and execution granularity, in milliseconds&quot;)
+    public long getScheduleGranularity() {
+
+<span class="fc" id="L200">        return scheduleGranularityMillis;</span>
+    }
+
+    /**
+     * @param scheduleGranularityMillis Schedule granularity, in milliseconds.
+     */
+    public void setScheduleGranularity(long scheduleGranularityMillis) {
+
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        if (scheduleGranularityMillis &lt;= 0) {</span>
+
+<span class="fc" id="L210">            throw new IllegalArgumentException(scheduleGranularityMillis + &quot;: value doesn't make sense&quot;);</span>
+        }
+
+        // VT: FIXME: Currently, this will not be honored if invoked after the scheduler is started.
+        // Good enough for testing purposes.
+
+<span class="fc" id="L216">        this.scheduleGranularityMillis = scheduleGranularityMillis;</span>
+<span class="fc" id="L217">    }</span>
+
+    /**
+     * This method is to be executed every {@link #getScheduleGranularity()} milliseconds.
+     *
+     * VT: FIXME: It is a bad idea to have this method exposed, need to move the whole thing into an inner class after the test coverage is sufficient
+     */
+    @Override
+    public void run() {
+
+<span class="fc" id="L227">        ThreadContext.push(&quot;run&quot;);</span>
+
+        try {
+
+<span class="fc" id="L231">            logger.info(&quot;Checking schedule&quot;);</span>
+
+<span class="fc" id="L233">            update(schedule);</span>
+<span class="fc" id="L234">            execute(schedule, new DateTime());</span>
+
+<span class="fc" id="L236">        } catch (Throwable t) {</span>
+
+            // If an exception is not caught, the executor will choke and never call us again
+<span class="fc" id="L239">            logger.error(&quot;Unexpected exception&quot;, t);</span>
+
+        } finally {
+
+<span class="fc" id="L243">            logger.info(&quot;done&quot;);</span>
+
+<span class="fc" id="L245">            ThreadContext.pop();</span>
+
+            // Even though the pool size is one, this would be a safe thing to do
+            // and won't incur a performance penalty - it's executed less than
+            // once in a minute
+<span class="fc" id="L250">            ThreadContext.clearStack();</span>
+        }
+<span class="fc" id="L252">    }</span>
+
+    /**
+     * Update the schedule.
+     */
+    private void update(final Map&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt; target) {
+
+<span class="fc" id="L259">        ThreadContext.push(&quot;update&quot;);</span>
+
+        try {
+
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">            if (updater == null) {</span>
+
+<span class="nc" id="L265">                logger.debug(&quot;No updater specified, doing nothing&quot;);</span>
+<span class="nc" id="L266">                return;</span>
+            }
+
+<span class="fc" id="L269">            Map&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt; newSchedule = updater.update();</span>
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">            if (newSchedule == null) {</span>
+
+                // Third party developers may want to implement different schedule updaters,
+                // and even though the design contract requires not to return null,
+                // they might.
+
+                // Note that this exception doesn't break the whole scheduler because it runs asynchronously.
+
+<span class="fc" id="L279">                throw new IllegalStateException(&quot;Bad updater implementation returned null&quot;);</span>
+            }
+
+            // Completely discard the current schedule and replace it with the new one,
+            // there's no need to use rocket science here
+
+<span class="fc" id="L285">            target.clear();</span>
+<span class="fc" id="L286">            target.putAll(newSchedule);</span>
+
+<span class="fc" id="L288">        } catch (IOException ex) {</span>
+
+<span class="fc" id="L290">            logger.error(&quot;Schedule update failed&quot;, ex);</span>
+
+        } finally {
+<span class="fc" id="L293">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L295">    }</span>
+
+    /**
+     * Match the schedule against current time and execute necessary changes.
+     *
+     * The only reason this method is public is to make it testable.
+     *
+     * @param target Schedule to apply.
+     * @param when Time to use when applying the schedule, in milliseconds.
+     */
+    public void execute(final Map&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt; target, DateTime when) {
+
+<span class="fc" id="L307">        ThreadContext.push(&quot;execute&quot;);</span>
+
+        try {
+
+<span class="fc bfc" id="L311" title="All 2 branches covered.">            for (Iterator&lt;Entry&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt;&gt; i = target.entrySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc" id="L313">                Entry&lt;Thermostat, SortedMap&lt;Period, ZoneStatus&gt;&gt; entry = i.next();</span>
+<span class="fc" id="L314">                Thermostat ts = entry.getKey();</span>
+<span class="fc" id="L315">                SortedMap&lt;Period, ZoneStatus&gt; zoneSchedule = entry.getValue();</span>
+
+                try {
+
+<span class="fc" id="L319">                    execute(ts, zoneSchedule, when);</span>
+
+<span class="nc" id="L321">                } catch (Throwable t) {</span>
+
+                    // Errors with individual thermostats shouldn't affect others
+<span class="nc" id="L324">                    logger.error(ts.getName() + &quot;: failed to set schedule, will retry on next run&quot;, t);</span>
+<span class="fc" id="L325">                }</span>
+<span class="fc" id="L326">            }</span>
+
+        } finally {
+<span class="fc" id="L329">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L331">    }</span>
+
+    /**
+     * Find and execute the schedule for the given zone.
+     *
+     * @param ts Thermostat to control.
+     * @param zoneSchedule Schedule to use.
+     * @param time Time to match against.
+     */
+    private void execute(Thermostat ts, SortedMap&lt;Period, ZoneStatus&gt; zoneSchedule, DateTime time) {
+
+<span class="fc" id="L342">        ThreadContext.push(&quot;execute&quot;);</span>
+
+        try {
+
+<span class="fc" id="L346">            ThreadContext.push(&quot;(&quot; + ts.getName() + &quot;)&quot;);</span>
+
+            try {
+
+<span class="fc" id="L350">                PeriodMatcher periodMatcher = new PeriodMatcher();</span>
+<span class="fc" id="L351">                Period p = periodMatcher.match(zoneSchedule, time);</span>
+<span class="fc" id="L352">                ZoneStatus status = zoneSchedule.get(p);</span>
+<span class="fc" id="L353">                ZoneStatus currentZoneStatus = currentStatus.get(ts);</span>
+
+                // VT: FIXME: https://github.com/home-climate-control/dz/issues/13
+
+                // The check below will only enforce the next event if it is different
+                // from the previous. Otherwise, if the setpoint or voting status were
+                // changed manually, the thermostat will stay at current settings.
+
+                // Workaround: avoid overlapping/adjacent events with identical settings.
+
+<span class="fc bfc" id="L363" title="All 2 branches covered.">                if (!status.equals(currentZoneStatus)) {</span>
+
+<span class="fc" id="L365">                    ts.set(status);</span>
+<span class="fc" id="L366">                    currentStatus.put(ts, status);</span>
+<span class="fc" id="L367">                    currentPeriod.put(ts, p);</span>
+
+<span class="fc" id="L369">                    logger.info(ts.getName() + &quot; set to &quot; + status);</span>
+                }
+
+            } finally {
+<span class="fc" id="L373">                ThreadContext.pop();</span>
+            }
+
+<span class="fc" id="L376">        } catch (EmptyStackException ex) {</span>
+
+<span class="fc" id="L378">            logger.info(ts.getName() + &quot;: no active period found&quot;);</span>
+
+<span class="fc" id="L380">            currentStatus.remove(ts);</span>
+<span class="fc" id="L381">            currentPeriod.remove(ts);</span>
+
+        } finally {
+<span class="fc" id="L384">            logger.info(&quot;done&quot;);</span>
+<span class="fc" id="L385">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L387">    }</span>
+
+    /**
+     * Get the currently selected status for the given thermostat.
+     *
+     * @param ts Thermostat to get the status for.
+     * @return Currently selected status for the given thermostat, or {@code null} if there's none.
+     */
+    public ZoneStatus getCurrentStatus(Thermostat ts) {
+
+<span class="nc" id="L397">        return currentStatus.get(ts);</span>
+    }
+
+    /**
+     * Get the currently selected period for the given thermostat.
+     *
+     * @param ts Thermostat to get the period for.
+     * @return Currently selected period for the given thermostat, or {@code null} if there's none.
+     */
+    public Period getCurrentPeriod(Thermostat ts) {
+
+<span class="fc" id="L408">        return currentPeriod.get(ts);</span>
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L414">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Scheduler&quot;,
+<span class="nc" id="L417">                Integer.toHexString(hashCode()),</span>
+                &quot;Changes thermostat settings based on a schedule&quot;);
+    }
+
+    /**
+     * Determine deviations between current and scheduled values.
+     *
+     * @param ts Thermostat to determine deviation for.
+     * @param setpointTemperature Actual setpoint temperature.
+     * @param currentEnabled Actual &quot;enabled&quot; value.
+     * @param currentVoting Actual &quot;voting&quot; value.
+     * @param time Time to perform the calculation for.
+     *
+     * @return An object containing deviations found, if any.
+     */
+    public Deviation getDeviation(Thermostat ts, double setpointTemperature, boolean currentEnabled, boolean currentVoting, DateTime time) {
+
+<span class="fc" id="L434">        ThreadContext.push(&quot;getDeviation(&quot; + ts.getName() + &quot;)&quot;);</span>
+
+        try {
+
+            try {
+
+<span class="fc" id="L440">                SortedMap&lt;Period, ZoneStatus&gt; zoneSchedule = schedule.get(ts);</span>
+
+<span class="fc bfc" id="L442" title="All 2 branches covered.">                if (zoneSchedule == null) {</span>
+
+<span class="fc" id="L444">                    logger.debug(&quot;No schedule found for &quot; + ts.getName() + &quot; (yet?)&quot;);</span>
+<span class="fc" id="L445">                    return new Deviation(0, false, false);</span>
+                }
+
+<span class="fc" id="L448">                PeriodMatcher periodMatcher = new PeriodMatcher();</span>
+<span class="fc" id="L449">                Period p = periodMatcher.match(zoneSchedule, time);</span>
+<span class="fc" id="L450">                ZoneStatus statusScheduled = zoneSchedule.get(p);</span>
+
+                // VT: FIXME: Dump priority should be taken into consideration as well
+<span class="fc" id="L453">                ZoneStatus statusCurrent = new ZoneStatusImpl(setpointTemperature, 0, currentEnabled, currentVoting);</span>
+
+<span class="fc bfc" id="L455" title="All 2 branches covered.">                if (statusScheduled.equals(statusCurrent)) {</span>
+
+<span class="fc" id="L457">                    logger.debug(&quot;on schedule&quot;);</span>
+<span class="fc" id="L458">                    return new Deviation(0, false, false);</span>
+                }
+
+<span class="fc" id="L461">                Deviation result = new Deviation(</span>
+<span class="fc" id="L462">                        statusCurrent.getSetpoint() - statusScheduled.getSetpoint(),</span>
+<span class="fc bfc" id="L463" title="All 2 branches covered.">                        statusCurrent.isOn() != statusScheduled.isOn(),</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">                        statusCurrent.isVoting() != statusScheduled.isVoting());</span>
+
+<span class="fc" id="L466">                logger.debug(&quot;Scheduled: &quot; + statusScheduled);</span>
+<span class="fc" id="L467">                logger.debug(&quot;Actual:    &quot; + statusCurrent);</span>
+<span class="fc" id="L468">                logger.debug(&quot;Deviation: &quot; + result);</span>
+
+<span class="fc" id="L470">                return result;</span>
+
+<span class="fc" id="L472">            } catch (EmptyStackException ex) {</span>
+
+<span class="fc" id="L474">                logger.info(ts.getName() + &quot;: no active period found&quot;);</span>
+<span class="fc" id="L475">                return new Deviation(0, false, false);</span>
+            }
+
+        } finally {
+<span class="fc" id="L479">            ThreadContext.pop();</span>
+        }
+    }
+
+    public static class Deviation {
+
+        public final double setpoint;
+        public final boolean enabled;
+        public final boolean voting;
+
+<span class="fc" id="L489">        public Deviation(double setpoint, boolean enabled, boolean voting) {</span>
+
+<span class="fc" id="L491">            this.setpoint = setpoint;</span>
+<span class="fc" id="L492">            this.enabled = enabled;</span>
+<span class="fc" id="L493">            this.voting = voting;</span>
+<span class="fc" id="L494">        }</span>
+
+        @Override
+        public String toString() {
+
+<span class="fc" id="L499">            StringBuilder sb = new StringBuilder();</span>
+
+<span class="fc" id="L501">            sb.append(&quot;(setpoint deviation=&quot;).append(df.format(setpoint));</span>
+<span class="fc bfc" id="L502" title="All 2 branches covered.">            sb.append(enabled ? &quot;, enabled differs&quot; : &quot;&quot;);</span>
+<span class="fc bfc" id="L503" title="All 2 branches covered.">            sb.append(voting ? &quot;, voting differs&quot; : &quot;&quot;);</span>
+<span class="fc" id="L504">            sb.append(&quot;)&quot;);</span>
+
+<span class="fc" id="L506">            return sb.toString();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

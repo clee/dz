@@ -1,0 +1,746 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThermostatPanel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing.thermostat</a> &gt; <span class="el_source">ThermostatPanel.java</span></div><h1>ThermostatPanel.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing.thermostat;
+
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Rectangle;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.text.DecimalFormat;
+import java.time.Clock;
+import java.util.Formatter;
+import java.util.Locale;
+
+import javax.swing.BorderFactory;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingConstants;
+import javax.swing.border.TitledBorder;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.controller.ProcessController;
+import net.sf.dz3.controller.ProcessControllerStatus;
+import net.sf.dz3.controller.pid.AbstractPidController;
+import net.sf.dz3.controller.pid.PidControllerStatus;
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.model.ThermostatSignal;
+import net.sf.dz3.device.model.ZoneState;
+import net.sf.dz3.device.model.ZoneStatus;
+import net.sf.dz3.device.model.impl.ThermostatModel;
+import net.sf.dz3.scheduler.Period;
+import net.sf.dz3.scheduler.Scheduler;
+import net.sf.dz3.view.swing.ColorScheme;
+import net.sf.dz3.view.swing.ScreenDescriptor;
+import net.sf.dz3.view.swing.TemperatureUnit;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+
+/**
+ * Thermostat panel.
+ *
+ * Even though it implements {@link KeyListener}, it never request focus,
+ * but gets event notifications from {@link ZonePanel} instead.
+ * This is done in order not to fiddle with focus changes.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class ThermostatPanel extends JPanel implements KeyListener {
+
+    /**
+     * Setpoint change upon a keypress.
+     *
+     * VT: FIXME: This must be made configurable.
+     */
+    public static final double SETPOINT_DELTA = 0.1d;
+
+    private static final long serialVersionUID = 3420150515187693627L;
+<span class="fc" id="L64">    private static final DecimalFormat numberFormat = new DecimalFormat(&quot;#0.0;-#0.0&quot;);</span>
+
+<span class="fc" id="L66">    private final transient Logger logger = LogManager.getLogger(getClass());</span>
+
+    private final transient ThermostatModel source;
+    private final transient Scheduler scheduler;
+
+<span class="fc" id="L71">    private final transient ThermostatListener thermostatListener = new ThermostatListener();</span>
+<span class="fc" id="L72">    private final transient PidControllerListener pidListener = new PidControllerListener();</span>
+
+    private static final String UNDEFINED = &quot;--.-&quot;;
+
+    private static final String VOTING = &quot;VOTING&quot;;
+    private static final String NOT_VOTING = &quot;NOT VOTING&quot;;
+
+    private static final String HOLD = &quot;HOLD&quot;;
+    private static final String ON_HOLD = &quot;ON HOLD&quot;;
+
+<span class="fc" id="L82">    private final JLabel currentLabel = new JLabel(UNDEFINED, SwingConstants.RIGHT);</span>
+<span class="fc" id="L83">    private final JLabel setpointLabel = new JLabel(UNDEFINED + &quot;\u00b0&quot;, SwingConstants.RIGHT);</span>
+<span class="fc" id="L84">    private final JLabel votingLabel = new JLabel(VOTING, SwingConstants.RIGHT);</span>
+<span class="fc" id="L85">    private final JLabel holdLabel = new JLabel(HOLD, SwingConstants.RIGHT);</span>
+<span class="fc" id="L86">    private final JLabel periodLabel = new JLabel(&quot;&quot;, SwingConstants.LEFT);</span>
+
+    // 3 hours
+<span class="fc" id="L89">    private final AbstractChart chart = new Chart2020(Clock.systemUTC(), 1000L * 60 * 60 * 3);</span>
+
+    private static final String NO_PERIOD = &quot;(no period is active)&quot;;
+
+    /**
+     * Font to display the current temperature in Celsius.
+     */
+    private Font currentFontC;
+
+    /**
+     * Font to display the current temperature in Fahrenheit when the temperature is over 100F.
+     */
+    private Font currentFontF;
+
+    /**
+     * Font to display the setpoint with.
+     */
+    private Font setpointFont;
+
+    private boolean needFahrenheit;
+
+<span class="fc" id="L110">    public ThermostatPanel(ThermostatModel source, ScreenDescriptor screenDescriptor, Scheduler scheduler, TemperatureUnit defaultUnit) {</span>
+
+<span class="fc" id="L112">        this.source = source;</span>
+<span class="fc" id="L113">        this.scheduler = scheduler;</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        this.needFahrenheit = defaultUnit == TemperatureUnit.FAHRENHEIT;</span>
+
+<span class="fc" id="L116">        setFontSize(screenDescriptor);</span>
+
+<span class="fc" id="L118">        initGraphics();</span>
+
+        // This can only be done when everything else is done, to avoid bootstrapping problems
+
+<span class="fc" id="L122">        source.addConsumer(thermostatListener);</span>
+<span class="fc" id="L123">        source.getController().addConsumer(pidListener);</span>
+<span class="fc" id="L124">    }</span>
+
+    @SuppressWarnings(&quot;squid:S1199&quot;)
+    private void initGraphics() {
+
+<span class="fc" id="L129">        setBackground(ColorScheme.offMap.background);</span>
+
+<span class="fc" id="L131">        currentLabel.setFont(currentFontC);</span>
+<span class="fc" id="L132">        currentLabel.setToolTipText(&quot;Current temperature (Left/Right to change zone)&quot;);</span>
+
+<span class="fc" id="L134">        setpointLabel.setFont(setpointFont);</span>
+<span class="fc" id="L135">        setpointLabel.setToolTipText(&quot;Setpoint (Up/Down to change)&quot;);</span>
+
+<span class="fc" id="L137">        GridBagLayout layout = new GridBagLayout();</span>
+<span class="fc" id="L138">        GridBagConstraints cs = new GridBagConstraints();</span>
+
+<span class="fc" id="L140">        this.setLayout(layout);</span>
+
+        // VT: NOTE: squid:S1199 - SonarLint is not smart enough to realize that these
+        // blocks are for readability
+
+        {
+            // Controls take the upper quarter of the display
+
+<span class="fc" id="L148">            cs.fill = GridBagConstraints.HORIZONTAL;</span>
+<span class="fc" id="L149">            cs.gridx = 0;</span>
+<span class="fc" id="L150">            cs.gridy = 0;</span>
+<span class="fc" id="L151">            cs.gridwidth = GridBagConstraints.REMAINDER;</span>
+<span class="fc" id="L152">            cs.gridheight = 1;</span>
+<span class="fc" id="L153">            cs.weightx = 1;</span>
+<span class="fc" id="L154">            cs.weighty = 0;</span>
+
+<span class="fc" id="L156">            JPanel controls = createControls();</span>
+
+<span class="fc" id="L158">            layout.setConstraints(controls, cs);</span>
+<span class="fc" id="L159">            this.add(controls);</span>
+        }
+
+        {
+<span class="fc" id="L163">            cs.gridy++;</span>
+<span class="fc" id="L164">            cs.gridheight = 1;</span>
+<span class="fc" id="L165">            cs.weighty = 1;</span>
+<span class="fc" id="L166">            cs.fill = GridBagConstraints.BOTH;</span>
+
+<span class="fc" id="L168">            layout.setConstraints(chart, cs);</span>
+<span class="fc" id="L169">            this.add(chart);</span>
+
+<span class="fc" id="L171">            chart.setPreferredSize(getPreferredSize());</span>
+<span class="fc" id="L172">            Color bg = ColorScheme.offMap.background;</span>
+<span class="fc" id="L173">            Color chartBg = new Color(bg.getRed(), bg.getGreen(), bg.getBlue(), 0x00);</span>
+<span class="fc" id="L174">            chart.setBackground(chartBg);</span>
+        }
+
+        // Really dirty, but really quick
+
+<span class="fc" id="L179">        TitledBorder template = BorderFactory.createTitledBorder(source.getName());</span>
+<span class="fc" id="L180">        TitledBorder border = BorderFactory.createTitledBorder(</span>
+<span class="fc" id="L181">                getBorder(),</span>
+<span class="fc" id="L182">                source.getName(),</span>
+<span class="fc" id="L183">                template.getTitleJustification(),</span>
+<span class="fc" id="L184">                template.getTitlePosition(),</span>
+<span class="fc" id="L185">                template.getTitleFont(),</span>
+                Color.WHITE);
+
+<span class="fc" id="L188">        this.setBorder(border);</span>
+<span class="fc" id="L189">    }</span>
+
+    @SuppressWarnings(&quot;squid:S1199&quot;)
+    private JPanel createControls() {
+
+<span class="fc" id="L194">        JPanel controls = new JPanel();</span>
+
+<span class="fc" id="L196">        controls.setBackground(ColorScheme.offMap.background);</span>
+<span class="fc" id="L197">        controls.setOpaque(false);</span>
+
+<span class="fc" id="L199">        GridBagLayout layout = new GridBagLayout();</span>
+<span class="fc" id="L200">        GridBagConstraints cs = new GridBagConstraints();</span>
+
+<span class="fc" id="L202">        controls.setLayout(layout);</span>
+
+        // VT: NOTE: squid:S1199 - SonarLint is not smart enough to realize that these
+        // blocks are for readability
+
+        {
+            // Period label is on top left
+
+<span class="fc" id="L210">            cs.gridx = 0;</span>
+<span class="fc" id="L211">            cs.gridy = 0;</span>
+<span class="fc" id="L212">            cs.gridwidth = 2;</span>
+<span class="fc" id="L213">            cs.fill = GridBagConstraints.HORIZONTAL;</span>
+
+<span class="fc" id="L215">            layout.setConstraints(periodLabel, cs);</span>
+<span class="fc" id="L216">            controls.add(periodLabel);</span>
+
+<span class="fc" id="L218">            periodLabel.setForeground(Color.GRAY);</span>
+        }
+
+        {
+            // Current label takes all available space on the left
+            // and expands until it meets the setpoint and voting/hold labels
+
+<span class="fc" id="L225">            cs.fill = GridBagConstraints.HORIZONTAL;</span>
+<span class="fc" id="L226">            cs.gridx = 0;</span>
+<span class="fc" id="L227">            cs.gridy++;</span>
+<span class="fc" id="L228">            cs.gridwidth = 1;</span>
+<span class="fc" id="L229">            cs.gridheight = 3;</span>
+<span class="fc" id="L230">            cs.weightx = 1;</span>
+<span class="fc" id="L231">            cs.weighty = 0;</span>
+
+<span class="fc" id="L233">            layout.setConstraints(currentLabel, cs);</span>
+<span class="fc" id="L234">            controls.add(currentLabel);</span>
+        }
+
+        {
+            // Setpoint, hold and voting buttons form a group to the right of the current
+            // temperature reading, and take the rest of the row
+
+<span class="fc" id="L241">            cs.fill = GridBagConstraints.VERTICAL;</span>
+<span class="fc" id="L242">            cs.gridx++;</span>
+
+<span class="fc" id="L244">            cs.gridheight = 1;</span>
+<span class="fc" id="L245">            cs.gridwidth = GridBagConstraints.REMAINDER;</span>
+
+<span class="fc" id="L247">            cs.weightx = 0;</span>
+
+            {
+                // Setpoint label takes the rest of the space on the right in the top row
+
+                // It takes more space than voting and hold labels
+
+<span class="fc" id="L254">                cs.weighty = 1;</span>
+
+<span class="fc" id="L256">                layout.setConstraints(setpointLabel, cs);</span>
+<span class="fc" id="L257">                controls.add(setpointLabel);</span>
+            }
+
+            {
+                // Hold label is underneath the setpoint label
+
+<span class="fc" id="L263">                cs.gridy++;</span>
+
+<span class="fc" id="L265">                cs.weighty = 0;</span>
+
+<span class="fc" id="L267">                layout.setConstraints(holdLabel, cs);</span>
+<span class="fc" id="L268">                controls.add(holdLabel);</span>
+            }
+
+            {
+                // Voting label is underneath the hold label
+
+<span class="fc" id="L274">                cs.gridy++;</span>
+
+<span class="fc" id="L276">                layout.setConstraints(votingLabel, cs);</span>
+<span class="fc" id="L277">                controls.add(votingLabel);</span>
+            }
+        }
+
+<span class="fc" id="L281">        return controls;</span>
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+
+<span class="fc" id="L287">        ThreadContext.push(&quot;keyPressed&quot;);</span>
+
+        try {
+
+<span class="fc" id="L291">            logger.info(e.toString());</span>
+
+<span class="pc bpc" id="L293" title="7 of 8 branches missed.">            switch (e.getKeyChar()) {</span>
+
+            case 'c':
+            case 'C':
+            case 'f':
+            case 'F':
+
+<span class="nc bnc" id="L300" title="All 2 branches missed.">                needFahrenheit = !needFahrenheit;</span>
+<span class="nc" id="L301">                refresh();</span>
+
+<span class="nc bnc" id="L303" title="All 2 branches missed.">                logger.info(&quot;Displaying temperature in {}&quot;, (needFahrenheit ? &quot;Fahrenheit&quot; : &quot;Celsius&quot;));</span>
+
+<span class="nc" id="L305">                break;</span>
+
+            case 'h':
+            case 'H':
+
+                // Toggle hold status
+
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                source.setOnHold(!source.isOnHold());</span>
+<span class="nc" id="L313">                refresh();</span>
+
+<span class="nc" id="L315">                logger.info(&quot;Hold status for {} is now {}&quot;, source.getName(), source.isOnHold());</span>
+
+<span class="nc" id="L317">                break;</span>
+
+            case 'v':
+            case 'V':
+
+                // Toggle voting status
+
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                source.setVoting(!source.isVoting());</span>
+<span class="nc" id="L325">                refresh();</span>
+
+<span class="nc" id="L327">                logger.info(&quot;Voting status for {} is now {}&quot;, source.getName(), source.isVoting());</span>
+
+<span class="nc" id="L329">                break;</span>
+
+            case 'o':
+            case 'O':
+
+                // Toggle off status
+
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                source.setOn(!source.isOn());</span>
+<span class="nc" id="L337">                refresh();</span>
+
+<span class="nc" id="L339">                logger.info(&quot;On status for {} is now {}&quot;, source.getName(), source.isOn());</span>
+
+<span class="nc" id="L341">                break;</span>
+
+            case 's':
+            case 'S':
+
+                // Go back to schedule
+
+                // Implies taking the zone off hold
+<span class="fc" id="L349">                source.setOnHold(false);</span>
+<span class="fc" id="L350">                activateSchedule();</span>
+<span class="fc" id="L351">                refresh();</span>
+
+<span class="fc" id="L353">                break;</span>
+
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+
+                // Change dump priority
+
+<span class="nc" id="L368">                source.setDumpPriority(e.getKeyChar() - '0');</span>
+<span class="nc" id="L369">                refresh();</span>
+
+<span class="nc" id="L371">                logger.info(&quot;Dump priority for{} is now {}&quot;, source.getName(), source.getDumpPriority());</span>
+
+<span class="nc" id="L373">                break;</span>
+
+            case KeyEvent.CHAR_UNDEFINED:
+
+<span class="nc bnc" id="L377" title="All 3 branches missed.">                switch (e.getKeyCode()) {</span>
+
+                case KeyEvent.VK_KP_UP:
+                case KeyEvent.VK_UP:
+
+                {
+
+                    // If the zone is off, the setpoint is not displayed, hence we won't accept changes to avoid
+                    // unpleasant surprises later
+
+<span class="nc bnc" id="L387" title="All 2 branches missed.">                    if (!source.isOn()) {</span>
+<span class="nc" id="L388">                        logger.info(&quot;{} zone is off, not changing setpoint&quot;, source.getName());</span>
+<span class="nc" id="L389">                        break;</span>
+                    }
+
+<span class="nc" id="L392">                    ProcessController controller = source.getController();</span>
+<span class="nc" id="L393">                    double setpoint = getDisplayValue(controller.getSetpoint());</span>
+
+<span class="nc" id="L395">                    setpoint += SETPOINT_DELTA;</span>
+<span class="nc" id="L396">                    setpoint = getSIValue(Double.parseDouble(numberFormat.format(setpoint)));</span>
+
+<span class="nc bnc" id="L398" title="All 2 branches missed.">                    if (setpoint &lt;= ThermostatModel.SETPOINT_MAX) {</span>
+
+<span class="nc" id="L400">                        controller.setSetpoint(setpoint);</span>
+                    } else {
+<span class="nc" id="L402">                        logger.warn(&quot;Setpoint change to {} denied, over high limit of {}&quot;, setpoint, ThermostatModel.SETPOINT_MAX);</span>
+                    }
+                }
+
+<span class="nc" id="L406">                refresh();</span>
+<span class="nc" id="L407">                break;</span>
+
+                case KeyEvent.VK_KP_DOWN:
+                case KeyEvent.VK_DOWN:
+
+                {
+                    // If the zone is off, the setpoint is not displayed, hence we won't accept changes to avoid
+                    // unpleasant surprises later
+
+<span class="nc bnc" id="L416" title="All 2 branches missed.">                    if (!source.isOn()) {</span>
+<span class="nc" id="L417">                        logger.info(&quot;{} zone is off, not changing setpoint&quot;, source.getName());</span>
+<span class="nc" id="L418">                        break;</span>
+                    }
+
+<span class="nc" id="L421">                    ProcessController controller = source.getController();</span>
+<span class="nc" id="L422">                    double setpoint = getDisplayValue(controller.getSetpoint());</span>
+
+<span class="nc" id="L424">                    setpoint -= SETPOINT_DELTA;</span>
+<span class="nc" id="L425">                    setpoint = getSIValue(Double.parseDouble(numberFormat.format(setpoint)));</span>
+
+<span class="nc bnc" id="L427" title="All 2 branches missed.">                    if (setpoint &gt;= ThermostatModel.SETPOINT_MIN) {</span>
+
+<span class="nc" id="L429">                        controller.setSetpoint(setpoint);</span>
+                    } else {
+<span class="nc" id="L431">                        logger.warn(&quot;Setpoint change to {} denied, under low limit of {}&quot;, setpoint, ThermostatModel.SETPOINT_MIN);</span>
+                    }
+                }
+
+<span class="nc" id="L435">                refresh();</span>
+<span class="nc" id="L436">                break;</span>
+
+                default:
+
+                    // Do nothing
+                }
+            default:
+
+                // Do nothing
+            }
+
+        } finally {
+<span class="fc" id="L448">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L450">    }</span>
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+
+        // No special handling
+<span class="nc" id="L456">    }</span>
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+
+        // No special handling
+<span class="nc" id="L462">    }</span>
+
+    private void activateSchedule() {
+
+<span class="fc" id="L466">        ThreadContext.push(&quot;activateSchedule&quot;);</span>
+
+        try {
+
+<span class="pc bpc" id="L470" title="1 of 2 branches missed.">            if (scheduler == null) {</span>
+
+<span class="fc" id="L472">                logger.warn(&quot;No scheduler was provided, ignored&quot;);</span>
+<span class="fc" id="L473">                return;</span>
+            }
+
+<span class="nc" id="L476">            Period p = scheduler.getCurrentPeriod(source);</span>
+<span class="nc" id="L477">            ZoneStatus status = scheduler.getCurrentStatus(source);</span>
+
+<span class="nc bnc" id="L479" title="All 2 branches missed.">            if (p == null) {</span>
+
+<span class="nc" id="L481">                logger.info(&quot;No period is active, ignored&quot;);</span>
+<span class="nc" id="L482">                return;</span>
+            }
+
+<span class="nc bnc" id="L485" title="All 2 branches missed.">            if (status == null) {</span>
+
+<span class="nc" id="L487">                logger.error(&quot;Period is resolved as {}, but no status???&quot;, p);</span>
+<span class="nc" id="L488">                return;</span>
+            }
+
+<span class="nc bnc" id="L491" title="All 2 branches missed.">            if (status.equals(source.getStatus())) {</span>
+
+<span class="nc" id="L493">                logger.info(&quot;Already at period settings&quot;);</span>
+<span class="nc" id="L494">                return;</span>
+            }
+
+<span class="nc" id="L497">            logger.info(&quot;Activating period: {}&quot;, p);</span>
+<span class="nc" id="L498">            source.set(status);</span>
+
+        } finally {
+<span class="fc" id="L501">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L503">    }</span>
+
+    public synchronized void refresh() {
+
+<span class="fc" id="L507">        thermostatListener.refresh();</span>
+<span class="fc" id="L508">        pidListener.refresh();</span>
+<span class="fc" id="L509">    }</span>
+
+    private HvacMode getMode() {
+
+<span class="pc bpc" id="L513" title="1 of 2 branches missed.">        return ((AbstractPidController) source.getController()).getP() &gt; 0 ? HvacMode.COOLING : HvacMode.HEATING;</span>
+    }
+
+<span class="fc" id="L516">    private class ThermostatListener implements DataSink&lt;ThermostatSignal&gt; {</span>
+
+        private DataSample&lt;ThermostatSignal&gt; signal;
+
+        @Override
+        public void consume(DataSample&lt;ThermostatSignal&gt; signal) {
+
+<span class="fc" id="L523">            this.signal = signal;</span>
+
+<span class="fc" id="L525">            refresh();</span>
+<span class="fc" id="L526">        }</span>
+
+        public void refresh() {
+
+<span class="fc" id="L530">            DataSample&lt;Double&gt; pv = source.getController().getProcessVariable();</span>
+<span class="pc bpc" id="L531" title="1 of 2 branches missed.">            ThermostatSignal sample = signal == null ? null : signal.sample;</span>
+
+            String displayTemperature;
+
+<span class="pc bpc" id="L535" title="1 of 2 branches missed.">            if (pv == null) {</span>
+
+<span class="fc" id="L537">                displayTemperature = UNDEFINED;</span>
+
+            } else {
+
+                // VT: This block is embarrassing - wonder what I was smoking back when I wrote
+                // it. The net result is that values are written into the chart in *currently
+                // selected* unit, resulting in a miniature clone of Mars Climate Orbiter
+                // disaster right here in case someone decides to switch between Celsius and
+                // Fahrenheit and then back.
+
+                // The right way to deal with this would be to use SI units everywhere except
+                // final display.
+
+<span class="nc" id="L550">                double currentTemperature = pv.sample;</span>
+<span class="nc" id="L551">                double currentSetpoint = source.getSetpoint();</span>
+
+<span class="nc" id="L553">                currentTemperature = getDisplayValue(currentTemperature);</span>
+<span class="nc" id="L554">                currentSetpoint = getDisplayValue(currentSetpoint);</span>
+
+<span class="nc bnc" id="L556" title="All 4 branches missed.">                displayTemperature = (sample == null) ? UNDEFINED : (sample.demand.isError() ? UNDEFINED : new Formatter().format(Locale.getDefault(), &quot;%.1f&quot;, currentTemperature).toString());</span>
+
+<span class="nc" id="L558">                TintedValueAndSetpoint v = new TintedValueAndSetpoint(currentTemperature, source.getControlSignal() * 2, sample.calling, currentSetpoint);</span>
+<span class="nc" id="L559">                chart.consume(new DataSample&lt;TintedValueAndSetpoint&gt;(pidListener.signal.timestamp, &quot;temp&quot;, &quot;temp&quot;, v, null));</span>
+            }
+
+<span class="fc" id="L562">            Color fg = ColorScheme.getScheme(getMode()).setpoint;</span>
+<span class="pc bpc" id="L563" title="3 of 4 branches missed.">            Font font = needFahrenheit  &amp;&amp; displayTemperature.length() &gt; 4 ? currentFontF : currentFontC;</span>
+
+<span class="fc" id="L565">            currentLabel.setFont(font);</span>
+<span class="fc" id="L566">            currentLabel.setText(displayTemperature);</span>
+<span class="fc" id="L567">            currentLabel.setForeground(fg);</span>
+<span class="fc" id="L568">            setpointLabel.setForeground(fg);</span>
+
+<span class="pc bpc" id="L570" title="1 of 2 branches missed.">            votingLabel.setText(source.isVoting() ? VOTING : NOT_VOTING);</span>
+<span class="pc bpc" id="L571" title="1 of 2 branches missed.">            holdLabel.setText(source.isOnHold() ? ON_HOLD : HOLD);</span>
+
+<span class="pc bpc" id="L573" title="1 of 2 branches missed.">            votingLabel.setForeground(source.isVoting() ? ColorScheme.getScheme(getMode()).noticeDefault : ColorScheme.getScheme(getMode()).noticeActive);</span>
+<span class="pc bpc" id="L574" title="1 of 2 branches missed.">            holdLabel.setForeground(source.isOnHold() ? ColorScheme.getScheme(getMode()).noticeActive : ColorScheme.getScheme(getMode()).noticeDefault);</span>
+
+<span class="fc" id="L576">            renderPeriod();</span>
+
+<span class="fc" id="L578">            repaint();</span>
+<span class="fc" id="L579">        }</span>
+
+        public void renderPeriod() {
+
+<span class="pc bpc" id="L583" title="1 of 2 branches missed.">            if (scheduler == null) {</span>
+
+<span class="fc" id="L585">                periodLabel.setText(NO_PERIOD);</span>
+<span class="fc" id="L586">                return;</span>
+            }
+
+<span class="nc" id="L589">            Period p = scheduler.getCurrentPeriod(source);</span>
+
+<span class="nc bnc" id="L591" title="All 2 branches missed.">            if (p == null) {</span>
+
+<span class="nc" id="L593">                periodLabel.setText(NO_PERIOD);</span>
+<span class="nc" id="L594">                return;</span>
+            }
+
+<span class="nc" id="L597">            StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L599">            ZoneStatus status = scheduler.getCurrentStatus(source);</span>
+
+<span class="nc bnc" id="L601" title="All 2 branches missed.">            if (status == null) {</span>
+
+<span class="nc" id="L603">                logger.warn(&quot;Period is resolved as {}, but no status???&quot;, p);</span>
+
+            } else {
+
+<span class="nc bnc" id="L607" title="All 2 branches missed.">                if (!status.equals(source.getStatus())) {</span>
+
+<span class="nc" id="L609">                    sb.append(&quot;* &quot;);</span>
+                }
+            }
+
+<span class="nc" id="L613">            sb.append(p.name);</span>
+
+<span class="nc" id="L615">            periodLabel.setText(sb.toString());</span>
+<span class="nc" id="L616">        }</span>
+    }
+
+<span class="fc" id="L619">    private class PidControllerListener implements DataSink&lt;ProcessControllerStatus&gt; {</span>
+
+        private DataSample&lt;PidControllerStatus&gt; signal;
+
+        @Override
+        public void consume(DataSample&lt;ProcessControllerStatus&gt; signal) {
+
+<span class="nc" id="L626">            PidControllerStatus sample = (PidControllerStatus) signal.sample;</span>
+
+<span class="nc" id="L628">            this.signal = new DataSample&lt;&gt;(signal.timestamp, signal.sourceName, signal.signature, sample, signal.error);</span>
+
+<span class="nc" id="L630">            refresh();</span>
+<span class="nc" id="L631">        }</span>
+
+        public void refresh() {
+
+            String label;
+
+<span class="pc bpc" id="L637" title="1 of 2 branches missed.">            if (this.signal == null) {</span>
+
+<span class="fc" id="L639">                label = UNDEFINED + &quot;\u00b0&quot;;</span>
+
+            } else {
+
+<span class="nc" id="L643">                double setpoint = this.signal.sample.setpoint;</span>
+
+<span class="nc" id="L645">                setpoint = getDisplayValue(setpoint);</span>
+
+<span class="nc bnc" id="L647" title="All 2 branches missed.">                label = source.isOn() ? new Formatter().format(Locale.getDefault(), &quot;%.1f\u00b0&quot;, setpoint).toString() : &quot;OFF&quot;;</span>
+            }
+
+<span class="fc" id="L650">            Color fg = ColorScheme.getScheme(getMode()).setpoint;</span>
+
+<span class="fc" id="L652">            setpointLabel.setText(label);</span>
+<span class="fc" id="L653">            setpointLabel.setForeground(fg);</span>
+
+            // The signal path is such that this code will always be executed right before ThermostatListener#refresh
+            // which also calls repaint(), hence this call is redundant.
+
+            // repaint();
+<span class="fc" id="L659">        }</span>
+    }
+
+    @Override
+    public synchronized void paintComponent(Graphics g) {
+
+<span class="nc" id="L665">        super.paintComponent(g);</span>
+
+<span class="nc bnc" id="L667" title="All 4 branches missed.">        if (pidListener.signal == null || thermostatListener.signal == null) {</span>
+
+<span class="nc" id="L669">            return;</span>
+        }
+
+<span class="nc" id="L672">        Graphics2D g2d = (Graphics2D) g;</span>
+<span class="nc" id="L673">        Dimension d = getSize();</span>
+
+<span class="nc" id="L675">        Double signal = thermostatListener.signal.sample.demand.sample;</span>
+<span class="nc" id="L676">        HvacMode mode = getMode();</span>
+<span class="nc bnc" id="L677" title="All 4 branches missed.">        ZoneState state = thermostatListener.signal == null ? null : (thermostatListener.signal.sample.calling ? ZoneState.CALLING : ZoneState.HAPPY);</span>
+
+<span class="nc bnc" id="L679" title="All 4 branches missed.">        if ( thermostatListener.signal == null || thermostatListener.signal.sample.demand.isError()) {</span>
+
+<span class="nc" id="L681">            state = ZoneState.ERROR;</span>
+
+<span class="nc bnc" id="L683" title="All 2 branches missed.">        } else if (!thermostatListener.signal.sample.enabled) {</span>
+
+<span class="nc" id="L685">            state = ZoneState.OFF;</span>
+        }
+
+<span class="nc" id="L688">        Rectangle boundary = new Rectangle(0, 0, d.width, d.height);</span>
+
+<span class="nc bnc" id="L690" title="All 3 branches missed.">        switch (state) {</span>
+
+        case CALLING:
+        case ERROR:
+        case OFF:
+
+<span class="nc" id="L696">            BackgroundRenderer.drawBottom(state, mode, signal, g2d, boundary, true);</span>
+<span class="nc" id="L697">            break;</span>
+
+        case HAPPY:
+
+<span class="nc" id="L701">            BackgroundRenderer.drawTop(mode, signal, g2d, boundary);</span>
+            break;
+        }
+<span class="nc" id="L704">    }</span>
+
+    public void setFontSize(ScreenDescriptor screenDescriptor) {
+
+<span class="fc" id="L708">        this.currentFontC = screenDescriptor.fontCurrentTemperatureC;</span>
+<span class="fc" id="L709">        this.currentFontF = screenDescriptor.fontCurrentTemperatureF;</span>
+<span class="fc" id="L710">        this.setpointFont = screenDescriptor.fontSetpoint;</span>
+<span class="fc" id="L711">    }</span>
+
+    @Override
+    public Dimension getPreferredSize() {
+
+<span class="fc" id="L716">        Dimension d = super.getPreferredSize();</span>
+
+        //		logger.debug(&quot;PREFERRED SIZE: &quot; + d);
+
+<span class="fc" id="L720">        return d;</span>
+    }
+
+    /**
+     * Convert SI value into display value depending on whether the display is
+     * currently in {@link #needFahrenheit Fahrenheit}.
+     *
+     * @param value Value to possibly convert.
+     * @return Display value.
+     */
+    private double getDisplayValue(double value) {
+<span class="nc bnc" id="L731" title="All 2 branches missed.">        return needFahrenheit ? (value * 9) / 5d + 32: value;</span>
+    }
+
+    /**
+     * Convert display value into SI value depending on whether the display is
+     * currently in {@link #needFahrenheit Fahrenheit}.
+     *
+     * @param value Value to possibly convert.
+     * @return SI value.
+     */
+    private double getSIValue(double value) {
+<span class="nc bnc" id="L742" title="All 2 branches missed.">        return needFahrenheit ? (value - 32) * (5d / 9d) : value;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

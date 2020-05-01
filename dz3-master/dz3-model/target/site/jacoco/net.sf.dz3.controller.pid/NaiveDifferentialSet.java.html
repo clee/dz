@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NaiveDifferentialSet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller.pid</a> &gt; <span class="el_source">NaiveDifferentialSet.java</span></div><h1>NaiveDifferentialSet.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller.pid;
+
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import net.sf.dz3.controller.DataSet;
+
+/**
+ * Data set supporting the differential calculation.
+ *
+ * This is the old implementation, written in 2000 with little regard to performance, and updated to use a better data structure in 2015.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2015
+ */
+public class NaiveDifferentialSet extends DataSet&lt;Double&gt; implements DifferentialSet {
+
+    /**
+     * Create the instance.
+     *
+     * @param differentialTime Differential time, milliseconds. Data elements
+     * older than this are expired.
+     */
+    public NaiveDifferentialSet(final long differentialTime) {
+
+<span class="fc" id="L26">        super(differentialTime, true);</span>
+<span class="fc" id="L27">    }</span>
+
+  /**
+   * Get the differential starting with the first data element available and
+   * ending with the last data element available.
+   * &lt;p&gt;
+   * Differentiation time must have been taken care of by {@link
+   * DataSet#expire expiration}.
+   *
+   * @return A differential value.
+   */
+  @Override
+  public final synchronized double getDifferential() {
+
+<span class="fc bfc" id="L41" title="All 2 branches covered.">      if (size() &lt; 2) {</span>
+
+          // Nothing to compare yet
+
+<span class="fc" id="L45">          return 0;</span>
+      }
+
+      //long startTime = System.currentTimeMillis();
+
+      try {
+
+          // The following line will throw the NoSuchElementException if
+          // the dataSet is empty. It is possible to check the size, but
+          // handling the exception is more efficient because happens just
+          // once - at the startup, or when there was an interruption in
+          // the data sequence longer than the expiration interval and all
+          // the data elements were expired.
+
+<span class="fc" id="L59">          Iterator&lt;Map.Entry&lt;Long, Double&gt;&gt; i = entryIterator();</span>
+<span class="fc" id="L60">          Map.Entry&lt;Long, Double&gt; trailerEntry = i.next();</span>
+
+<span class="fc" id="L62">          LinkedHashMap&lt;Long, Double&gt; resultSet = new LinkedHashMap&lt;Long, Double&gt;();</span>
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">          while (i.hasNext()) {</span>
+
+<span class="fc" id="L66">              long trailerKey = trailerEntry.getKey();</span>
+<span class="fc" id="L67">              double trailerValue = trailerEntry.getValue();</span>
+
+<span class="fc" id="L69">              Map.Entry&lt;Long, Double&gt; currentEntry = i.next();</span>
+
+<span class="fc" id="L71">              long currentKey = currentEntry.getKey();</span>
+<span class="fc" id="L72">              double currentValue = currentEntry.getValue();</span>
+
+<span class="fc" id="L74">              long start = trailerKey;</span>
+<span class="fc" id="L75">              long stop = currentKey;</span>
+
+<span class="fc" id="L77">              double diff = (currentValue - trailerValue) / (currentKey - trailerKey);</span>
+
+<span class="fc" id="L79">              resultSet.put(Long.valueOf(start + ((start + stop) / 2)), Double.valueOf(diff));</span>
+
+<span class="fc" id="L81">              trailerEntry = currentEntry;</span>
+<span class="fc" id="L82">          }</span>
+
+<span class="fc" id="L84">          double result = 0;</span>
+
+<span class="fc" id="L86">          i = resultSet.entrySet().iterator();</span>
+<span class="fc" id="L87">          trailerEntry = i.next();</span>
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">          while (i.hasNext()) {</span>
+
+<span class="fc" id="L91">              long trailerKey = trailerEntry.getKey();</span>
+<span class="fc" id="L92">              double trailerValue = trailerEntry.getValue();</span>
+
+<span class="fc" id="L94">              Map.Entry&lt;Long, Double&gt; currentEntry = i.next();</span>
+
+<span class="fc" id="L96">              long currentKey = currentEntry.getKey();</span>
+<span class="fc" id="L97">              double currentValue = currentEntry.getValue();</span>
+
+<span class="fc" id="L99">              double diff = ((currentValue + trailerValue) / 2) * (currentKey - trailerKey);</span>
+
+<span class="fc" id="L101">              result += diff;</span>
+
+<span class="fc" id="L103">              trailerEntry = currentEntry;</span>
+<span class="fc" id="L104">          }</span>
+
+<span class="fc" id="L106">          return result;</span>
+
+      } finally {
+
+          // System.err.println(&quot;getDifferential@&quot; + hashCode() + &quot;,&quot; +
+          // dataSet.size() + &quot;: &quot; + (System.currentTimeMillis() -
+          // startTime));
+      }
+  }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

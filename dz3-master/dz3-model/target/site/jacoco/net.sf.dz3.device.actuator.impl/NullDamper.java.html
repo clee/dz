@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NullDamper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">NullDamper.java</span></div><h1>NullDamper.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.io.IOException;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * 'Null' damper - this damper does not interact with hardware, just logs
+ * activities.
+ *
+ * Useful for debugging/development, uncontrolled zones, or single zone
+ * systems.
+ *
+ * @author &lt;a href=&quot;mailto:tim at buttersideup dot company&quot;&gt;Tim Small&lt;/a&gt;
+ * @author improvements Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class NullDamper extends AbstractDamper {
+
+    /**
+     * Current throttle value.
+     */
+    private double throttle;
+
+    public NullDamper(String name) {
+<span class="fc" id="L27">        super(name);</span>
+
+<span class="fc" id="L29">        throttle = getParkPosition();</span>
+<span class="fc" id="L30">    }</span>
+
+    @Override
+    public void moveDamper(double throttle) throws IOException {
+
+<span class="fc" id="L35">	ThreadContext.push(&quot;moveDamper&quot;);</span>
+
+	try {
+
+<span class="fc" id="L39">	    logger.debug(&quot;new position: &quot; + throttle);</span>
+<span class="fc" id="L40">	    this.throttle = throttle;</span>
+
+	} finally {
+<span class="fc" id="L43">	    ThreadContext.pop();</span>
+	}
+<span class="fc" id="L45">    }</span>
+
+    @Override
+    public double getPosition() throws IOException {
+
+<span class="fc" id="L50">	ThreadContext.push(&quot;getThrottle&quot;);</span>
+
+	try {
+
+<span class="fc" id="L54">	    logger.debug(&quot;returning: &quot; + throttle);</span>
+<span class="fc" id="L55">	    return throttle;</span>
+
+	} finally {
+<span class="fc" id="L58">	    ThreadContext.pop();</span>
+	}
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L65">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Null damper&quot;,
+<span class="nc" id="L68">                Integer.toHexString(hashCode()),</span>
+                &quot;Does absolutely nothing&quot;);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

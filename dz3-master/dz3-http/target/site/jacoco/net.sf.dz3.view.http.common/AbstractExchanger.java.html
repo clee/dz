@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractExchanger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.common</a> &gt; <span class="el_source">AbstractExchanger.java</span></div><h1>AbstractExchanger.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.common;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.concurrent.BlockingQueue;
+
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.AuthCache;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.view.http.v1.HttpConnector;
+import net.sf.jukebox.service.ActiveService;
+
+/**
+ * The facilitator between the client {@link #send(Object) sending} data and the server
+ * possibly returning some.
+ *
+ * @param &lt;DataBlock&gt; Data type to send out to the server.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2019
+ */
+public abstract class AbstractExchanger&lt;DataBlock&gt; extends ActiveService {
+
+<span class="nc" id="L33">    protected final HttpClient httpClient = HttpClientFactory.createClient();</span>
+<span class="nc" id="L34">    protected final HttpClientContext context = HttpClientContext.create();</span>
+
+    protected final URL serverContextRoot;
+    private String username;
+    private String password;
+
+    protected final BlockingQueue&lt;DataBlock&gt; upstreamQueue;
+
+<span class="nc" id="L42">    public AbstractExchanger(URL serverContextRoot, String username, String password, BlockingQueue&lt;DataBlock&gt; upstreamQueue) {</span>
+
+<span class="nc" id="L44">        this.serverContextRoot = serverContextRoot;</span>
+<span class="nc" id="L45">        this.upstreamQueue = upstreamQueue;</span>
+<span class="nc" id="L46">        this.username = username;</span>
+<span class="nc" id="L47">        this.password = password;</span>
+<span class="nc" id="L48">    }</span>
+
+    @Override
+    protected void startup() throws Throwable {
+
+<span class="nc" id="L53">        logger.info(&quot;Using &quot; + serverContextRoot);</span>
+
+        // Do absolutely nothing
+
+        // Except, maybe, authenticate
+<span class="nc" id="L58">        authenticate();</span>
+<span class="nc" id="L59">    }</span>
+
+    /**
+     * Keep sending data that appears in {@link HttpConnector#upstreamQueue} to the server,
+     * and accepting whatever they have to say.
+     *
+     * Exact strategy is determined by the implementation subclass.
+     */
+    @Override
+    protected abstract void execute() throws Throwable;
+
+    @Override
+    protected void shutdown() throws Throwable {
+
+        // Do absolutely nothing
+        // VT: FIXME: Tell the server that we're gone and invalidate the session?
+<span class="nc" id="L75">    }</span>
+
+    private void authenticate() throws IOException {
+
+<span class="nc" id="L79">        ThreadContext.push(&quot;authenticate&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L83" title="All 4 branches missed.">            if (username == null || password == null) {</span>
+
+<span class="nc" id="L85">                logger.warn(&quot;username or password are null, skipping auth setup&quot;);</span>
+<span class="nc" id="L86">                return;</span>
+            }
+
+<span class="nc" id="L89">            HttpHost targetHost = new HttpHost(</span>
+<span class="nc" id="L90">                    serverContextRoot.getHost(),</span>
+<span class="nc" id="L91">                    serverContextRoot.getPort(),</span>
+<span class="nc" id="L92">                    serverContextRoot.getProtocol());</span>
+<span class="nc" id="L93">            CredentialsProvider credsProvider = new BasicCredentialsProvider();</span>
+<span class="nc" id="L94">            Credentials credentials = new UsernamePasswordCredentials(username, password);</span>
+
+<span class="nc" id="L96">            credsProvider.setCredentials(AuthScope.ANY, credentials);</span>
+
+<span class="nc" id="L98">            AuthCache authCache = new BasicAuthCache();</span>
+<span class="nc" id="L99">            authCache.put(targetHost, new BasicScheme());</span>
+
+<span class="nc" id="L101">            context.setCredentialsProvider(credsProvider);</span>
+<span class="nc" id="L102">            context.setAuthCache(authCache);</span>
+
+        } finally {
+<span class="nc" id="L105">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L107">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

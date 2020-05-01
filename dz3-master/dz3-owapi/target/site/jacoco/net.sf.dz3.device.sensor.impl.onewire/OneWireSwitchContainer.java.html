@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireSwitchContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.onewire</a> &gt; <span class="el_source">OneWireSwitchContainer.java</span></div><h1>OneWireSwitchContainer.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.onewire;
+
+import java.io.IOException;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.container.SwitchContainer;
+
+import net.sf.dz3.device.sensor.DzSwitchContainer;
+import net.sf.dz3.device.sensor.SensorType;
+import net.sf.dz3.instrumentation.Marker;
+
+/**
+ * A platform independent switch container.
+ */
+public class OneWireSwitchContainer extends OneWireDeviceContainer implements DzSwitchContainer {
+    
+    private final OwapiDeviceFactory factory;
+
+    /**
+     * Number of channels the device has.
+     */
+<span class="nc" id="L25">    private int channelCount = 0;</span>
+
+    /**
+     * Create an instance.
+     * 
+     * @param container
+     *            1-Wire API container to base this container on.
+     */
+    public OneWireSwitchContainer(final OwapiDeviceFactory factory, final OneWireContainer container) {
+
+<span class="nc" id="L35">        super(container);</span>
+<span class="nc" id="L36">        this.factory = factory;</span>
+<span class="nc" id="L37">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final SensorType getType() {
+
+<span class="nc" id="L45">        return SensorType.SWITCH;</span>
+    }
+
+    /**
+     * @return Number of channels the device has.
+     */
+    public final synchronized int getChannelCount() {
+
+<span class="nc bnc" id="L53" title="All 2 branches missed.">        if (channelCount == 0) {</span>
+
+            // This means that we haven't read the device yet
+
+<span class="nc" id="L57">            ReentrantReadWriteLock lock = null;</span>
+
+<span class="nc" id="L59">            String address = container.getAddressAsString();</span>
+<span class="nc" id="L60">            SwitchContainer sc = (SwitchContainer) container;</span>
+
+            try {
+
+                // VT: FIXME: Consider replacing this with a Marker
+<span class="nc" id="L65">                long start = System.currentTimeMillis();</span>
+
+<span class="nc" id="L67">                lock = factory.getLock();</span>
+<span class="nc" id="L68">                lock.writeLock().lock();</span>
+
+<span class="nc" id="L70">                long gotLock = System.currentTimeMillis();</span>
+
+<span class="nc" id="L72">                factory.getDevicePath(address).open();</span>
+
+<span class="nc" id="L74">                byte[] state = sc.readDevice();</span>
+
+<span class="nc" id="L76">                channelCount = sc.getNumberChannels(state);</span>
+
+<span class="nc" id="L78">                long now = System.currentTimeMillis();</span>
+<span class="nc" id="L79">                logger.info(address + &quot; has &quot; + channelCount</span>
+                        + &quot; channel[s], took us &quot; + (now - start)
+                        + &quot;ms to figure out (&quot; + (gotLock - start)
+                        + &quot; to get the lock, &quot; + (now - gotLock)
+                        + &quot; to retrieve)&quot;);
+
+<span class="nc" id="L85">            } catch (Throwable t) {</span>
+
+<span class="nc" id="L87">                logger.warn(address + &quot;: can't retrieve channel count (assuming 2):&quot;, t);</span>
+
+<span class="nc" id="L89">                channelCount = 2;</span>
+
+            } finally {
+
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                if (lock != null) {</span>
+
+<span class="nc" id="L95">                    lock.writeLock().unlock();</span>
+                }
+            }
+        }
+
+<span class="nc" id="L100">        return channelCount;</span>
+    }
+
+    /**
+     * Read channel.
+     * 
+     * @param channel Channel to read.
+     * @exception IOException if there was a problem reading the device.
+     * @return Channel value.
+     */
+    public final boolean read(final int channel) throws IOException {
+
+<span class="nc" id="L112">        ReentrantReadWriteLock lock = null;</span>
+<span class="nc" id="L113">        SwitchContainer sc = (SwitchContainer) container;</span>
+<span class="nc" id="L114">        String address = container.getAddressAsString();</span>
+        
+<span class="nc" id="L116">        ThreadContext.push(&quot;read(&quot; + address + &quot;:&quot; + channel + &quot;)&quot;);</span>
+<span class="nc" id="L117">        Marker m = new Marker(&quot;read(&quot; + address + &quot;:&quot; + channel + &quot;)&quot;);</span>
+
+        try {
+
+<span class="nc" id="L121">            lock = factory.getLock();</span>
+
+<span class="nc" id="L123">            lock.writeLock().lock();</span>
+<span class="nc" id="L124">            m.checkpoint(&quot;got lock&quot;);</span>
+
+<span class="nc" id="L126">            factory.getDevicePath(address).open();</span>
+
+<span class="nc" id="L128">            byte[] state = sc.readDevice();</span>
+
+<span class="nc" id="L130">            m.checkpoint(&quot;readDevice&quot;);</span>
+
+            // boolean smart = sc.hasSmartOn();
+            
+<span class="nc" id="L134">            boolean result = sc.getLatchState(channel, state);</span>
+            
+<span class="nc" id="L136">            logger.debug(&quot;state=&quot; + result);</span>
+
+<span class="nc" id="L138">            return result;</span>
+
+<span class="nc" id="L140">        } catch (Throwable t) {</span>
+
+<span class="nc" id="L142">            IOException secondary = new IOException(&quot;Unable to read &quot; + container);</span>
+
+<span class="nc" id="L144">            secondary.initCause(t);</span>
+
+<span class="nc" id="L146">            throw secondary;</span>
+
+        } finally {
+
+<span class="nc bnc" id="L150" title="All 2 branches missed.">            if (lock != null) {</span>
+
+<span class="nc" id="L152">                lock.writeLock().unlock();</span>
+            }
+
+<span class="nc" id="L155">            m.close();</span>
+<span class="nc" id="L156">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Write channel.
+     * 
+     * @param channel
+     *            Channel to write.
+     * @param value
+     *            Value to write.
+     * @exception IOException
+     *                if there was a problem writing to the device.
+     */
+    public final void write(final int channel, final boolean value)
+    throws IOException {
+
+<span class="nc" id="L173">        ReentrantReadWriteLock lock = null;</span>
+
+<span class="nc" id="L175">        SwitchContainer sc = (SwitchContainer) container;</span>
+<span class="nc" id="L176">        String address = container.getAddressAsString();</span>
+
+<span class="nc" id="L178">        ThreadContext.push(&quot;write(&quot; + address + &quot;:&quot; + channel + &quot;, &quot; + value + &quot;)&quot;);</span>
+<span class="nc" id="L179">        Marker m = new Marker(&quot;write(&quot; + address + &quot;:&quot; + channel + &quot;, &quot; + value + &quot;)&quot;);</span>
+
+        try {
+
+<span class="nc" id="L183">            lock = factory.getLock();</span>
+
+<span class="nc" id="L185">            lock.writeLock().lock();</span>
+<span class="nc" id="L186">            m.checkpoint(&quot;got lock&quot;);</span>
+
+<span class="nc" id="L188">            factory.getDevicePath(address).open();</span>
+
+<span class="nc" id="L190">            byte[] state = sc.readDevice();</span>
+
+<span class="nc" id="L192">            m.checkpoint(&quot;readDevice/1&quot;);</span>
+            
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L195">                logger.debug(&quot;state: &quot; + dumpState(state));</span>
+            }
+
+<span class="nc" id="L198">            boolean smart = sc.hasSmartOn();</span>
+
+<span class="nc" id="L200">            sc.setLatchState(channel, value, smart, state);</span>
+
+<span class="nc" id="L202">            m.checkpoint(&quot;writeDevice&quot;);</span>
+            
+<span class="nc bnc" id="L204" title="All 2 branches missed.">            if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L205">                logger.debug(&quot;state: &quot; + dumpState(state));</span>
+            }
+            
+<span class="nc" id="L208">            sc.writeDevice(state);</span>
+<span class="nc" id="L209">            state = sc.readDevice();</span>
+
+<span class="nc" id="L211">            m.checkpoint(&quot;readDevice/2&quot;);</span>
+
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            if (logger.isDebugEnabled()) {</span>
+<span class="nc" id="L214">                logger.debug(&quot;state: &quot; + dumpState(state));</span>
+            }
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">            if (value == sc.getLatchState(channel, state)) {</span>
+
+<span class="nc" id="L219">                return;</span>
+            }
+
+<span class="nc" id="L222">            logger.error(&quot;Failed to write &quot; + container);</span>
+
+<span class="nc" id="L224">        } catch (Throwable t) {</span>
+
+<span class="nc" id="L226">            IOException secondary = new IOException(&quot;Unable to write &quot; + container);</span>
+
+<span class="nc" id="L228">            secondary.initCause(t);</span>
+
+<span class="nc" id="L230">            throw secondary;</span>
+
+        } finally {
+
+<span class="nc bnc" id="L234" title="All 2 branches missed.">            if (lock != null) {</span>
+
+<span class="nc" id="L236">                lock.writeLock().unlock();</span>
+            }
+
+<span class="nc" id="L239">            m.close();</span>
+<span class="nc" id="L240">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L242">    }</span>
+
+    private String dumpState(byte[] state) {
+        
+<span class="nc" id="L246">        StringBuilder sb = new StringBuilder();</span>
+        
+<span class="nc bnc" id="L248" title="All 2 branches missed.">        if (state == null) {</span>
+            
+<span class="nc" id="L250">            sb.append(&quot;&lt;null&gt;&quot;);</span>
+            
+        } else {
+            
+<span class="nc" id="L254">            sb.append(&quot;(&quot;);</span>
+            
+<span class="nc bnc" id="L256" title="All 2 branches missed.">            for (int offset = 0; offset &lt; state.length; offset++) {</span>
+                
+<span class="nc bnc" id="L258" title="All 2 branches missed.">                if (offset &gt; 0) {</span>
+<span class="nc" id="L259">                    sb.append(&quot; &quot;);</span>
+                }
+
+<span class="nc" id="L262">                sb.append(&quot;0x&quot;).append(Integer.toHexString(state[offset] &amp; 0xFF));</span>
+            }
+            
+<span class="nc" id="L265">            sb.append(&quot;)&quot;);</span>
+        }
+        
+<span class="nc" id="L268">        return sb.toString();</span>
+    }
+
+    /**
+     * Reset the device. In other words, set all channels to 0.
+     * 
+     * @exception IOException
+     *                if there was an exception writing the device.
+     */
+    public final void reset() throws IOException {
+
+        // VT: FIXME: Can't afford to get the lock to improve latency -
+        // it will deadlock. In order to fix that, RWLock has to be
+        // modified to take multiple calls from the same thread into
+        // account.
+
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        for (int channel = 0; channel &lt; getChannelCount(); channel++) {</span>
+
+<span class="nc" id="L286">            write(channel, false);</span>
+        }
+<span class="nc" id="L288">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

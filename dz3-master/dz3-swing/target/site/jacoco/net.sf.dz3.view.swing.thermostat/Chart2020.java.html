@@ -1,0 +1,327 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Chart2020.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing.thermostat</a> &gt; <span class="el_source">Chart2020.java</span></div><h1>Chart2020.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing.thermostat;
+
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.time.Clock;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import net.sf.dz3.controller.DataSet;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+
+/**
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ *
+ * VT: NOTE: squid:S110 - I don't care, I didn't create those parents, Sun did. I need mine.
+ */
+@SuppressWarnings(&quot;squid:S110&quot;)
+public class Chart2020 extends AbstractChart2020 {
+
+    private static final long serialVersionUID = 8739949924865459025L;
+
+    /**
+     * Chart width in pixels for all the charts. Undefined until the first time
+     * {@link #paintCharts(Graphics2D, Dimension, Insets, long, double, long, double, double)}
+     * for any instance of this class is called.
+     *
+     * Making it static is ugly, but gets the job done - the screen size will not change.
+     */
+<span class="fc" id="L33">    private static int globalWidth = 0;</span>
+
+    /**
+     * Chart width of this instance.
+     *
+     * @see #globalWidth
+     * @see #paintCharts(Graphics2D, Dimension, Insets, long, double, long, double, double)
+     */
+<span class="fc" id="L41">    private int width = 0;</span>
+
+<span class="fc" id="L43">    private final transient Map&lt;String, Averager&gt; channel2avg = new HashMap&lt;&gt;();</span>
+
+    public Chart2020(Clock clock, long chartLengthMillis) {
+
+<span class="fc" id="L47">        super(clock, chartLengthMillis);</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    public synchronized void consume(DataSample&lt;TintedValueAndSetpoint&gt; signal) {
+
+<span class="nc bnc" id="L53" title="All 4 branches missed.">        if (signal == null || signal.sample == null) {</span>
+<span class="nc" id="L54">            throw new IllegalArgumentException(&quot;signal or sample are null: &quot; + signal);</span>
+        }
+
+<span class="nc" id="L57">        String channel = signal.sourceName;</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (record(channel, signal)) {</span>
+
+<span class="nc" id="L61">            repaint();</span>
+        }
+<span class="nc" id="L63">    }</span>
+
+    /**
+     * Record the signal, properly spacing it out.
+     *
+     * @param channel Channel to use.
+     * @param signal Signal to record.
+     *
+     * @return {@code true} if the component needs to be repainted.
+     */
+    private boolean record(String channel, DataSample&lt;TintedValueAndSetpoint&gt; signal) {
+
+<span class="nc" id="L75">        adjustVerticalLimits(signal.timestamp, signal.sample.value, signal.sample.setpoint);</span>
+
+<span class="nc" id="L77">        synchronized (AbstractChart.class) {</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            if (width != globalWidth) {</span>
+
+                // Chart size changed, need to adjust the buffer
+
+<span class="nc" id="L83">                width = globalWidth;</span>
+
+<span class="nc" id="L85">                long step = chartLengthMillis / width;</span>
+
+<span class="nc" id="L87">                logger.info(&quot;new width {}, {}ms per pixel&quot;, width, step);</span>
+
+                // We lose one sample this way, might want to improve it later, for now, no big deal
+
+<span class="nc" id="L91">                channel2avg.put(channel, new Averager(step));</span>
+
+<span class="nc" id="L93">                return true;</span>
+            }
+<span class="nc" id="L95">        }</span>
+
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (width == 0) {</span>
+
+            // There's nothing we can do before the width is set.
+            // It's not even worth it to record the value.
+
+            // Please repaint.
+<span class="nc" id="L103">            logger.info(&quot;please repaint&quot;);</span>
+<span class="nc" id="L104">            return true;</span>
+        }
+
+<span class="nc" id="L107">        Averager avg = channel2avg.get(channel);</span>
+<span class="nc" id="L108">        TintedValue tv = avg.record(signal);</span>
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if (tv == null) {</span>
+
+            // The average is still being calculated, nothing to do
+<span class="nc" id="L113">            return false;</span>
+        }
+
+<span class="nc" id="L116">        DataSet&lt;TintedValue&gt; dsValues = channel2dsValue.computeIfAbsent(channel, v -&gt; new DataSet&lt;&gt;(chartLengthMillis));</span>
+<span class="nc" id="L117">        DataSet&lt;Double&gt; dsSetpoints = channel2dsSetpoint.computeIfAbsent(channel, v -&gt; new DataSet&lt;&gt;(chartLengthMillis));</span>
+
+<span class="nc" id="L119">        dsValues.record(signal.timestamp, tv, true);</span>
+<span class="nc" id="L120">        dsSetpoints.record(signal.timestamp, signal.sample.setpoint, true);</span>
+
+<span class="nc" id="L122">        return true;</span>
+    }
+
+    @Override
+    protected void checkWidth(Dimension boundary) {
+
+        // Chart size *can* change during runtime - see +/- Console#ResizeKeyListener.
+
+<span class="nc" id="L130">        synchronized (AbstractChart.class) {</span>
+
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (globalWidth != boundary.width) {</span>
+
+<span class="nc" id="L134">                logger.info(&quot;width changed from {} to {}&quot;, globalWidth, boundary.width);</span>
+
+<span class="nc" id="L136">                globalWidth = boundary.width;</span>
+
+<span class="nc" id="L138">                long step = chartLengthMillis / globalWidth;</span>
+
+<span class="nc" id="L140">                logger.info(&quot;ms per pixel: {}&quot;, step);</span>
+            }
+<span class="nc" id="L142">        }</span>
+
+<span class="nc" id="L144">    }</span>
+
+    @Override
+    protected void paintChart(Graphics2D g2d, Dimension boundary, Insets insets,
+            long now, double xScale, long xOffset, double yScale, double yOffset,
+            String channel, DataSet&lt;TintedValue&gt; dsValues, DataSet&lt;Double&gt; dsSetpoints) {
+
+        // Setpoint history is rendered over the value history
+
+<span class="nc" id="L153">        paintValues(g2d, boundary, insets, now, xScale, xOffset, yScale, yOffset, channel, dsValues);</span>
+<span class="nc" id="L154">        paintSetpoints(g2d, boundary, insets, now, xScale, xOffset, yScale, yOffset, channel, dsSetpoints);</span>
+<span class="nc" id="L155">    }</span>
+
+    private void paintValues(Graphics2D g2d, Dimension boundary, Insets insets,
+            long now, double xScale, long xOffset, double yScale, double yOffset,
+            String channel, DataSet&lt;TintedValue&gt; ds) {
+
+<span class="nc" id="L161">        Long timeTrailer = null;</span>
+<span class="nc" id="L162">        TintedValue trailer = null;</span>
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        for (Iterator&lt;Entry&lt;Long, TintedValue&gt;&gt; di = ds.entryIterator(); di.hasNext();) {</span>
+
+<span class="nc" id="L166">            Entry&lt;Long, TintedValue&gt; entry = di.next();</span>
+<span class="nc" id="L167">            long timeNow = entry.getKey();</span>
+<span class="nc" id="L168">            TintedValue cursor = entry.getValue();</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">            if (timeTrailer != null) {</span>
+
+<span class="nc" id="L172">                double x0 = (timeTrailer - xOffset) * xScale + insets.left;</span>
+<span class="nc" id="L173">                double y0 = (yOffset - trailer.value) * yScale + insets.top;</span>
+
+<span class="nc" id="L175">                double x1 = (timeNow - xOffset) * xScale + insets.left;</span>
+<span class="nc" id="L176">                double y1 = (yOffset - cursor.value) * yScale + insets.top;</span>
+
+                // Decide whether the line is alive or dead
+
+<span class="nc bnc" id="L180" title="All 2 branches missed.">                if (timeNow - timeTrailer &gt; DEAD_TIMEOUT) {</span>
+
+                    // It's dead, all right
+                    // Paint the horizontal line in dead color and skew the x0 so the next part will be painted vertical
+
+<span class="nc" id="L185">                    Color startColor = signal2color(trailer.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+
+                    // End color differs from the start in alpha, not hue - this plays nicer with backgrounds
+                    // Even though this is a memory allocation, it won't affect performance since [hopefully]
+                    // there'll be just a few dead drops
+
+<span class="nc" id="L191">                    Color endColor = new Color(startColor.getRed(), startColor.getGreen(), startColor.getBlue(), 64);</span>
+
+<span class="nc" id="L193">                    drawGradientLine(g2d, x0, y0, x1, y0, startColor, endColor, cursor.emphasize);</span>
+
+<span class="nc" id="L195">                    x0 = x1;</span>
+                }
+
+<span class="nc" id="L198">                Color startColor = signal2color(trailer.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+<span class="nc" id="L199">                Color endColor = signal2color(cursor.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+
+<span class="nc" id="L201">                drawGradientLine(g2d, x0, y0, x1, y1, startColor, endColor, cursor.emphasize);</span>
+            }
+
+<span class="nc" id="L204">            timeTrailer = timeNow;</span>
+<span class="nc" id="L205">            trailer = cursor;</span>
+<span class="nc" id="L206">        }</span>
+
+<span class="nc bnc" id="L208" title="All 4 branches missed.">        if (timeTrailer != null &amp;&amp; now - timeTrailer &gt; DEAD_TIMEOUT) {</span>
+
+            // There's a gap on the right, let's fill it
+
+<span class="nc" id="L212">            double x0 = (timeTrailer - xOffset) * xScale + insets.left;</span>
+<span class="nc" id="L213">            double x1 = (now - xOffset) * xScale + insets.left;</span>
+<span class="nc" id="L214">            double y = (yOffset - trailer.value) * yScale + insets.top;</span>
+
+<span class="nc" id="L216">            Color startColor = signal2color(trailer.tint - 1, SIGNAL_COLOR_LOW, SIGNAL_COLOR_HIGH);</span>
+<span class="nc" id="L217">            Color endColor = getBackground();</span>
+
+<span class="nc" id="L219">            drawGradientLine(g2d, x0, y, x1, y, startColor, endColor, false);</span>
+        }
+<span class="nc" id="L221">    }</span>
+
+    private void paintSetpoints(Graphics2D g2d, Dimension boundary, Insets insets,
+            long now, double xScale, long xOffset, double yScale, double yOffset,
+            String channel, DataSet&lt;Double&gt; ds) {
+
+<span class="nc" id="L227">        Color startColor = new Color(SETPOINT_COLOR.getRed(), SETPOINT_COLOR.getGreen(), SETPOINT_COLOR.getBlue(), 64);</span>
+<span class="nc" id="L228">        Color endColor = SETPOINT_COLOR;</span>
+
+<span class="nc" id="L230">        Long timeTrailer = null;</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        for (Iterator&lt;Entry&lt;Long, Double&gt;&gt; di = ds.entryIterator(); di.hasNext();) {</span>
+
+<span class="nc" id="L234">            Entry&lt;Long, Double&gt; entry = di.next();</span>
+<span class="nc" id="L235">            long timeNow = entry.getKey();</span>
+<span class="nc" id="L236">            Double cursor = entry.getValue();</span>
+
+            double x0;
+            double x1;
+<span class="nc" id="L240">            double y = (yOffset - cursor) * yScale + insets.top;</span>
+
+<span class="nc bnc" id="L242" title="All 2 branches missed.">            if (timeTrailer == null) {</span>
+
+<span class="nc" id="L244">                x0 = insets.left;</span>
+<span class="nc" id="L245">                x1 = (timeNow - xOffset) * xScale + insets.left;</span>
+
+            } else {
+
+<span class="nc" id="L249">                x0 = (timeTrailer - xOffset) * xScale + insets.left;</span>
+<span class="nc" id="L250">                x1 = (timeNow - xOffset) * xScale + insets.left;</span>
+            }
+
+<span class="nc" id="L253">            drawGradientLine(g2d, x0, y, x1, y, startColor, endColor, false);</span>
+
+<span class="nc" id="L255">            timeTrailer = timeNow;</span>
+<span class="nc" id="L256">        }</span>
+<span class="nc" id="L257">    }</span>
+
+    /**
+     * Averaging tool.
+     */
+    private class Averager {
+
+        /**
+         * The expiration interval. Values older than the last key by this many
+         * milliseconds are expired.
+         */
+        private final long expirationInterval;
+
+        /**
+         * The timestamp of the oldest recorded sample.
+         */
+        private Long timestamp;
+
+        private int count;
+<span class="nc" id="L276">        private double valueAccumulator = 0;</span>
+<span class="nc" id="L277">        private double tintAccumulator = 0;</span>
+<span class="nc" id="L278">        private double emphasizeAccumulator = 0;</span>
+
+<span class="nc" id="L280">        public Averager(long expirationInterval) {</span>
+<span class="nc" id="L281">            this.expirationInterval = expirationInterval;</span>
+<span class="nc" id="L282">        }</span>
+
+        /**
+         * Record a value.
+         *
+         * @param signal Signal to record.
+         *
+         * @return The average of all data stored in the buffer if this sample is more than {@link #expirationInterval}
+         * away from the first sample stored, {@code null} otherwise.
+         */
+        @SuppressWarnings(&quot;squid:S2629&quot;)
+        public TintedValue record(DataSample&lt;? extends TintedValue&gt; signal) {
+
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            if (timestamp == null) {</span>
+<span class="nc" id="L296">                timestamp = signal.timestamp;</span>
+            }
+
+<span class="nc" id="L299">            long age = signal.timestamp - timestamp;</span>
+
+<span class="nc bnc" id="L301" title="All 2 branches missed.">            if ( age &lt; expirationInterval) {</span>
+
+<span class="nc" id="L303">                count++;</span>
+<span class="nc" id="L304">                valueAccumulator += signal.sample.value;</span>
+<span class="nc" id="L305">                tintAccumulator += signal.sample.tint;</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">                emphasizeAccumulator += signal.sample.emphasize ? 1 : 0;</span>
+
+<span class="nc" id="L308">                return null;</span>
+            }
+
+            // VT: NOTE: squid:S2629 - this happens once in 25-40 seconds, acceptable loss
+
+            //logger.debug(&quot;RingBuffer: flushing at {}&quot;, Interval.toTimeInterval(age));
+
+<span class="nc bnc" id="L315" title="All 2 branches missed.">            TintedValue result = new TintedValue(valueAccumulator / count, tintAccumulator / count, emphasizeAccumulator &gt; 0);</span>
+
+<span class="nc" id="L317">            count = 1;</span>
+<span class="nc" id="L318">            valueAccumulator = signal.sample.value;</span>
+<span class="nc" id="L319">            tintAccumulator = signal.sample.tint;</span>
+<span class="nc" id="L320">            emphasizeAccumulator = 0;</span>
+<span class="nc" id="L321">            timestamp = signal.timestamp;</span>
+
+<span class="nc" id="L323">            return result;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

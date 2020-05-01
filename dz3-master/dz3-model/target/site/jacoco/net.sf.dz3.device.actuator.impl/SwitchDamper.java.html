@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SwitchDamper.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">SwitchDamper.java</span></div><h1>SwitchDamper.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.io.IOException;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.dz3.instrumentation.Marker;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Damper controlled by a switch.
+ *
+ * Most existing HVAC dampers are like this, controlled by 24VAC.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class SwitchDamper extends AbstractDamper {
+
+    /**
+     * Current position.
+     */
+    private double position;
+
+    /**
+     * Hardware switch that controls the actual damper.
+     */
+    private final Switch target;
+
+    /**
+     * Switch threshold.
+     *
+     * Values passed to {@link #moveDamper(double)} above the threshold
+     * will set the switch to 1,values equal or less will set the switch to 0.
+     */
+    private double threshold;
+
+    /**
+     * If {@code} true, then {@code 1.0} damper position would mean the switch in {@code false} state,
+     * not in {@code true} like it normally would.
+     */
+    private final boolean inverted;
+
+    /**
+     * Heartbeat interval.
+     *
+     * Command to set the state will not be sent to {@link #target} if it was last
+     * sent less than this many milliseconds ago.
+     */
+    private long heartbeatMillis;
+
+    /**
+     * Last time the command was successfully sent to the {@link #target}.
+     *
+     * Set in {@link #moveDamper(double)}.
+     */
+<span class="fc" id="L58">    private long lastKnown = 0;</span>
+
+    /**
+     * Last known target state.
+     *
+     * Set in {@link #moveDamper(double)}.
+     */
+    private boolean targetState;
+
+    /**
+     * Create an instance with default (1.0) park position.
+     *
+     * @param name Damper name. Necessary evil to allow instrumentation signature.
+     * @param target Switch that controls the actual damper.
+     * @param threshold Switch threshold.
+     * @param heartbeatSeconds The command to set the position will not be sent to the actual switch
+     * more often than once in this many seconds.
+     */
+    public SwitchDamper(String name, Switch target, double threshold, int heartbeatSeconds) {
+
+<span class="fc" id="L78">        this(name, target, threshold, 1.0, heartbeatSeconds, false);</span>
+<span class="fc" id="L79">    }</span>
+
+    /**
+     * Create an instance.
+     *
+     * @param name Damper name. Necessary evil to allow instrumentation signature.
+     * @param target Switch that controls the actual damper.
+     * @param threshold Switch threshold.
+     * @param parkPosition Damper position defined as 'parked'.
+     * @param heartbeatSeconds The command to set the position will not be sent to the actual switch
+     * more often than once in this many seconds.
+     */
+    public SwitchDamper(String name, Switch target, double threshold, double parkPosition, int heartbeatSeconds) {
+
+<span class="fc" id="L93">        this(name, target, threshold, parkPosition, heartbeatSeconds, false);</span>
+<span class="fc" id="L94">    }</span>
+
+    /**
+     * Create an instance.
+     *
+     * @param name Damper name. Necessary evil to allow instrumentation signature.
+     * @param target Switch that controls the actual damper.
+     * @param threshold Switch threshold.
+     * @param parkPosition Damper position defined as 'parked'.
+     * @param heartbeatSeconds The command to set the position will not be sent to the actual switch
+     * more often than once in this many seconds.
+     * @param inverted {@code true} if the switch position needs to be inverted.
+     */
+    public SwitchDamper(String name, Switch target, double threshold, double parkPosition, int heartbeatSeconds, boolean inverted) {
+
+<span class="fc" id="L109">        super(name);</span>
+
+<span class="fc" id="L111">        check(target);</span>
+<span class="fc" id="L112">        check(threshold);</span>
+
+<span class="fc" id="L114">        this.target = target;</span>
+<span class="fc" id="L115">        this.threshold = threshold;</span>
+
+<span class="fc" id="L117">        this.inverted = inverted;</span>
+
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        if (heartbeatSeconds &lt; 0) {</span>
+<span class="nc" id="L120">            throw new IllegalArgumentException(&quot;hearbeatSeconds must be positive (received &quot; + heartbeatSeconds + &quot;)&quot;);</span>
+        }
+
+<span class="fc" id="L123">        heartbeatMillis = heartbeatSeconds * 1000L;</span>
+
+<span class="fc" id="L125">        setParkPosition(parkPosition);</span>
+
+<span class="fc" id="L127">        set(getParkPosition());</span>
+<span class="fc" id="L128">    }</span>
+
+    private void check(Switch target) {
+
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        if (target == null) {</span>
+<span class="nc" id="L133">            throw new IllegalArgumentException(&quot;target can't be null&quot;);</span>
+        }
+<span class="fc" id="L135">    }</span>
+
+    private void check(double threshold) {
+
+<span class="pc bpc" id="L139" title="2 of 4 branches missed.">        if (threshold &lt;= 0 || threshold &gt;= 1.0 ) {</span>
+<span class="nc" id="L140">            throw new IllegalArgumentException(&quot;Unreasonable threshold value given (&quot;</span>
+                    + threshold + &quot;), valid values are (0 &lt; threshold &lt; 1)&quot;);
+        }
+<span class="fc" id="L143">    }</span>
+
+    @Override
+    public void moveDamper(double position) throws IOException {
+
+<span class="fc" id="L148">        ThreadContext.push(&quot;moveDamper&quot;);</span>
+<span class="fc" id="L149">        Marker m = new Marker(&quot;moveDamper&quot;);</span>
+
+        try {
+
+<span class="fc bfc" id="L153" title="All 2 branches covered.">            boolean state = position &gt; threshold;</span>
+
+<span class="fc bfc" id="L155" title="All 4 branches covered.">            state = inverted ? !state : state;</span>
+
+<span class="fc bfc" id="L157" title="All 2 branches covered.">            logger.debug(&quot;translated {} =&gt; {}{}&quot;, position, state, (inverted ? &quot; (inverted)&quot; : &quot;&quot;));</span>
+
+            // VT: NOTE: This call makes it a royal PITA to troubleshoot;
+            // might want to think of injectable TimeSource
+<span class="fc" id="L161">            long now = System.currentTimeMillis();</span>
+<span class="fc" id="L162">            long elapsed = now - lastKnown;</span>
+
+<span class="fc bfc" id="L164" title="All 4 branches covered.">            if (elapsed &gt; heartbeatMillis || state != targetState) {</span>
+
+<span class="fc bfc" id="L166" title="All 2 branches covered.">                if (state == targetState) {</span>
+                    // It's a timeout, then
+<span class="fc" id="L168">                    logger.debug(&quot;heartbeat exceeded by {}ms, invoking hardware&quot;, elapsed - heartbeatMillis);</span>
+                }
+
+<span class="fc" id="L171">                target.setState(state);</span>
+
+                // This will not be set if the command failed
+<span class="fc" id="L174">                lastKnown = now;</span>
+<span class="fc" id="L175">                targetState = state;</span>
+            }
+
+<span class="fc" id="L178">            this.position = position;</span>
+
+<span class="nc" id="L180">        } catch (Throwable t) {</span>
+
+            // This is pretty serious, closed damper may cause the compressor to slug
+            // or the boiler to blow up - so no harm in logging this multiple times, hopefully
+
+<span class="nc" id="L185">            logger.fatal(&quot;failed to set state for {}&quot;, target.getAddress(), t);</span>
+
+<span class="nc" id="L187">            throw new IOException(&quot;failed to set state for &quot; + target.getAddress(), t);</span>
+
+        } finally {
+
+<span class="fc" id="L191">            m.close();</span>
+<span class="fc" id="L192">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L194">    }</span>
+
+    @Override
+    public double getPosition() throws IOException {
+
+<span class="fc" id="L199">        return position;</span>
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L205">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Switch based damper&quot;,
+<span class="nc" id="L208">                Integer.toHexString(hashCode()),</span>
+                &quot;Controls a switch that controls a damper&quot;);
+    }
+
+    @JmxAttribute(description = &quot;threshold&quot;)
+    public double getThreshold() {
+<span class="nc" id="L214">        return threshold;</span>
+    }
+
+    public void setThreshold(double threshold) {
+<span class="nc" id="L218">        this.threshold = threshold;</span>
+<span class="nc" id="L219">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

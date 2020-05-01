@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnitModel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">UnitModel.java</span></div><h1>UnitModel.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.Unit;
+import net.sf.dz3.device.model.UnitSignal;
+import net.sf.dz3.device.model.ZoneController;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+import net.sf.jukebox.logger.LogAware;
+import net.sf.jukebox.util.Interval;
+
+/**
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2019
+ */
+public class UnitModel extends LogAware implements Unit {
+
+    /**
+     * The unit name.
+     */
+    private final String name;
+
+    /**
+     * Instrumentation signature.
+     */
+    private final String signature;
+
+<span class="nc" id="L33">    private DataBroadcaster&lt;UnitSignal&gt; dataBroadcaster = new DataBroadcaster&lt;UnitSignal&gt;();</span>
+
+    /**
+     * Last known state.
+     */
+    private DataSample&lt;UnitSignal&gt; state;
+
+    /**
+     * Time when the unit was started, in milliseconds.
+     * {@code null} value indicates it is not currently running.
+     */
+<span class="nc" id="L44">    private Long lastStarted = null;</span>
+
+    /**
+     * Minimum runtime allowed, in milliseconds.
+     *
+     * No minimum runtime restriction if the value is 0.
+     */
+<span class="nc" id="L51">    private long minRuntimeMillis = 0;</span>
+
+    /**
+     * Create a named instance with nothing connected to it.
+     *
+     * @param name Unit name.
+     */
+    public UnitModel(String name) {
+
+<span class="nc" id="L60">        this(name, null, 0);</span>
+<span class="nc" id="L61">    }</span>
+
+    /**
+     * Create a named instance listening to the given zone controller with no minimum runtime restriction.
+     *
+     * @param name Unit name.
+     * @param zoneController Zone controller to listen to.
+     */
+    public UnitModel(String name, ZoneController zoneController) {
+
+<span class="nc" id="L71">        this(name, zoneController, 0);</span>
+<span class="nc" id="L72">    }</span>
+
+    /**
+     * Create a named instance listening to the given zone controller.
+     *
+     * @param name Unit name.
+     * @param zoneController Zone controller to listen to.
+     * @param minRuntimeMillis Minimum runtime allowed, in milliseconds.
+     */
+<span class="nc" id="L81">    public UnitModel(String name, ZoneController zoneController, long minRuntimeMillis) {</span>
+
+<span class="nc bnc" id="L83" title="All 4 branches missed.">        if (name == null || &quot;&quot;.equals(name)) {</span>
+<span class="nc" id="L84">            throw new IllegalArgumentException(&quot;name can't be null or empty&quot;);</span>
+        }
+
+<span class="nc" id="L87">        this.name = name;</span>
+<span class="nc" id="L88">        signature = MessageDigestCache.getMD5(name).substring(0, 19);</span>
+
+<span class="nc" id="L90">        setMinRuntime(minRuntimeMillis);</span>
+
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if (zoneController != null) {</span>
+<span class="nc" id="L93">            zoneController.addConsumer(this);</span>
+        }
+<span class="nc" id="L95">    }</span>
+
+    @Override
+    public String getName() {
+
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if ( name == null ) {</span>
+
+<span class="nc" id="L102">            throw new IllegalStateException(&quot;Not Initialized&quot;);</span>
+        }
+
+<span class="nc" id="L105">        return name;</span>
+    }
+
+    @Override
+    public int compareTo(Unit other) {
+
+<span class="nc bnc" id="L111" title="All 2 branches missed.">	if (other == null) {</span>
+<span class="nc" id="L112">	    throw new IllegalArgumentException(&quot;other can't be null&quot;);</span>
+	}
+
+<span class="nc" id="L115">	return getName().compareTo((other.getName()));</span>
+    }
+
+    @Override
+    public String toString() {
+
+<span class="nc" id="L121">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L123">        sb.append(&quot;Unit(&quot;).append(name).append(&quot;, &quot;);</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        sb.append(state == null ? &quot;&lt;not initialized&gt;&quot; : getSignal());</span>
+<span class="nc" id="L125">        sb.append(&quot;)&quot;);</span>
+
+<span class="nc" id="L127">        return sb.toString();</span>
+    }
+
+    public UnitSignal getSignal() {
+<span class="nc" id="L131">        return state.sample;</span>
+    }
+
+    @JmxAttribute(description=&quot;Demand&quot;)
+    public double getDemand() {
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        return state != null ? state.sample.demand : 0;</span>
+    }
+
+
+    @JmxAttribute(description=&quot;Running&quot;)
+    public boolean getRunning() {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        return state != null ? state.sample.running : false;</span>
+    }
+
+    @JmxAttribute(description=&quot;Uptime as string&quot;)
+    public String getUptimeAsString() {
+
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        if (lastStarted == null) {</span>
+<span class="nc" id="L149">            return &quot;off&quot;;</span>
+        }
+
+        // VT: NOTE: The only reason currentTimeMillis() is allowed here is because
+        // this method is for human consumption via JMX Console
+
+<span class="nc" id="L155">        return Interval.toTimeInterval(System.currentTimeMillis() - lastStarted);</span>
+    }
+
+    /**
+     * Compute the operating state based on demand.
+     *
+     * @param signal Zone controller signal to make a decision upon.
+     */
+    @Override
+    public synchronized void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L166">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+<span class="nc" id="L170">            check(signal);</span>
+
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            logger.debug(&quot;demand (old, new): (&quot; + (state == null ? Double.NaN : state.sample.demand) + &quot;, &quot; + signal.sample + &quot;)&quot;);</span>
+
+            // VT: FIXME: uptime
+
+<span class="nc bnc" id="L176" title="All 4 branches missed.">            if (signal.sample &gt; 0 &amp;&amp; !isRunning()) {</span>
+
+<span class="nc" id="L178">                logger.info(&quot;Turning ON&quot;);</span>
+<span class="nc" id="L179">                setRunning(true, signal.timestamp);</span>
+
+<span class="nc bnc" id="L181" title="All 4 branches missed.">            } else if (signal.sample == 0 &amp;&amp; isRunning()) {</span>
+
+<span class="nc" id="L183">                logger.info(&quot;Turning OFF&quot;);</span>
+<span class="nc" id="L184">                setRunning(false, signal.timestamp);</span>
+
+            } else {
+
+<span class="nc" id="L188">                logger.debug(&quot;no change&quot;);</span>
+            }
+
+        } finally {
+
+<span class="nc" id="L193">            setDemand(signal.sample, signal.timestamp);</span>
+<span class="nc" id="L194">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L196">    }</span>
+
+    /**
+     * Make sure the signal given to {@link #consume(DataSample)} is sane.
+     *
+     * @param signal Signal to check.
+     */
+    private void check(DataSample&lt;Double&gt; signal) {
+
+<span class="nc" id="L205">        ThreadContext.push(&quot;check&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L209" title="All 2 branches missed.">            if (signal == null) {</span>
+<span class="nc" id="L210">                throw new IllegalArgumentException(&quot;signal can't be null&quot;);</span>
+            }
+
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            if (signal.isError()) {</span>
+
+<span class="nc" id="L215">                logger.error(&quot;Should not have propagated all the way here&quot;, signal.error);</span>
+<span class="nc" id="L216">                throw new IllegalArgumentException(&quot;Error signal should have been handled by zone controller&quot;);</span>
+            }
+
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            if (signal.sample &lt; 0.0) {</span>
+
+<span class="nc" id="L221">                throw new IllegalArgumentException(&quot;Signal must be non-negative, received &quot; + signal.sample);</span>
+            }
+
+        } finally {
+<span class="nc" id="L225">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L227">    }</span>
+
+    public final boolean isRunning() {
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        return state == null ? false : state.sample.running;</span>
+    }
+
+    /**
+     * Broadcast the state change.
+     */
+    private void stateChanged() {
+
+<span class="nc" id="L238">        ThreadContext.push(&quot;stateChanged&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L242" title="All 2 branches missed.">            if (state == null) {</span>
+
+<span class="nc" id="L244">                logger.warn(&quot;state is null, invoked from constructor?&quot;);</span>
+<span class="nc" id="L245">                return;</span>
+            }
+
+<span class="nc" id="L248">            dataBroadcaster.broadcast(state);</span>
+
+        } finally {
+<span class="nc" id="L251">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L253">    }</span>
+
+    @Override
+    public void addConsumer(DataSink&lt;UnitSignal&gt; consumer) {
+
+<span class="nc" id="L258">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="nc" id="L259">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;UnitSignal&gt; consumer) {
+
+<span class="nc" id="L264">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L265">    }</span>
+
+    /**
+     * Switch the unit on or off.
+     *
+     * This method should not be called more often than it is necessary.
+     * Nevertheless, it must be idempotent to increase fault tolerance.
+     *
+     * @param running Desired running mode.
+     * @param timestamp
+     */
+    private synchronized void setRunning(boolean running, long timestamp) {
+
+<span class="nc" id="L278">        long uptime = updateUptime(running, timestamp);</span>
+
+<span class="nc" id="L280">        state = new DataSample&lt;UnitSignal&gt;(timestamp,</span>
+                name,
+                signature,
+<span class="nc bnc" id="L283" title="All 2 branches missed.">                new UnitSignal(state == null ? 0.0 : state.sample.demand, running, uptime), null);</span>
+
+<span class="nc" id="L285">        stateChanged();</span>
+<span class="nc" id="L286">    }</span>
+
+    private synchronized void setDemand(double demand, long timestamp) {
+
+<span class="nc bnc" id="L290" title="All 2 branches missed.">        long uptime = updateUptime(demand &gt; 0, timestamp);</span>
+
+<span class="nc" id="L292">        state = new DataSample&lt;UnitSignal&gt;(timestamp,</span>
+                name,
+                signature,
+<span class="nc bnc" id="L295" title="All 2 branches missed.">                new UnitSignal(demand, state == null ? false : state.sample.running, uptime), null);</span>
+
+<span class="nc" id="L297">        stateChanged();</span>
+<span class="nc" id="L298">    }</span>
+
+    private synchronized long updateUptime(boolean running, long timestamp) {
+
+<span class="nc bnc" id="L302" title="All 2 branches missed.">        if (!running) {</span>
+<span class="nc" id="L303">            lastStarted = null;</span>
+<span class="nc" id="L304">            return 0;</span>
+        }
+
+<span class="nc bnc" id="L307" title="All 2 branches missed.">        if (lastStarted == null) {</span>
+<span class="nc" id="L308">            lastStarted = timestamp;</span>
+<span class="nc" id="L309">            return 0;</span>
+        }
+
+<span class="nc bnc" id="L312" title="All 2 branches missed.">        if (timestamp &lt; lastStarted) {</span>
+<span class="nc" id="L313">            throw new IllegalStateException(&quot;timestamp &lt; lastStarted (&quot; + timestamp + &quot; &lt; &quot; + lastStarted + &quot;)&quot;);</span>
+        }
+
+<span class="nc" id="L316">        return timestamp - lastStarted;</span>
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L322">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;HVAC Unit Model&quot;,
+                name,
+                &quot;Analyzes zone controller output and decides what signals to send to actual HVAC hardware driver&quot;);
+    }
+
+    @Override
+    public long getMinRuntime() {
+<span class="nc" id="L331">        return minRuntimeMillis;</span>
+    }
+
+    public void setMinRuntime(long minRuntimeMillis) {
+
+<span class="nc bnc" id="L336" title="All 4 branches missed.">        if (minRuntimeMillis != 0 &amp;&amp; minRuntimeMillis &lt; 1000 * 60) {</span>
+<span class="nc" id="L337">            throw new IllegalArgumentException(&quot;Unreasonably short runtime &quot; + minRuntimeMillis + &quot;ms, one minute is allowed. Do you remember these are milliseconds?&quot;);</span>
+        }
+
+<span class="nc" id="L340">        this.minRuntimeMillis = minRuntimeMillis;</span>
+<span class="nc" id="L341">        stateChanged();</span>
+<span class="nc" id="L342">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

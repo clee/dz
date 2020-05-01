@@ -1,0 +1,6 @@
+net/sf/dz3/scheduler/Scheduler$Deviation.class
+net/sf/dz3/scheduler/Period.class
+net/sf/dz3/scheduler/Scheduler.class
+net/sf/dz3/scheduler/AbstractScheduleUpdater.class
+net/sf/dz3/scheduler/PeriodMatcher.class
+net/sf/dz3/scheduler/ScheduleUpdater.class

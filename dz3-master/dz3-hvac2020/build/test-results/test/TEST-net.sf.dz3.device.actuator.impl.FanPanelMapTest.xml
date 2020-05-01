@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="net.sf.dz3.device.actuator.impl.FanPanelMapTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2020-05-23T06:53:14" hostname="cx" time="0.031">
+  <properties/>
+  <testcase name="emptyDemandMap" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.0"/>
+  <testcase name="demandMapSwitch1" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.002"/>
+  <testcase name="demandMapSwitch2" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.012"/>
+  <testcase name="demandMapNarrow" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.004"/>
+  <testcase name="demandMapSingle" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.001"/>
+  <testcase name="demandMap1" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.001"/>
+  <testcase name="demandMap3" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.003"/>
+  <testcase name="demandMapWide" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.002"/>
+  <testcase name="demandMapDoubleNegative" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.002"/>
+  <testcase name="demandMapNegative" classname="net.sf.dz3.device.actuator.impl.FanPanelMapTest" time="0.002"/>
+  <system-out><![CDATA[?[32m23:53:14,425 INFO DataBroadcaster Test worker [demandMapSwitch1] Async: 'null'
+?[m?[32m23:53:14,426 INFO DataBroadcaster Test worker [demandMapSwitch1] Async: 'null'
+?[m?[36m23:53:14,426 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch1, execute/0.0] 0: 0.0 > 0.0 = false
+?[m?[36m23:53:14,426 DEBUG AbstractSwitch Test worker [demandMapSwitch1, execute/0.0, setState/delay, setState] 0: false
+?[m?[36m23:53:14,427 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch1, execute/1.0] 0: 1.0 > 0.0 = true
+?[m?[36m23:53:14,427 DEBUG AbstractSwitch Test worker [demandMapSwitch1, execute/1.0, setState/delay, setState] 0: true
+?[m?[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+?[m?[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+?[m?[32m23:53:14,428 INFO FanPanelMapTest Test worker [demandMapSwitch2] map: {0.0={net.sf.dz3.device.sensor.impl.NullSwitch, address=0, state=false}, 1.0={net.sf.dz3.device.sensor.impl.NullSwitch, address=1, state=false}}
+?[m?[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+?[m?[36m23:53:14,429 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.0] 0: 0.0 > 0.0 = false
+?[m?[36m23:53:14,429 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.0, setState/delay, setState] 0: false
+?[m?[36m23:53:14,429 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.0] 1: 0.0 > 1.0 = false
+?[m?[36m23:53:14,430 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.0, setState/delay, setState] 1: false
+?[m?[36m23:53:14,430 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.5] 0: 0.5 > 0.0 = true
+?[m?[36m23:53:14,430 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.5, setState/delay, setState] 0: true
+?[m?[36m23:53:14,431 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.5] 1: 0.5 > 1.0 = false
+?[m?[36m23:53:14,431 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.5, setState/delay, setState] 1: false
+?[m?[36m23:53:14,432 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/1.0] 0: 1.0 > 0.0 = true
+?[m?[36m23:53:14,432 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/1.0, setState/delay, setState] 0: true
+?[m?[36m23:53:14,433 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/1.0] 1: 1.0 > 1.0 = true
+?[m?[36m23:53:14,433 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/1.0, setState/delay, setState] 1: true
+?[m?[36m23:53:14,439 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/2.0] 0: 2.0 > 0.0 = true
+?[m?[36m23:53:14,439 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/2.0, setState/delay, setState] 0: true
+?[m?[36m23:53:14,439 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/2.0] 1: 2.0 > 1.0 = true
+?[m?[36m23:53:14,440 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/2.0, setState/delay, setState] 1: true
+?[m?[32m23:53:14,440 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,440 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,445 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,447 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,448 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,448 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,449 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,451 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,452 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,453 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,454 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,455 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,456 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

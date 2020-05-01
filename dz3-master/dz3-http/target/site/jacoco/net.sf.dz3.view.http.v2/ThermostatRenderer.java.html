@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThermostatRenderer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.v2</a> &gt; <span class="el_source">ThermostatRenderer.java</span></div><h1>ThermostatRenderer.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.v2;
+
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.joda.time.DateTime;
+
+import net.sf.dz3.controller.pid.AbstractPidController;
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.model.ThermostatSignal;
+import net.sf.dz3.device.model.ZoneState;
+import net.sf.dz3.device.model.impl.ThermostatModel;
+import net.sf.dz3.scheduler.Period;
+import net.sf.dz3.scheduler.Scheduler;
+import net.sf.dz3.scheduler.Scheduler.Deviation;
+import net.sf.dz3.view.http.common.QueueFeeder;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+
+/**
+/**
+ * Keeps {@link #consume(DataSample) receiving} data notifications and
+ * {@link #emit(ZoneSnapshot) stuffing} them into the queue. 
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+
+public class ThermostatRenderer extends QueueFeeder&lt;ZoneSnapshot&gt; implements DataSink&lt;ThermostatSignal&gt;, JsonRenderer&lt;DataSample&lt;ThermostatSignal&gt;&gt; {
+
+    private final ThermostatModel source;
+    private final Scheduler scheduler;
+    
+    public ThermostatRenderer(ThermostatModel source, Map&lt;String, Object&gt; context, Scheduler scheduler) {
+        
+<span class="fc" id="L36">        super(context);</span>
+
+<span class="fc" id="L38">        this.source = source;</span>
+<span class="fc" id="L39">        this.scheduler = scheduler;</span>
+
+        // VT: NOTE: This is a simplification sufficient until the server side framework
+        // is ironed out. Later, the controller signal needs to be added, just like it is
+        // done in ThermostatPanel.
+        
+<span class="fc" id="L45">        source.addConsumer(this);</span>
+<span class="fc" id="L46">    }</span>
+
+    /**
+     * 
+     * @param signal Signal to render.
+     * @return Map containing the signal state.
+     * 
+     * @deprecated It is now forgotten how this got here and what for.
+     */
+    @Deprecated
+    public Map&lt;String, String&gt; getState(DataSample&lt;ThermostatSignal&gt; signal) {
+        
+<span class="nc" id="L58">        Map&lt;String, String&gt; stateMap = new TreeMap&lt;String, String&gt;();</span>
+        
+<span class="nc" id="L60">        stateMap.put(&quot;timestamp&quot;, Long.toString(signal.timestamp));</span>
+        
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (!signal.isError()) {</span>
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            stateMap.put(&quot;calling&quot;, Integer.toString(signal.sample.calling ? 1 : 0));</span>
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            stateMap.put(&quot;voting&quot;, Integer.toString(signal.sample.voting ? 1 : 0));</span>
+<span class="nc" id="L66">            stateMap.put(&quot;demand&quot;, Double.toString(signal.sample.demand.sample));</span>
+        
+        } else {
+            
+            // VT: FIXME: This may be an oversimplification
+<span class="nc" id="L71">            stateMap.put(&quot;error&quot;, signal.error.getMessage());</span>
+        }
+        
+        // VT: NOTE: This is not quite nice because it bypasses the time stream,
+        // need to think about augmenting the thermostat signal with it
+        
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        stateMap.put(&quot;on&quot;, Integer.toString(source.isOn() ? 1 : 0));</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        stateMap.put(&quot;hold&quot;, Integer.toString(source.isOnHold() ? 1 : 0));</span>
+        
+<span class="nc" id="L80">        return stateMap;</span>
+    }
+
+    @Override
+    public void consume(DataSample&lt;ThermostatSignal&gt; signal) {
+        
+<span class="fc" id="L86">        String name = source.getName();</span>
+        // VT: FIXME: Is it even possible to use anything other than PID controller?
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        HvacMode mode = ((AbstractPidController) source.getController()).getP() &gt; 0 ? HvacMode.COOLING : HvacMode.HEATING;</span>
+<span class="pc bpc" id="L89" title="3 of 6 branches missed.">        ZoneState state = signal.isError() ? ZoneState.ERROR : (signal.sample.enabled ? (signal.sample.calling ? ZoneState.CALLING : ZoneState.HAPPY) : ZoneState.OFF);</span>
+<span class="fc" id="L90">        double thermostatSignal = signal.sample.demand.sample;</span>
+
+        double currentTemperature;
+        
+<span class="fc" id="L94">        DataSample&lt;Double&gt; sample = source.getSensor().getSignal();</span>
+        
+        // It would be a good idea to use Double.NaN for null and error cases. However,
+        // this would later violate JSON specification, so let's leave this at 0 and see how it works.
+        
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        if (sample == null) {</span>
+            
+<span class="fc" id="L101">            LogManager.getLogger(getClass()).debug(&quot;current=null&quot;);</span>
+<span class="fc" id="L102">            currentTemperature = 0;</span>
+            
+<span class="nc bnc" id="L104" title="All 2 branches missed.">        } else if ( sample.isError() ) {</span>
+            
+<span class="nc" id="L106">            LogManager.getLogger(getClass()).debug(&quot;current=error&quot;);</span>
+<span class="nc" id="L107">            currentTemperature = 0;</span>
+        
+        } else {
+            
+<span class="nc" id="L111">            currentTemperature = sample.sample;</span>
+        }
+        
+<span class="fc" id="L114">        double setpointTemperature = source.getController().getSetpoint();</span>
+<span class="fc" id="L115">        boolean enabled = signal.sample.enabled;</span>
+<span class="fc" id="L116">        boolean onHold = signal.sample.onHold;</span>
+<span class="fc" id="L117">        boolean voting = signal.sample.voting;</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        String error = signal.isError() ? signal.error.getMessage() : null;</span>
+        
+<span class="fc" id="L120">        String periodName = getPeriod();</span>
+        
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        Deviation deviation = scheduler == null ? new Deviation(0, false, false) : scheduler.getDeviation(source, setpointTemperature, enabled, voting, new DateTime(signal.timestamp));</span>
+            
+<span class="fc" id="L124">        emit(new ZoneSnapshot(signal.timestamp, name, mode, state, thermostatSignal, currentTemperature,</span>
+                setpointTemperature, enabled, onHold, voting, periodName, 
+                deviation.setpoint, deviation.enabled, deviation.voting,
+                error));
+<span class="fc" id="L128">    }</span>
+
+    /**
+     * Find out the name of the current period for the zone served by this renderer.
+     * 
+     * @return {@code null} if there's no scheduler, a predefined string if there's no period, or a period name.
+     */
+    private String getPeriod() {
+        
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if (scheduler == null) {</span>
+<span class="fc" id="L138">            return null;</span>
+        }
+
+<span class="nc" id="L141">        Period p = scheduler.getCurrentPeriod(source);</span>
+        
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        if (p == null) {</span>
+<span class="nc" id="L144">            return &quot;(no period is active)&quot;;</span>
+        }
+        
+<span class="nc" id="L147">        return p.name;</span>
+    }
+
+    @Override
+    public String render(Object source) {
+        
+<span class="nc" id="L153">        return source.toString();</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

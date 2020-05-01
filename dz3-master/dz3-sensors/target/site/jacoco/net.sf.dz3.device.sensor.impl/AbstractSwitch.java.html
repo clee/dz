@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractSwitch.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl</a> &gt; <span class="el_source">AbstractSwitch.java</span></div><h1>AbstractSwitch.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl;
+
+import java.io.IOException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+
+/**
+ * An abstract switch.
+ *
+ * Supports common configuration and listener notification features.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public abstract class AbstractSwitch implements Switch {
+
+<span class="nc" id="L23">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+<span class="nc" id="L24">    private final DataBroadcaster&lt;Boolean&gt; dataBroadcaster = new DataBroadcaster&lt;&gt;();</span>
+
+    /**
+     * Switch address.
+     */
+    private final String address;
+
+    /**
+     * Switch state.
+     */
+<span class="nc" id="L34">    private boolean state = false;</span>
+
+<span class="nc" id="L36">    public AbstractSwitch(String address, boolean state) {</span>
+
+<span class="nc" id="L38">        this.address = address;</span>
+<span class="nc" id="L39">        this.state = state;</span>
+<span class="nc" id="L40">    }</span>
+
+    @Override
+    public synchronized boolean getState() throws IOException {
+<span class="nc" id="L44">        return state;</span>
+    }
+
+    @Override
+    public synchronized void setState(boolean state) throws IOException {
+
+<span class="nc" id="L50">        ThreadContext.push(&quot;setState&quot;);</span>
+
+        try {
+
+<span class="nc" id="L54">            logger.debug(&quot;{}: {}&quot;, address, state);</span>
+<span class="nc" id="L55">            this.state = state;</span>
+<span class="nc" id="L56">            dataBroadcaster.broadcast(new DataSample&lt;Boolean&gt;(System.currentTimeMillis(), getAddress(), getAddress(), state, null));</span>
+
+        } finally {
+<span class="nc" id="L59">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public final String getAddress() {
+<span class="nc" id="L65">        return address;</span>
+    }
+
+    @Override
+    public final void addConsumer(DataSink&lt;Boolean&gt; consumer) {
+<span class="nc" id="L70">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="nc" id="L71">    }</span>
+
+    @Override
+    public final void removeConsumer(DataSink&lt;Boolean&gt; consumer) {
+<span class="nc" id="L75">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L76">    }</span>
+
+    @Override
+    public String toString() {
+
+        String s;
+
+        try {
+<span class="nc" id="L84">            s = Boolean.toString(getState());</span>
+<span class="nc" id="L85">        } catch (IOException ex) {</span>
+<span class="nc" id="L86">            logger.error(&quot;exception ignored in toString()&quot;, ex);</span>
+<span class="nc" id="L87">            s = &quot;error&quot;;</span>
+<span class="nc" id="L88">        }</span>
+
+<span class="nc" id="L90">        return &quot;{&quot; + getClass().getName() + &quot;, address=&quot; + getAddress() + &quot;, state=&quot; + s + &quot;}&quot;;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

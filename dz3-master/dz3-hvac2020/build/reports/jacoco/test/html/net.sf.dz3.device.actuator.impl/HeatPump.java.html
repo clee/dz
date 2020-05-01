@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HeatPump.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dz3-hvac2020</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.actuator.impl</a> &gt; <span class="el_source">HeatPump.java</span></div><h1>HeatPump.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.actuator.impl;
+
+import java.util.SortedMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.sensor.Switch;
+import com.homeclimatecontrol.jukebox.jmx.JmxDescriptor;
+
+public class HeatPump extends AbstractHvacUnit2020 {
+
+    private final Switch switchMode;
+    private SortedMap&lt;Double, Switch&gt; demandMap;
+    private SortedMap&lt;Double, Switch&gt; speedMap;
+
+    /**
+     * Create a multistage instance.
+     *
+     * @param name Heatpump name.
+     * @param mode Initial mode.
+     *
+     * @param switchMode Switch to use to change mode. It is assumed {@code off} is for cooling, and {@code on} is for heating,
+     * reverse it outside if necessary.
+     *
+     * @param demandMap The values are demand levels to turn the particular switch on and off at, keys are switches to activate.
+     * The caller is supposed to take care of the hysteresis to avoid the switch jitter.
+     * Demand values will be normalized to fit into {@code 0..1} range.
+     *
+     * @param speedMap The values are fan speed levels to turn the particular switch on and off at, keys are switches to activate.
+     * The caller is supposed to take care of the hysteresis to avoid the switch jitter.
+     * Speed values will be normalized to fit into {@code 0..1} range.
+     */
+    public HeatPump(String name, HvacMode mode,
+            Switch switchMode,
+            SortedMap&lt;Double, Switch&gt; demandMap,
+            SortedMap&lt;Double, Switch&gt; speedMap) {
+
+<span class="fc" id="L42">        super(name, mode);</span>
+
+<span class="fc" id="L44">        this.switchMode = switchMode;</span>
+<span class="fc" id="L45">        this.demandMap = normalize(demandMap);</span>
+<span class="fc" id="L46">        this.speedMap = normalize(speedMap);</span>
+
+        // The mode has to be set correctly from the get go.
+        // If we can't, fail fast - this is a catastrophic event.
+
+        try {
+<span class="fc" id="L52">            set(mode, 0, 0).get();</span>
+<span class="fc" id="L53">        } catch (InterruptedException | ExecutionException ex) {</span>
+<span class="fc" id="L54">            throw new IllegalStateException(&quot;can't set initial mode&quot;, ex);</span>
+<span class="fc" id="L55">        }</span>
+<span class="fc" id="L56">    }</span>
+
+    /**
+     * Create a single switch instance.
+     *
+     * @param s The only switch to control the hardware. An entry of
+     * {@code (theSwitch, 0)} will be put into {@link #demandMap}.
+     */
+    public HeatPump(String name, HvacMode mode,
+            Switch switchMode,
+            Switch switchDemand,
+            Switch switchFan) {
+
+<span class="fc" id="L69">        this(name, mode,</span>
+                switchMode,
+<span class="fc" id="L71">                normalize(map(switchDemand)),</span>
+<span class="fc" id="L72">                normalize(map(switchFan)));</span>
+<span class="fc" id="L73">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="fc" id="L78">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="fc" id="L80">                &quot;Heatpump: &quot; + getName(),</span>
+<span class="fc" id="L81">                Integer.toHexString(hashCode()),</span>
+                &quot;Controls a heatpump&quot;);
+    }
+
+    @Override
+    public String toString() {
+
+        // The only essential parts (for now) are the name, the demand map, and the speed map,
+        // everything else is secondary
+
+        // VT: NOTE: It might be a good idea to package this as JSON
+<span class="fc" id="L92">        return getClass().getSimpleName()</span>
+<span class="fc" id="L93">                + &quot;: {name:&quot; + getName()</span>
+                + &quot;, demandMap:&quot; + demandMap
+                + &quot;, speedMap:&quot; + speedMap
+                + &quot;}&quot;;
+    }
+
+    @Override
+    protected Future&lt;Status&gt; set(HvacMode mode, double demand, double speed) {
+<span class="fc" id="L101">        Callable&lt;Status&gt; c = new Callable&lt;Status&gt;() {</span>
+
+            @Override
+            public Status call() throws Exception {
+<span class="fc" id="L105">                ThreadContext.push(&quot;set&quot;);</span>
+                try {
+
+                    // It is assumed that the device is &quot;energize to heat&quot;, if this is not the case,
+                    // invert the switch passed to the constructor
+<span class="fc bfc" id="L110" title="All 2 branches covered.">                    boolean modeState = mode == HvacMode.HEATING;</span>
+
+                    // It'll take a bit of time, but it won't hurt because we'll be providing a nice side effect - heartbeats
+<span class="fc" id="L113">                    switchMode.setState(modeState);</span>
+
+<span class="fc" id="L115">                    execute(demand, demandMap);</span>
+<span class="fc" id="L116">                    execute(map(demand, speed), speedMap);</span>
+
+<span class="fc" id="L118">                    Status statusActual = new Status(mode, demand, speed);</span>
+
+<span class="fc" id="L120">                    setStatusActual(statusActual);</span>
+
+<span class="fc" id="L122">                    return statusActual;</span>
+
+                } finally {
+<span class="fc" id="L125">                    ThreadContext.pop();</span>
+                }
+            }
+        };
+
+<span class="fc" id="L130">        return executor.submit(c);</span>
+    }
+
+    @Override
+    protected void verifyModeChange(HvacMode mode) {
+        // Nothing to do here, all modes are good
+<span class="fc" id="L136">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.5.201910111838</span></div></body></html>

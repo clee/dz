@@ -1,0 +1,4 @@
+net/sf/dz3/device/sensor/impl/onewire/SwitchAddressTest.class
+net/sf/dz3/device/sensor/impl/onewire/SwitchTest.class
+net/sf/dz3/device/sensor/impl/onewire/DeviceFactoryTest.class
+net/sf/dz3/device/sensor/impl/onewire/DeviceFactoryTest$Sink.class

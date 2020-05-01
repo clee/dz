@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ColorScheme.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing</a> &gt; <span class="el_source">ColorScheme.java</span></div><h1>ColorScheme.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing;
+
+import java.awt.Color;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.logging.log4j.LogManager;
+
+import net.sf.dz3.device.model.HvacMode;
+
+public class ColorScheme {
+
+<span class="fc" id="L13">    private static Map&lt;HvacMode, ColorScheme&gt; colorMap = new TreeMap&lt;&gt;();</span>
+
+    public final Color bottom;
+    public final Color top;
+    public final Color setpoint;
+    public final Color setpointChanging;
+    public final Color error;
+    public final Color off;
+    public final Color green;
+    public final Color noticeDefault;
+    public final Color noticeActive;
+
+    /**
+     * Background color.
+     *
+     * Limitation: it must be the same for all three maps (heating cooling, off), or things will look really funny
+     * because some zones may be in heating and some in cooling mode.
+     */
+    public final Color background;
+
+    public static synchronized ColorScheme getScheme(HvacMode mode) {
+
+<span class="fc bfc" id="L35" title="All 2 branches covered.">        if (colorMap.isEmpty()) {</span>
+
+<span class="fc" id="L37">            colorMap.put(HvacMode.COOLING, coolingMap);</span>
+<span class="fc" id="L38">            colorMap.put(HvacMode.OFF, offMap);</span>
+<span class="fc" id="L39">            colorMap.put(HvacMode.HEATING, heatingMap);</span>
+        }
+
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (mode == null) {</span>
+
+            // VT: NOTE: the commend was &quot;For old installations&quot;. So old, I don't even
+            // remember what's that about.
+
+<span class="nc" id="L47">            LogManager.getLogger(ColorScheme.class).error(&quot;mode == null???&quot;, new IllegalArgumentException(&quot;trace&quot;));</span>
+<span class="nc" id="L48">            mode = HvacMode.HEATING;</span>
+        }
+
+<span class="fc" id="L51">        return colorMap.get(mode);</span>
+    }
+
+    @SuppressWarnings(&quot;squid:S107&quot;)
+    private ColorScheme(
+    		Color bottom,
+    		Color top,
+    		Color setpoint,
+    		Color setpointChanging,
+    		Color error,
+    		Color off,
+    		Color green,
+    		Color noticeDefault,
+    		Color noticeActive,
+<span class="fc" id="L65">    		Color background) {</span>
+
+        // VT: NOTE: squid:S107 - sorry, dudes, this is unavoidable here.
+
+<span class="fc" id="L69">        this.bottom = bottom;</span>
+<span class="fc" id="L70">        this.top = top;</span>
+<span class="fc" id="L71">        this.setpoint = setpoint;</span>
+<span class="fc" id="L72">        this.setpointChanging = setpointChanging;</span>
+<span class="fc" id="L73">        this.error = error;</span>
+<span class="fc" id="L74">        this.off = off;</span>
+<span class="fc" id="L75">        this.green = green;</span>
+<span class="fc" id="L76">        this.noticeDefault = noticeDefault;</span>
+<span class="fc" id="L77">        this.noticeActive = noticeActive;</span>
+<span class="fc" id="L78">        this.background = background;</span>
+<span class="fc" id="L79">    }</span>
+
+<span class="fc" id="L81">    public static final ColorScheme coolingMap = new ColorScheme(</span>
+            new Color(10, 70, 240),  // 0A46F0 BLUE
+            new Color(240, 70, 10),  // F0460A ORANGE-RED
+            new Color(48, 160, 255), // 30A0FF
+            Color.YELLOW,
+<span class="fc" id="L86">            Color.RED.darker().darker(),</span>
+            Color.GRAY,
+            Color.GREEN,
+            new Color(0x55, 0x55, 0x55), // DARK GRAY
+            Color.YELLOW,
+            Color.BLACK);
+
+<span class="fc" id="L93">    public static final ColorScheme heatingMap = new ColorScheme(</span>
+            new Color(240, 70, 10),  // F0460A ORANGE-RED
+            new Color(10, 70, 240),  // 0A46F0 BLUE
+            new Color(255, 160, 48), // FFA030
+            Color.YELLOW,
+<span class="fc" id="L98">            Color.RED.darker().darker(),</span>
+            Color.GRAY,
+            Color.GREEN,
+            new Color(0x55, 0x55, 0x55), // DARK GRAY
+            Color.YELLOW,
+            Color.BLACK);
+
+<span class="fc" id="L105">    public static final ColorScheme offMap = new ColorScheme(</span>
+            Color.GRAY,
+            Color.BLACK,
+            Color.WHITE,
+            Color.YELLOW,
+<span class="fc" id="L110">            Color.RED.darker().darker(),</span>
+            Color.GRAY,
+            Color.GREEN,
+            new Color(0x55, 0x55, 0x55), // DARK GRAY
+            Color.YELLOW,
+            Color.BLACK);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

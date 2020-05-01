@@ -1,0 +1,3 @@
+net/sf/dz3/view/influxdb/v1/InfluxDbRenderer.class
+net/sf/dz3/view/influxdb/v1/InfluxDbLogger.class
+net/sf/dz3/view/influxdb/v1/InfluxDbConnector.class

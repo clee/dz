@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThermostatSignalSplitter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.model.impl</a> &gt; <span class="el_source">ThermostatSignalSplitter.java</span></div><h1>ThermostatSignalSplitter.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.model.impl;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.device.model.ThermostatSignal;
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.logger.model.DataLogger;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+
+/**
+ * Receives a complex {@link ThermostatSignal} signal and converts it into several simpler
+ * {@link DataSample} signals suitable for consumption by {@link DataLogger}.
+ *
+ * Add this object as a listener to the thermostat, and add the data logger as a listener to this object,
+ * to record the data stream.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2009-2018
+ */
+public class ThermostatSignalSplitter implements DataSink&lt;ThermostatSignal&gt;, DataSource&lt;Double&gt; {
+
+<span class="pc" id="L25">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;Double&gt;();</span>
+
+    /**
+     * Create an instance not attached to anything.
+     */
+<span class="nc" id="L30">    public ThermostatSignalSplitter() {</span>
+
+<span class="nc" id="L32">    }</span>
+
+    /**
+     * Create an instance attached to a thermostat.
+     *
+     * @param ts Thermostat to listen to.
+     */
+<span class="fc" id="L39">    public ThermostatSignalSplitter(Thermostat ts) {</span>
+<span class="fc" id="L40">        ts.addConsumer(this);</span>
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public synchronized void consume(DataSample&lt;ThermostatSignal&gt; signal) {
+
+<span class="fc" id="L46">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+            {
+                // Whether this thermostat is enabled
+<span class="fc" id="L52">                String sourceName = signal.sourceName + &quot;.enabled&quot;;</span>
+<span class="fc" id="L53">                String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">                DataSample&lt;Double&gt; calling = new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, signal.sample.enabled ? 1.0 : 0.0, null);</span>
+<span class="fc" id="L55">                dataBroadcaster.broadcast(calling);</span>
+            }
+
+            {
+                // Whether this thermostat is on hold
+<span class="fc" id="L60">                String sourceName = signal.sourceName + &quot;.hold&quot;;</span>
+<span class="fc" id="L61">                String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">                DataSample&lt;Double&gt; calling = new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, signal.sample.onHold ? 1.0 : 0.0, null);</span>
+<span class="fc" id="L63">                dataBroadcaster.broadcast(calling);</span>
+            }
+
+            {
+                // Whether this thermostat is calling
+<span class="fc" id="L68">                String sourceName = signal.sourceName + &quot;.calling&quot;;</span>
+<span class="fc" id="L69">                String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                DataSample&lt;Double&gt; calling = new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, signal.sample.calling ? 1.0 : 0.0, null);</span>
+<span class="fc" id="L71">                dataBroadcaster.broadcast(calling);</span>
+            }
+
+            {
+                // Whether this thermostat is voting
+<span class="fc" id="L76">                String sourceName = signal.sourceName + &quot;.voting&quot;;</span>
+<span class="fc" id="L77">                String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">                DataSample&lt;Double&gt; calling = new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, signal.sample.voting ? 1.0 : 0.0, null);</span>
+<span class="fc" id="L79">                dataBroadcaster.broadcast(calling);</span>
+            }
+
+            // The demand sent to the zone controller
+<span class="fc" id="L83">            dataBroadcaster.broadcast(signal.sample.demand);</span>
+
+        } finally {
+<span class="fc" id="L86">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L88">    }</span>
+
+    @Override
+    public void addConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="fc" id="L93">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="fc" id="L94">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L99">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L100">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

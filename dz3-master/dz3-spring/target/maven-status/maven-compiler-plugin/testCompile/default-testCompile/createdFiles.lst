@@ -1,0 +1,7 @@
+net/sf/dz3/runtime/SensorDescriptor.class
+net/sf/dz3/runtime/SensorFactory.class
+net/sf/dz3/runtime/NativeSensorFactory$NativeSensor.class
+net/sf/dz3/runtime/ReflectionTest.class
+net/sf/dz3/runtime/NativeSensorDescriptor.class
+net/sf/dz3/runtime/NativeSensorFactory.class
+net/sf/dz3/device/actuator/impl/SwitchDamperTest.class

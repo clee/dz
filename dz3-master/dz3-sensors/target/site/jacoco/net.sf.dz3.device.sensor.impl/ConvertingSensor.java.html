@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConvertingSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl</a> &gt; <span class="el_source">ConvertingSensor.java</span></div><h1>ConvertingSensor.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl;
+
+import java.util.StringTokenizer;
+
+import net.sf.dz3.device.sensor.AnalogConverter;
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Analog passthrough reading the data from the source sensor and
+ * passing it down after converting the sample.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko 2010-2012
+ */
+public final class ConvertingSensor implements AnalogSensor, DataSink&lt;Double&gt; {
+
+    private final AnalogSensor source;
+    private final AnalogConverter converter;
+<span class="nc" id="L23">    private double calibrationShift = 0d;</span>
+    
+<span class="nc" id="L25">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;Double&gt;();</span>
+
+    /**
+     * Create an instance without calibration.
+     * 
+     * @param source Signal source.
+     * @param converter Converter instance. Can't be {@code null}.
+     */
+    public ConvertingSensor(AnalogSensor source, AnalogConverter converter) {
+        
+<span class="nc" id="L35">        this(source, converter, 0d);</span>
+
+<span class="nc bnc" id="L37" title="All 2 branches missed.">        if (converter == null) {</span>
+<span class="nc" id="L38">            throw new IllegalArgumentException(&quot;converter can't be null - what's the point???&quot;);</span>
+        }
+<span class="nc" id="L40">    }</span>
+    
+    /**
+     * Create calibrated passthrough instance.
+     * 
+     * @param source Signal source.
+     * @param calibrationShift Calibration shift, {@code 0} if no calibration is required.
+     */
+    public ConvertingSensor(AnalogSensor source, double calibrationShift) {
+    
+<span class="nc" id="L50">        this(source, null, calibrationShift);</span>
+<span class="nc" id="L51">    }</span>
+    
+    /**
+     * Create calibrated converted instance.
+     * 
+     * @param source Signal source.
+     * @param converter Converter instance. Can be {@code null} if only calibration is required.
+     * @param calibrationShift Calibration shift, {@code 0} if no calibration is required.
+     */
+<span class="nc" id="L60">    public ConvertingSensor(AnalogSensor source, AnalogConverter converter, double calibrationShift) {</span>
+
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if (source == null) {</span>
+<span class="nc" id="L63">            throw new IllegalArgumentException(&quot;source can't be null&quot;);</span>
+        }
+            
+<span class="nc" id="L66">        this.source = source;</span>
+<span class="nc" id="L67">        this.converter = converter;</span>
+<span class="nc" id="L68">        this.calibrationShift = calibrationShift;</span>
+
+<span class="nc" id="L70">        source.addConsumer(this);</span>
+<span class="nc" id="L71">    }</span>
+    
+    private DataSample&lt;Double&gt; convert(DataSample&lt;Double&gt; signal) {
+        
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        if (signal == null) {</span>
+            
+<span class="nc" id="L77">            return new DataSample&lt;Double&gt;(System.currentTimeMillis(), source.getAddress(), source.getAddress(), null, new IllegalStateException(&quot;signal is null&quot;));</span>
+        }
+        
+        Double sample;
+        
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        sample = converter != null ? converter.convert(signal.sample) : signal.sample;</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        sample = sample != null ? sample + calibrationShift : null;        </span>
+        
+<span class="nc" id="L85">        return new DataSample&lt;Double&gt;(signal.timestamp, signal.sourceName, signal.signature, sample, signal.error);</span>
+    }
+    
+    @Override
+    public DataSample&lt;Double&gt; getSignal() {
+        
+<span class="nc" id="L91">        return convert(source.getSignal());</span>
+    }
+
+    @Override
+    public void addConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L97">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="nc" id="L98">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L103">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L104">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L109">        String rawAddress = getAddress();</span>
+        
+<span class="nc" id="L111">        StringBuilder sb = new StringBuilder();</span>
+        
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        for (StringTokenizer st = new StringTokenizer(rawAddress, &quot;:&quot;); st.hasMoreTokens(); ) {</span>
+           
+<span class="nc" id="L115">            sb.append(st.nextToken());</span>
+            
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            if (st.hasMoreTokens()) {</span>
+                
+<span class="nc" id="L119">                sb.append(&quot; channel &quot;);</span>
+            }
+        }
+        
+<span class="nc" id="L123">        String address = sb.toString();</span>
+        
+<span class="nc" id="L125">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="nc" id="L127">                getClass().getSimpleName(),</span>
+                address,
+<span class="nc" id="L129">                &quot;Applying &quot; + converter.getClass().getSimpleName() + &quot; conversion to &quot; + source);</span>
+    }
+
+    @Override
+    public String getAddress() {
+
+<span class="nc" id="L135">        return source.getAddress();</span>
+    }
+
+    @Override
+    public void consume(DataSample&lt;Double&gt; signal) {
+        
+<span class="nc" id="L141">        dataBroadcaster.broadcast(convert(signal));</span>
+<span class="nc" id="L142">    }</span>
+
+    /**
+     * Get the difference between the converted sensor reading and output signal.
+     * 
+     * @return Calibration shift.
+     */
+    @JmxAttribute(description = &quot;Calibration shift&quot;)
+    public Double getCalibrationShift() {
+        
+<span class="nc" id="L152">        return calibrationShift;</span>
+    }
+    
+    /**
+     * Set the calibration shift.
+     * 
+     * @param calibrationShift Calibration shift to set.
+     * 
+     * @see #convert(DataSample)
+     */
+    public void setCalibrationShift(Double calibrationShift) {
+
+<span class="nc" id="L164">        this.calibrationShift = calibrationShift;</span>
+<span class="nc" id="L165">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

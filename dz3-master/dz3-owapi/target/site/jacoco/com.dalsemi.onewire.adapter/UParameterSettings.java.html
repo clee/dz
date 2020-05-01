@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UParameterSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">UParameterSettings.java</span></div><h1>UParameterSettings.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+/** UParameterSettings contains the parameter settings state for one
+ *  speed on the DS2480 based iButton COM port adapter.
+ *
+ *  @version    0.00, 28 Aug 2000
+ *  @author     DS
+ */
+class UParameterSettings
+{
+
+   //--------
+   //-------- Finals
+   //--------
+   // Parameter selection
+
+   /** Parameter selection, pull-down slew rate            */
+   public static final char PARAMETER_SLEW = 0x10;
+
+   /** Parameter selection, 12 volt pulse time             */
+   public static final char PARAMETER_12VPULSE = 0x20;
+
+   /** Parameter selection, 5 volt pulse time              */
+   public static final char PARAMETER_5VPULSE = 0x30;
+
+   /** Parameter selection, write 1 low time               */
+   public static final char PARAMETER_WRITE1LOW = 0x40;
+
+   /** Parameter selection, sample offset                  */
+   public static final char PARAMETER_SAMPLEOFFSET = 0x50;
+
+   /** Parameter selection, baud rate                      */
+   public static final char PARAMETER_BAUDRATE = 0x70;
+
+   // Pull down slew rate times 
+
+   /** Pull down slew rate, 15V/us                    */
+   public static final char SLEWRATE_15Vus = 0x00;
+
+   /** Pull down slew rate, 2.2V/us                   */
+   public static final char SLEWRATE_2p2Vus = 0x02;
+
+   /** Pull down slew rate, 1.65V/us                  */
+   public static final char SLEWRATE_1p65Vus = 0x04;
+
+   /** Pull down slew rate, 1.37V/us                  */
+   public static final char SLEWRATE_1p37Vus = 0x06;
+
+   /** Pull down slew rate, 1.1V/us                   */
+   public static final char SLEWRATE_1p1Vus = 0x08;
+
+   /** Pull down slew rate, 0.83V/us                  */
+   public static final char SLEWRATE_0p83Vus = 0x0A;
+
+   /** Pull down slew rate, 0.7V/us                   */
+   public static final char SLEWRATE_0p7Vus = 0x0C;
+
+   /** Pull down slew rate, 0.55V/us                  */
+   public static final char SLEWRATE_0p55Vus = 0x0E;
+
+   // 12 Volt programming pulse times 
+
+   /** 12 Volt programming pulse, time 32us           */
+   public static final char TIME12V_32us = 0x00;
+
+   /** 12 Volt programming pulse, time 64us           */
+   public static final char TIME12V_64us = 0x02;
+
+   /** 12 Volt programming pulse, time 128us          */
+   public static final char TIME12V_128us = 0x04;
+
+   /** 12 Volt programming pulse, time 256us          */
+   public static final char TIME12V_256us = 0x06;
+
+   /** 12 Volt programming pulse, time 512us          */
+   public static final char TIME12V_512us = 0x08;
+
+   /** 12 Volt programming pulse, time 1024us         */
+   public static final char TIME12V_1024us = 0x0A;
+
+   /** 12 Volt programming pulse, time 2048us         */
+   public static final char TIME12V_2048us = 0x0C;
+
+   /** 12 Volt programming pulse, time (infinite)     */
+   public static final char TIME12V_infinite = 0x0E;
+
+   // 5 Volt programming pulse times 
+
+   /** 5 Volt programming pulse, time 16.4ms        */
+   public static final char TIME5V_16p4ms = 0x00;
+
+   /** 5 Volt programming pulse, time 65.5ms        */
+   public static final char TIME5V_65p5ms = 0x02;
+
+   /** 5 Volt programming pulse, time 131ms         */
+   public static final char TIME5V_131ms = 0x04;
+
+   /** 5 Volt programming pulse, time 262ms         */
+   public static final char TIME5V_262ms = 0x06;
+
+   /** 5 Volt programming pulse, time 524ms         */
+   public static final char TIME5V_524ms = 0x08;
+
+   /** 5 Volt programming pulse, time 1.05s         */
+   public static final char TIME5V_1p05s = 0x0A;
+
+   /** 5 Volt programming pulse, time 2.10sms       */
+   public static final char TIME5V_2p10s = 0x0C;
+
+   /** 5 Volt programming pulse, dynamic current detect       */
+   public static final char TIME5V_dynamic = 0x0C;
+
+   /** 5 Volt programming pulse, time (infinite)    */
+   public static final char TIME5V_infinite = 0x0E;
+
+   // Write 1 low time 
+
+   /** Write 1 low time, 8us                        */
+   public static final char WRITE1TIME_8us = 0x00;
+
+   /** Write 1 low time, 9us                        */
+   public static final char WRITE1TIME_9us = 0x02;
+
+   /** Write 1 low time, 10us                       */
+   public static final char WRITE1TIME_10us = 0x04;
+
+   /** Write 1 low time, 11us                       */
+   public static final char WRITE1TIME_11us = 0x06;
+
+   /** Write 1 low time, 12us                       */
+   public static final char WRITE1TIME_12us = 0x08;
+
+   /** Write 1 low time, 13us                       */
+   public static final char WRITE1TIME_13us = 0x0A;
+
+   /** Write 1 low time, 14us                       */
+   public static final char WRITE1TIME_14us = 0x0C;
+
+   /** Write 1 low time, 15us                       */
+   public static final char WRITE1TIME_15us = 0x0E;
+
+   // Data sample offset and write 0 recovery times 
+
+   /** Data sample offset and Write 0 recovery time, 4us   */
+   public static final char SAMPLEOFFSET_TIME_4us = 0x00;
+
+   /** Data sample offset and Write 0 recovery time, 5us   */
+   public static final char SAMPLEOFFSET_TIME_5us = 0x02;
+
+   /** Data sample offset and Write 0 recovery time, 6us   */
+   public static final char SAMPLEOFFSET_TIME_6us = 0x04;
+
+   /** Data sample offset and Write 0 recovery time, 7us   */
+   public static final char SAMPLEOFFSET_TIME_7us = 0x06;
+
+   /** Data sample offset and Write 0 recovery time, 8us   */
+   public static final char SAMPLEOFFSET_TIME_8us = 0x08;
+
+   /** Data sample offset and Write 0 recovery time, 9us   */
+   public static final char SAMPLEOFFSET_TIME_9us = 0x0A;
+
+   /** Data sample offset and Write 0 recovery time, 10us  */
+   public static final char SAMPLEOFFSET_TIME_10us = 0x0C;
+
+   /** Data sample offset and Write 0 recovery time, 11us  */
+   public static final char SAMPLEOFFSET_TIME_11us = 0x0E;
+
+   //--------
+   //-------- Variables
+   //--------
+
+   /**
+    * The pull down slew rate for this mode. &lt;p&gt;
+    * The valid values for this are:
+    *  &lt;ul&gt;
+    *  &lt;li&gt; SLEWRATE_15Vus
+    *  &lt;li&gt; SLEWRATE_2p2Vus
+    *  &lt;li&gt; SLEWRATE_1p65Vus
+    *  &lt;li&gt; SLEWRATE_1p37Vus
+    *  &lt;li&gt; SLEWRATE_1p1Vus
+    *  &lt;li&gt; SLEWRATE_0p83Vus
+    *  &lt;li&gt; SLEWRATE_0p7Vus
+    *  &lt;li&gt; SLEWRATE_0p55Vus
+    *  &lt;/ul&gt;
+    */
+   public char pullDownSlewRate;
+
+   /**
+    * 12 Volt programming pulse time expressed in micro-seconds.
+    * The valid values for this are:
+    *  &lt;ul&gt;
+    *  &lt;li&gt; TIME12V_32us
+    *  &lt;li&gt; TIME12V_64us
+    *  &lt;li&gt; TIME12V_128us
+    *  &lt;li&gt; TIME12V_512us
+    *  &lt;li&gt; TIME12V_1024us
+    *  &lt;li&gt; TIME12V_2048us
+    *  &lt;li&gt; TIME12V_infinite
+    *  &lt;/ul&gt;
+    */
+   public char pulse12VoltTime;
+
+   /**
+    * 5 Volt programming pulse time expressed in milli-seconds.
+    * The valid values for this are:
+    *  &lt;ul&gt;
+    *  &lt;li&gt; TIME5V_16p4ms
+    *  &lt;li&gt; TIME5V_65p5ms
+    *  &lt;li&gt; TIME5V_131ms
+    *  &lt;li&gt; TIME5V_262ms
+    *  &lt;li&gt; TIME5V_524ms
+    *  &lt;li&gt; TIME5V_1p05s
+    *  &lt;li&gt; TIME5V_2p10s
+    *  &lt;li&gt; TIME5V_infinite
+    *  &lt;/ul&gt;
+    */
+   public char pulse5VoltTime;
+
+   /**
+    * Write 1 low time expressed in micro-seconds.
+    * The valid values for this are:
+    *  &lt;ul&gt;
+    *  &lt;li&gt; WRITE1TIME_8us
+    *  &lt;li&gt; WRITE1TIME_9us
+    *  &lt;li&gt; WRITE1TIME_10us
+    *  &lt;li&gt; WRITE1TIME_11us
+    *  &lt;li&gt; WRITE1TIME_12us
+    *  &lt;li&gt; WRITE1TIME_13us
+    *  &lt;li&gt; WRITE1TIME_14us
+    *  &lt;li&gt; WRITE1TIME_15us
+    *  &lt;/ul&gt;
+    */
+   public char write1LowTime;
+
+   /**
+    * Data sample offset and write 0 recovery time expressed in micro-seconds.
+    * The valid values for this are:
+    *  &lt;ul&gt;
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_4us
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_5us
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_6us
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_7us
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_8us
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_9us
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_10us
+    *  &lt;li&gt; SAMPLEOFFSET_TIME_11us
+    *  &lt;/ul&gt;
+    */
+   public char sampleOffsetTime;
+
+   //--------
+   //-------- Constructors
+   //--------
+
+   /** Parameter Settings constructor.  The default values are:
+    *  &lt;p&gt;
+    *  pullDownSlewRate = SLEWRATE_1p37Vus; &lt;p&gt;
+    *  pulse12VoltTime = TIME12V_infinite; &lt;p&gt;
+    *  pulse5VoltTime = TIME5V_infinite; &lt;p&gt;
+    *  write1LowTime = WRITE1TIME_8us; &lt;p&gt;
+    *  sampleOffsetTime = SAMPLEOFFSET_TIME_6us; &lt;p&gt;
+    */
+   public UParameterSettings ()
+<span class="nc" id="L292">   {</span>
+<span class="nc" id="L293">      pullDownSlewRate = SLEWRATE_1p37Vus;</span>
+<span class="nc" id="L294">      pulse12VoltTime  = TIME12V_infinite;</span>
+<span class="nc" id="L295">      pulse5VoltTime   = TIME5V_infinite;</span>
+<span class="nc" id="L296">      write1LowTime    = WRITE1TIME_10us;</span>
+<span class="nc" id="L297">      sampleOffsetTime = SAMPLEOFFSET_TIME_8us;</span>
+<span class="nc" id="L298">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

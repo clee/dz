@@ -1,0 +1,847 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireContainer10.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.container</a> &gt; <span class="el_source">OneWireContainer10.java</span></div><h1>OneWireContainer10.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.container;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+import com.dalsemi.onewire.utils.CRC8;
+import com.dalsemi.onewire.utils.Convert;
+
+
+
+/**
+ * &lt;P&gt; 1-Wire container for temperature iButton which measures temperatures
+ * from -55&amp;#176C to +100&amp;#176C, DS1920 or DS18S20.  This container encapsulates the
+ * functionality of the iButton family type &lt;B&gt;10&lt;/B&gt; (hex)&lt;/P&gt;
+ *
+ * &lt;H3&gt; Features &lt;/H3&gt;
+ * &lt;UL&gt;
+ *   &lt;LI&gt; Measures temperatures from -55&amp;#176C to +100&amp;#176C in typically 0.2 seconds
+ *   &lt;LI&gt; Zero standby power
+ *   &lt;LI&gt; 0.5&amp;#176C resolution, digital temperature reading in two's complement
+ *   &lt;LI&gt; Increased resolution through interpolation in internal counters
+ *   &lt;LI&gt; 8-bit device-generated CRC for data integrity
+ *   &lt;LI&gt; Special command set allows user to skip ROM section and do temperature
+ *        measurements simultaneously for all devices on the bus
+ *   &lt;LI&gt; 2 bytes of EEPROM to be used either as alarm triggers or user memory
+ *   &lt;LI&gt; Alarm search directly indicates which device senses alarming temperatures
+ * &lt;/UL&gt;
+ *
+ * &lt;H3&gt; Usage &lt;/H3&gt;
+ *
+ * &lt;DL&gt;
+ * &lt;DD&gt; See the usage example in
+ * {@link com.dalsemi.onewire.container.TemperatureContainer TemperatureContainer}
+ * for temperature specific operations.
+ * &lt;/DL&gt;
+ *
+ * &lt;H3&gt; DataSheet &lt;/H3&gt;
+ * &lt;DL&gt;
+ * &lt;DD&gt;&lt;A HREF=&quot;http://pdfserv.maxim-ic.com/arpdf/DS1920.pdf&quot;&gt; http://pdfserv.maxim-ic.com/arpdf/DS1920.pdf&lt;/A&gt;
+ * &lt;DD&gt;&lt;A HREF=&quot;http://pdfserv.maxim-ic.com/arpdf/DS18S20.pdf&quot;&gt; http://pdfserv.maxim-ic.com/arpdf/DS18S20.pdf&lt;/A&gt;
+ * &lt;/DL&gt;
+ *
+ * @see com.dalsemi.onewire.container.TemperatureContainer
+ *
+ * @version    1.00, 1 Sep 2000
+ * @author     DS,JK
+ * Converted to use TemperatureContainer interface 9-1-2000 KLA
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class OneWireContainer10 extends OneWireContainer implements TemperatureContainer {
+<span class="nc" id="L79">    private boolean normalResolution = true;</span>
+
+    //--------
+    //-------- Static Final Variables
+    //--------
+
+    /**
+     * default temperature resolution for this &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     * device.
+     */
+    public static final double RESOLUTION_NORMAL = 0.5;
+
+    /**
+     * maximum temperature resolution for this &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     * device. Use &lt;code&gt;RESOLUTION_MAXIMUM&lt;/code&gt; in
+     * &lt;code&gt;setResolution()&lt;/code&gt; if higher resolution is desired.
+     */
+    public static final double RESOLUTION_MAXIMUM = 0.1;
+
+    /** DS1920 convert temperature command  */
+    private static final byte CONVERT_TEMPERATURE_COMMAND = 0x44;
+
+    /** DS1920 read data from scratchpad command      */
+    private static final byte READ_SCRATCHPAD_COMMAND = ( byte ) 0xBE;
+
+    /** DS1920 write data to scratchpad command     */
+    private static final byte WRITE_SCRATCHPAD_COMMAND = ( byte ) 0x4E;
+
+    /** DS1920 copy data from scratchpad to EEPROM command     */
+    private static final byte COPY_SCRATCHPAD_COMMAND = ( byte ) 0x48;
+
+    /** DS1920 recall EEPROM command       */
+    //private static final byte RECALL_EEPROM_COMMAND = ( byte ) 0xB8;
+
+
+    /**
+     * Creates an empty &lt;code&gt;OneWireContainer10&lt;/code&gt;.  Must call
+     * &lt;code&gt;setupContainer()&lt;/code&gt; before using this new container.&lt;p&gt;
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer10&lt;/code&gt; with
+     * parameters.
+     *
+     * @see #OneWireContainer10(DSPortAdapter,byte[])
+     * @see #OneWireContainer10(DSPortAdapter,long)
+     * @see #OneWireContainer10(DSPortAdapter,String)
+     */
+<span class="nc" id="L126">    public OneWireContainer10 () {</span>
+<span class="nc" id="L127">    }</span>
+
+    /**
+     * Creates a &lt;code&gt;OneWireContainer10&lt;/code&gt; with the provided adapter
+     * object and the address of this One-Wire device.
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer10&lt;/code&gt; with
+     * different parameters types.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this One-Wire device
+     * @param  newAddress        address of this One-Wire device
+     *
+     * @see com.dalsemi.onewire.utils.Address
+     * @see #OneWireContainer10()
+     * @see #OneWireContainer10(DSPortAdapter,long)
+     * @see #OneWireContainer10(DSPortAdapter,String)
+     */
+    public OneWireContainer10 (DSPortAdapter sourceAdapter, byte[] newAddress) {
+<span class="nc" id="L147">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L148">    }</span>
+
+    /**
+     * Creates a &lt;code&gt;OneWireContainer10&lt;/code&gt; with the provided adapter
+     * object and the address of this One-Wire device.
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer10&lt;/code&gt; with
+     * different parameters types.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this One-Wire device
+     * @param  newAddress        address of this One-Wire device
+     *
+     * @see com.dalsemi.onewire.utils.Address
+     * @see #OneWireContainer10()
+     * @see #OneWireContainer10(DSPortAdapter,byte[])
+     * @see #OneWireContainer10(DSPortAdapter,String)
+     */
+    public OneWireContainer10 (DSPortAdapter sourceAdapter, long newAddress) {
+<span class="nc" id="L168">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L169">    }</span>
+
+    /**
+     * Creates a &lt;code&gt;OneWireContainer10&lt;/code&gt; with the provided adapter
+     * object and the address of this One-Wire device.
+     *
+     * This is one of the methods to construct a &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     * The others are through creating a &lt;code&gt;OneWireContainer10&lt;/code&gt; with
+     * different parameters types.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this One-Wire device
+     * @param  newAddress        address of this One-Wire device
+     *
+     * @see com.dalsemi.onewire.utils.Address
+     * @see #OneWireContainer10()
+     * @see #OneWireContainer10(DSPortAdapter,byte[])
+     * @see #OneWireContainer10(DSPortAdapter,long)
+     */
+    public OneWireContainer10 (DSPortAdapter sourceAdapter, String newAddress) {
+<span class="nc" id="L189">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L190">    }</span>
+
+    //--------
+    //-------- Information methods
+    //--------
+
+    /**
+     * Retrieves the Dallas Semiconductor part number of this
+     * &lt;code&gt;OneWireContainer10&lt;/code&gt; as a &lt;code&gt;String&lt;/code&gt;.
+     * For example 'DS1920'.
+     *
+     * @return this &lt;code&gt;OneWireContainer10&lt;/code&gt; name
+     */
+    @Override
+    public String getName () {
+<span class="nc" id="L205">        return &quot;DS1920&quot;;</span>
+    }
+
+    /**
+     * Retrieves the alternate Dallas Semiconductor part numbers or names.
+     * A 'family' of 1-Wire Network devices may have more than one part number
+     * depending on packaging.  There can also be nicknames such as
+     * 'Crypto iButton'.
+     *
+     * @return this &lt;code&gt;OneWireContainer10&lt;/code&gt; alternate names
+     */
+    @Override
+    public String getAlternateNames () {
+<span class="nc" id="L218">        return &quot;DS18S20&quot;;</span>
+    }
+
+    /**
+     * Retrieves a short description of the function of this
+     * &lt;code&gt;OneWireContainer10&lt;/code&gt; type.
+     *
+     * @return &lt;code&gt;OneWireContainer10&lt;/code&gt; functional description
+     */
+    @Override
+    public String getDescription () {
+<span class="nc" id="L229">        return &quot;Digital thermometer measures temperatures from &quot;</span>
+        + &quot;-55C to 100C in typically 0.2 seconds.  +/- 0.5C &quot;
+        + &quot;Accuracy between 0C and 70C. 0.5C standard &quot;
+        + &quot;resolution, higher resolution through interpolation.  &quot;
+        + &quot;Contains high and low temperature set points for &quot;
+        + &quot;generation of alarm.&quot;;
+    }
+
+    //--------
+    //-------- Custom Methods for OneWireContainer10
+    //--------
+    //--------
+    //-------- Temperature Feature methods
+    //--------
+
+    /**
+     * Checks to see if this temperature measuring device has high/low
+     * trip alarms.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *         has high/low trip alarms
+     *
+     * @see    #getTemperatureAlarm
+     * @see    #setTemperatureAlarm
+     */
+    @Override
+    public boolean hasTemperatureAlarms() {
+<span class="nc" id="L256">        return true;</span>
+    }
+
+    /**
+     * Checks to see if this device has selectable temperature resolution.
+     *
+     * @return &lt;code&gt;true&lt;/code&gt; if this &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *         has selectable temperature resolution
+     *
+     * @see    #getTemperatureResolution
+     * @see    #getTemperatureResolutions
+     * @see    #setTemperatureResolution
+     */
+    @Override
+    public boolean hasSelectableTemperatureResolution () {
+<span class="nc" id="L271">        return true;</span>
+    }
+
+    /**
+     * Gets an array of available temperature resolutions in Celsius.
+     *
+     * @return byte array of available temperature resolutions in Celsius for
+     *         this &lt;code&gt;OneWireContainer10&lt;/code&gt;. The minimum resolution is
+     *         returned as the first element and maximum resolution as the last
+     *         element.
+     *
+     * @see    #hasSelectableTemperatureResolution
+     * @see    #getTemperatureResolution
+     * @see    #setTemperatureResolution
+     */
+    @Override
+    public double[] getTemperatureResolutions () {
+        
+<span class="nc" id="L289">        return new double[] { RESOLUTION_NORMAL, RESOLUTION_MAXIMUM };</span>
+    }
+
+    /**
+     * Gets the temperature alarm resolution in Celsius.
+     *
+     * @return temperature alarm resolution in Celsius for this
+     *         &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *
+     * @see    #hasTemperatureAlarms
+     * @see    #getTemperatureAlarm
+     * @see    #setTemperatureAlarm
+     *
+     */
+    @Override
+    public double getTemperatureAlarmResolution() {
+<span class="nc" id="L305">        return 1.0;</span>
+    }
+
+    /**
+     * Gets the maximum temperature in Celsius.
+     *
+     * @return maximum temperature in Celsius for this
+     *         &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *
+     * @see    #getMinTemperature
+     */
+    @Override
+    public double getMaxTemperature() {
+<span class="nc" id="L318">        return 100.0;</span>
+    }
+
+    /**
+     * Gets the minimum temperature in Celsius.
+     *
+     * @return minimum temperature in Celsius for this
+     *         &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *
+     * @see    #getMaxTemperature
+     */
+    @Override
+    public double getMinTemperature () {
+<span class="nc" id="L331">        return -55.0;</span>
+    }
+
+    //--------
+    //-------- Temperature I/O Methods
+    //--------
+
+    /**
+     * Performs a temperature conversion on &lt;code&gt;state&lt;/code&gt; information.
+     *
+     * @param  state byte array with device state information
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from this &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     *         This could be caused by a physical interruption in the 1-Wire
+     *         Network due to shorts or a newly arriving 1-Wire device issuing a
+     *         'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     *
+     * @see    #getTemperature
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    @Override
+    public void doTemperatureConvert (byte[] state) throws OneWireIOException, OneWireException {
+        
+<span class="nc" id="L357">        doSpeed();</span>
+
+        // select the device
+<span class="nc bnc" id="L360" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+
+            // Setup Power Delivery
+<span class="nc" id="L363">            adapter.setPowerDuration(adapter.DELIVERY_INFINITE);</span>
+<span class="nc" id="L364">            adapter.startPowerDelivery(adapter.CONDITION_AFTER_BYTE);</span>
+
+            // send the convert temperature command
+<span class="nc" id="L367">            adapter.putByte(CONVERT_TEMPERATURE_COMMAND);</span>
+
+            // delay for 750 ms
+            try {
+<span class="nc" id="L371">                Thread.sleep(750);</span>
+<span class="nc" id="L372">            } catch (InterruptedException ex) {</span>
+<span class="nc" id="L373">                logger.debug(&quot;Interrupted&quot;, ex);</span>
+<span class="nc" id="L374">            }</span>
+
+            // Turn power back to normal.
+<span class="nc" id="L377">            adapter.setPowerNormal();</span>
+
+            // check to see if the temperature conversion is over
+<span class="nc bnc" id="L380" title="All 2 branches missed.">            if (adapter.getByte() != 0x0FF) {</span>
+<span class="nc" id="L381">                throw new OneWireIOException(address, &quot;OneWireContainer10-temperature conversion not complete&quot;);</span>
+            }
+
+            // read the result
+<span class="nc" id="L385">            byte mode = state [4];   //preserve the resolution in the state</span>
+
+<span class="nc" id="L387">            adapter.select(address);</span>
+<span class="nc" id="L388">            readScratch(state);</span>
+
+<span class="nc" id="L390">            state [4] = mode;</span>
+<span class="nc" id="L391">        } else {</span>
+
+            // device must not have been present
+<span class="nc" id="L394">            throw new OneWireIOException(address, &quot;OneWireContainer10-device not present&quot;);</span>
+        }
+<span class="nc" id="L396">    }</span>
+
+    //--------
+    //-------- Temperature 'get' Methods
+    //--------
+
+    /**
+     * Gets the temperature value in Celsius from the &lt;code&gt;state&lt;/code&gt;
+     * data retrieved from the &lt;code&gt;readDevice()&lt;/code&gt; method.
+     *
+     * @param  state byte array with device state information for this
+     *         &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *
+     * @return temperature in Celsius from the last
+     *                     &lt;code&gt;doTemperatureConvert()&lt;/code&gt;
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from this &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     *         This could be caused by a physical interruption in the 1-Wire
+     *         Network due to shorts or a newly arriving 1-Wire device issuing a
+     *         'presence pulse'.
+     *
+     * @see    #doTemperatureConvert
+     */
+    @Override
+    public double getTemperature (byte[] state) throws OneWireIOException {
+
+        //on some parts, namely the 18S20, you can get invalid readings.
+        //basically, the detection is that all the upper 8 bits should
+        //be the same by sign extension.  the error condition (DS18S20
+        //returns 185.0+) violated that condition
+<span class="nc bnc" id="L427" title="All 4 branches missed.">        if (((state [1] &amp; 0x0ff) != 0x00) &amp;&amp; ((state [1] &amp; 0x0ff) != 0x0FF)) {</span>
+<span class="nc" id="L428">            throw new OneWireIOException(address, &quot;Invalid temperature data!&quot;);</span>
+        }
+
+<span class="nc" id="L431">        short temp = ( short ) ((state [0] &amp; 0x0ff) | (state [1] &lt;&lt; 8));</span>
+
+<span class="nc bnc" id="L433" title="All 2 branches missed.">        if (state [4] == 1) {</span>
+<span class="nc" id="L434">            temp = ( short ) (temp &gt;&gt; 1);   //lop off the last bit</span>
+
+            //also takes care of the / 2.0
+<span class="nc" id="L437">            double tmp = ( double ) temp;</span>
+<span class="nc" id="L438">            double cr  = (state [6] &amp; 0x0ff);</span>
+<span class="nc" id="L439">            double cpc = (state [7] &amp; 0x0ff);</span>
+
+            //just let the thing throw a divide by zero exception
+<span class="nc" id="L442">            tmp = tmp - ( double ) 0.25 + (cpc - cr) / cpc;</span>
+
+<span class="nc" id="L444">            return tmp;</span>
+
+        } else {
+
+            //do normal resolution
+<span class="nc" id="L449">            return temp / 2.0;</span>
+        }
+    }
+
+    /**
+     * Gets the specified temperature alarm value in Celsius from the
+     * &lt;code&gt;state&lt;/code&gt; data retrieved from the  &lt;code&gt;readDevice()&lt;/code&gt;
+     * method.
+     *
+     * @param  alarmType valid value: &lt;code&gt;ALARM_HIGH&lt;/code&gt; or
+     *                   &lt;code&gt;ALARM_LOW&lt;/code&gt;
+     * @param  state     byte array with device state information
+     *
+     * @return temperature alarm trip values in Celsius for this
+     *         &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *
+     * @see    #hasTemperatureAlarms
+     * @see    #setTemperatureAlarm
+     */
+    @Override
+    public double getTemperatureAlarm(int alarmType, byte[] state) {
+        
+<span class="nc bnc" id="L471" title="All 2 branches missed.">        return ( double ) state [alarmType == ALARM_LOW ? 3 : 2];</span>
+    }
+
+    /**
+     * Gets the current temperature resolution in Celsius from the
+     * &lt;code&gt;state&lt;/code&gt; data retrieved from the &lt;code&gt;readDevice()&lt;/code&gt;
+     * method.
+     *
+     * @param  state byte array with device state information
+     *
+     * @return temperature resolution in Celsius for this
+     *         &lt;code&gt;OneWireContainer10&lt;/code&gt;
+     *
+     * @see    #hasSelectableTemperatureResolution
+     * @see    #getTemperatureResolutions
+     * @see    #setTemperatureResolution
+     */
+    @Override
+    public double getTemperatureResolution(byte[] state) {
+        
+<span class="nc bnc" id="L491" title="All 2 branches missed.">        if (state [4] == 0) {</span>
+<span class="nc" id="L492">            return RESOLUTION_NORMAL;</span>
+        }
+
+<span class="nc" id="L495">        return RESOLUTION_MAXIMUM;</span>
+    }
+
+    //--------
+    //-------- Temperature 'set' Methods
+    //--------
+
+    /**
+     * Sets the temperature alarm value in Celsius in the provided
+     * &lt;code&gt;state&lt;/code&gt; data.
+     * Use the method &lt;code&gt;writeDevice()&lt;/code&gt; with
+     * this data to finalize the change to the device.
+     *
+     * @param  alarmType  valid value: &lt;code&gt;ALARM_HIGH&lt;/code&gt; or
+     *                    &lt;code&gt;ALARM_LOW&lt;/code&gt;
+     * @param  alarmValue alarm trip value in Celsius
+     * @param  state      byte array with device state information
+     *
+     * @see    #hasTemperatureAlarms
+     * @see    #getTemperatureAlarm
+     */
+    @Override
+    public void setTemperatureAlarm (int alarmType, double alarmValue, byte[] state) {
+<span class="nc bnc" id="L518" title="All 4 branches missed.">        if ((alarmType != ALARM_LOW) &amp;&amp; (alarmType != ALARM_HIGH)) {</span>
+<span class="nc" id="L519">            throw new IllegalArgumentException(&quot;Invalid alarm type.&quot;);</span>
+        }
+
+<span class="nc bnc" id="L522" title="All 4 branches missed.">        if (alarmValue &gt; 100.0 || alarmValue &lt; -55.0) {</span>
+<span class="nc" id="L523">            throw new IllegalArgumentException(</span>
+            &quot;Value for alarm not in accepted range.  Must be -55 C &lt;-&gt; +100 C.&quot;);
+        }
+
+<span class="nc bnc" id="L527" title="All 2 branches missed.">        state [(alarmType == ALARM_LOW) ? 3 : 2] = ( byte ) alarmValue;</span>
+<span class="nc" id="L528">    }</span>
+
+    /**
+     * Sets the current temperature resolution in Celsius in the provided
+     * &lt;code&gt;state&lt;/code&gt; data.   Use the method &lt;code&gt;writeDevice()&lt;/code&gt;
+     * with this data to finalize the change to the device.
+     *
+     * @param  resolution temperature resolution in Celsius. Valid values are
+     *                    &lt;code&gt;RESOLUTION_NORMAL&lt;/code&gt; and
+     *                    &lt;code&gt;RESOLUTION_MAXIMUM&lt;/code&gt;.
+     * @param  state      byte array with device state information
+     *
+     * @see    #RESOLUTION_NORMAL
+     * @see    #RESOLUTION_MAXIMUM
+     * @see    #hasSelectableTemperatureResolution
+     * @see    #getTemperatureResolution
+     * @see    #getTemperatureResolutions
+     */
+    @Override
+    public synchronized void setTemperatureResolution (double resolution, byte[] state) {
+<span class="nc bnc" id="L548" title="All 2 branches missed.">        if (resolution == RESOLUTION_NORMAL) {</span>
+<span class="nc" id="L549">            normalResolution = true;</span>
+        } else {
+<span class="nc" id="L551">            normalResolution = false;</span>
+        }
+
+<span class="nc bnc" id="L554" title="All 2 branches missed.">        state [4] = ( byte ) (normalResolution ? 0 : 1);</span>
+<span class="nc" id="L555">    }</span>
+
+    /**
+     * Retrieves this &lt;code&gt;OneWireContainer10&lt;/code&gt; state information.
+     * The state information is returned as a byte array.  Pass this byte
+     * array to the '&lt;code&gt;get&lt;/code&gt;' and '&lt;code&gt;set&lt;/code&gt;' methods.
+     * If the device state needs to be changed, then call the
+     * &lt;code&gt;writeDevice()&lt;/code&gt; to finalize the changes.
+     *
+     * @return &lt;code&gt;OneWireContainer10&lt;/code&gt; state information.
+     * Device state looks like this:
+     * &lt;pre&gt;
+     *   0 : temperature LSB
+     *   1 : temperature MSB
+     *   2 : trip high
+     *   3 : trip low
+     *   4 : reserved (put the resolution here, 0 for normal, 1 for max)
+     *   5 : reserved
+     *   6 : count remain
+     *   7 : count per degree Celsius
+     *   8 : an 8 bit CRC over the previous 8 bytes of data
+     * &lt;/pre&gt;
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from this &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     *         This could be caused by a physical interruption in the 1-Wire
+     *         Network due to shorts or a newly arriving 1-Wire device issuing a
+     *         'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     *
+     * @see    #writeDevice
+     * 
+     * @deprecated Use {@link #readDevice(byte[])} instead, it doesn't allocate memory.
+     */
+    @Override
+    public byte[] readDevice() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L593">        byte[] data = new byte [8];</span>
+
+<span class="nc" id="L595">        readDevice(data);</span>
+
+<span class="nc" id="L597">        return data;</span>
+    }
+
+    @Override
+    public void readDevice(byte[] outputBuffer) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L603">        doSpeed();</span>
+
+        // select the device
+<span class="nc bnc" id="L606" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+
+            // construct a block to read the scratchpad
+            // 10 bytes
+<span class="nc" id="L610">            byte[] buffer = {</span>
+                    (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                    (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                    (byte) 0x00,(byte) 0x00,
+                    };
+
+            // read scratchpad command
+<span class="nc" id="L617">            buffer [0] = ( byte ) READ_SCRATCHPAD_COMMAND;</span>
+
+            // now add the read bytes for data bytes and crc8
+<span class="nc bnc" id="L620" title="All 2 branches missed.">            for (int i = 1; i &lt; 10; i++) {</span>
+<span class="nc" id="L621">                buffer [i] = ( byte ) 0x0FF;</span>
+            }
+
+            // send the block
+<span class="nc" id="L625">            adapter.dataBlock(buffer, 0, buffer.length);</span>
+
+            // see if crc is correct
+<span class="nc bnc" id="L628" title="All 2 branches missed.">            if (CRC8.compute(buffer, 1, 9) == 0) {</span>
+<span class="nc" id="L629">                System.arraycopy(buffer, 1, outputBuffer, 0, 8);</span>
+            } else {
+<span class="nc" id="L631">                throw new OneWireIOException(address, &quot;OneWireContainer10-Error reading CRC8 from device.&quot;);</span>
+            }
+            
+<span class="nc" id="L634">        } else {</span>
+<span class="nc" id="L635">            throw new OneWireIOException(address, &quot;OneWireContainer10-Device not found on 1-Wire Network&quot;);</span>
+        }
+
+        //we are just reading normalResolution here, no need to synchronize
+<span class="nc bnc" id="L639" title="All 2 branches missed.">        outputBuffer [4] = ( byte ) (normalResolution ? 0 : 1);</span>
+<span class="nc" id="L640">    }</span>
+
+    /**
+     * Writes to this &lt;code&gt;OneWireContainer10&lt;/code&gt; &lt;code&gt;state&lt;/code&gt;
+     * information that have been changed by '&lt;code&gt;set&lt;/code&gt;' methods.
+     * Only the state registers that changed are updated.  This is done
+     * by referencing a field information appended to the state data.
+     *
+     * @param  state      byte array with device state information
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from this &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     *         This could be caused by a physical interruption in the 1-Wire
+     *         Network due to shorts or a newly arriving 1-Wire device issuing a
+     *         'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     *
+     * @see    #readDevice
+     */
+    @Override
+    public void writeDevice (byte[] state) throws OneWireIOException, OneWireException {
+        
+<span class="nc" id="L663">        doSpeed();</span>
+
+<span class="nc" id="L665">        byte[] temp = new byte [2];</span>
+
+<span class="nc" id="L667">        temp [0] = state [2];</span>
+<span class="nc" id="L668">        temp [1] = state [3];</span>
+
+        // Write it to the Scratchpad.
+<span class="nc" id="L671">        writeScratchpad(temp);</span>
+
+        // Place in memory.
+<span class="nc" id="L674">        copyScratchpad();</span>
+<span class="nc" id="L675">    }</span>
+
+    /**
+     * Converts a temperature reading from Celsius to Fahrenheit.
+     *
+     * @param   celsiusTemperature temperature value in Celsius
+     *
+     * @return  the Fahrenheit conversion of the supplied temperature
+     *
+     * @deprecated Replace with call to com.dalsemi.onewire.utils.Convert.toFahrenheit()
+     *
+     * @see com.dalsemi.onewire.utils.Convert#toFahrenheit(double)
+     */
+    static public double convertToFahrenheit (double celsiusTemperature) {
+        
+<span class="nc" id="L690">        return Convert.toFahrenheit(celsiusTemperature);</span>
+    }
+
+    /**
+     * Converts a temperature reading from Fahrenheit to Celsius.
+     *
+     * @param  fahrenheitTemperature temperature value in Fahrenheit
+     *
+     * @return  the Celsius conversion of the supplied temperature
+     *
+     * @deprecated Replace with call to com.dalsemi.onewire.utils.Convert.toCelsius()
+     *
+     * @see com.dalsemi.onewire.utils.Convert#toCelsius(double)
+     */
+    static public double convertToCelsius (double fahrenheitTemperature) {
+        
+<span class="nc" id="L706">        return Convert.toCelsius(fahrenheitTemperature);</span>
+    }
+
+    //--------
+    //-------- Private Methods
+    //--------
+
+    /**
+     * Reads the 8 bytes from the scratchpad and verify CRC8 returned.
+     *
+     * @param  data  buffer to store the scratchpad data
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from this &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     *         This could be caused by a physical interruption in the 1-Wire
+     *         Network due to shorts or a newly arriving 1-Wire device issuing a
+     *         'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    private void readScratch (byte[] data) throws OneWireIOException, OneWireException {
+
+        // select the device
+<span class="nc bnc" id="L729" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+
+            // construct a block to read the scratchpad
+<span class="nc" id="L732">            byte[] buffer = new byte [10];</span>
+
+            // read scratchpad command
+<span class="nc" id="L735">            buffer [0] = ( byte ) READ_SCRATCHPAD_COMMAND;</span>
+
+            // now add the read bytes for data bytes and crc8
+<span class="nc bnc" id="L738" title="All 2 branches missed.">            for (int i = 1; i &lt; 10; i++)</span>
+<span class="nc" id="L739">                buffer [i] = ( byte ) 0x0FF;</span>
+
+            // send the block
+<span class="nc" id="L742">            adapter.dataBlock(buffer, 0, buffer.length);</span>
+
+            // see if crc is correct
+<span class="nc bnc" id="L745" title="All 2 branches missed.">            if (CRC8.compute(buffer, 1, 9) == 0) {</span>
+<span class="nc" id="L746">                System.arraycopy(buffer, 1, data, 0, 8);</span>
+            } else {
+<span class="nc" id="L748">                throw new OneWireIOException(address, &quot;OneWireContainer10-Error reading CRC8 from device.&quot;);</span>
+            }
+<span class="nc" id="L750">        } else {</span>
+<span class="nc" id="L751">            throw new OneWireIOException(address, &quot;OneWireContainer10-Device not found on 1-Wire Network&quot;);</span>
+        }
+<span class="nc" id="L753">    }</span>
+
+    /**
+     * Writes to the Scratchpad.
+     *
+     * @param data this is the data to be written to the scratchpad.  Cannot
+     *             be more than two bytes in size. First byte of data must be
+     *             the temperature High Trip Point and second byte must be
+     *             temperature Low Trip Point.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from this &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     *         This could be caused by a physical interruption in the 1-Wire
+     *         Network due to shorts or a newly arriving 1-Wire device issuing a
+     *         'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     * @throws IllegalArgumentException when data length is not equal to &lt;code&gt;2&lt;/code&gt;
+     */
+    private void writeScratchpad (byte[] data) throws OneWireIOException, OneWireException, IllegalArgumentException {
+
+        // Variables.
+<span class="nc" id="L775">        byte[] write_block = new byte [3];</span>
+<span class="nc" id="L776">        byte[] buffer      = new byte [8];</span>
+
+        // First do some error checking.
+<span class="nc bnc" id="L779" title="All 2 branches missed.">        if (data.length != 2)</span>
+<span class="nc" id="L780">            throw new IllegalArgumentException(</span>
+            &quot;Bad data.  Data must consist of only TWO bytes.&quot;);
+
+        // Prepare the write_block to be sent.
+<span class="nc" id="L784">        write_block [0] = WRITE_SCRATCHPAD_COMMAND;</span>
+<span class="nc" id="L785">        write_block [1] = data [0];</span>
+<span class="nc" id="L786">        write_block [2] = data [1];</span>
+
+        // Send the block of data to the DS1920.
+<span class="nc bnc" id="L789" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+<span class="nc" id="L790">            adapter.dataBlock(write_block, 0, 3);</span>
+        } else {
+<span class="nc" id="L792">            throw new OneWireIOException(address, &quot;OneWireContainer10 - Device not found&quot;);</span>
+        }
+
+        // Check data to ensure correctly recived.
+<span class="nc" id="L796">        buffer = new byte [8];</span>
+
+<span class="nc" id="L798">        readScratch(buffer);</span>
+
+        // verify data
+<span class="nc bnc" id="L801" title="All 4 branches missed.">        if ((buffer [2] != data [0]) || (buffer [3] != data [1])) {</span>
+<span class="nc" id="L802">            throw new OneWireIOException(address, &quot;OneWireContainer10 - data read back incorrect&quot;);</span>
+        }
+
+<span class="nc" id="L805">        return;</span>
+    }
+
+    /**
+     * Copies the contents of the User bytes of the ScratchPad to the EEPROM.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         reading an incorrect CRC from this &lt;code&gt;OneWireContainer10&lt;/code&gt;.
+     *         This could be caused by a physical interruption in the 1-Wire
+     *         Network due to shorts or a newly arriving 1-Wire device issuing a
+     *         'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    private void copyScratchpad () throws OneWireIOException, OneWireException {
+
+        // select the device
+<span class="nc bnc" id="L823" title="All 2 branches missed.">        if (adapter.select(address)) {</span>
+
+            // send the copy command
+<span class="nc" id="L826">            adapter.putByte(COPY_SCRATCHPAD_COMMAND);</span>
+
+            // Setup Power Delivery
+<span class="nc" id="L829">            adapter.setPowerDuration(adapter.DELIVERY_INFINITE);</span>
+<span class="nc" id="L830">            adapter.startPowerDelivery(adapter.CONDITION_NOW);</span>
+
+            // delay for 10 ms
+            try {
+<span class="nc" id="L834">                Thread.sleep(10);</span>
+<span class="nc" id="L835">            } catch (InterruptedException ex){</span>
+<span class="nc" id="L836">                logger.debug(&quot;Interrupted&quot;, ex);</span>
+<span class="nc" id="L837">            }</span>
+
+            // Turn power back to normal.
+<span class="nc" id="L840">            adapter.setPowerNormal();</span>
+            
+        } else {
+<span class="nc" id="L843">            throw new OneWireIOException(address, &quot;OneWireContainer10 - device not found&quot;);</span>
+        }
+<span class="nc" id="L845">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

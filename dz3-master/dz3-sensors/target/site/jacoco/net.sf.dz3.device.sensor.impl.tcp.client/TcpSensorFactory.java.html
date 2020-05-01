@@ -1,0 +1,506 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TcpSensorFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.tcp.client</a> &gt; <span class="el_source">TcpSensorFactory.java</span></div><h1>TcpSensorFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.tcp.client;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.StringTokenizer;
+import java.util.TreeMap;
+
+import javax.net.ssl.SSLException;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.sensor.TemperatureSensor;
+import net.sf.dz3.device.sensor.impl.AbstractAnalogSensor;
+import net.sf.dz3.device.sensor.impl.tcp.TcpConnectionSignature;
+import net.sf.dz3.util.SSLContextFactory;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.sem.SemaphoreGroup;
+import net.sf.jukebox.service.ActiveService;
+import net.sf.jukebox.service.PassiveService;
+
+/**
+ * TCP temperature sensor.
+ *
+ * &lt;p&gt;
+ *
+ * Connects to DAC over TCP and reads temperature values, then distributes
+ * them to listeners.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+<span class="nc" id="L37">public class TcpSensorFactory extends PassiveService {</span>
+
+    /**
+     * TCP reader map.
+     */
+<span class="nc" id="L42">    private final Map&lt;ReaderSignature, TcpReader&gt; sig2reader = new TreeMap&lt;ReaderSignature, TcpReader&gt;();</span>
+
+    /**
+     * Consumer map.
+     *
+     * We cheat by not associating the hardware sensor address with the host name and port, and thus enable individual
+     * devices to be moved from one host to another.
+     */
+<span class="nc" id="L50">    private final Map&lt;String, TcpTemperatureSensor&gt; address2sensor = new TreeMap&lt;String, TcpTemperatureSensor&gt;();</span>
+
+    /**
+     * Get a sensor instance using insecure connection to remote port 5000.
+     *
+     * @param address Sensor hardware address.
+     * @param remoteHost Host to connect to.
+     * @param port Port on the remote host to connect to.
+     * @param pollInterval How often to return results.
+     *
+     * @return A sensor instance.
+     */
+    public TemperatureSensor getInstance(String address, String remoteHost, int pollInterval) {
+
+<span class="nc" id="L64">        return getInstance(address, remoteHost, 5000, pollInterval, false, null);</span>
+    }
+
+    /**
+     * Get a sensor instance.
+     *
+     * @param address Sensor hardware address.
+     * @param remoteHost Host to connect to.
+     * @param remotePort Port on the remote host to connect to.
+     * @param pollInterval How often to return results.
+     * @param secure Whether to attempt a secure connection.
+     * @param password Password for a secure connection, {@code null} if not secure.
+     *
+     * @return A sensor instance.
+     */
+    public synchronized TemperatureSensor getInstance(String address, String remoteHost, int remotePort, int pollInterval, boolean secure, String password) {
+
+<span class="nc" id="L81">        ReaderSignature signature = new ReaderSignature(remoteHost, remotePort, secure, password);</span>
+<span class="nc" id="L82">        TcpReader listener = sig2reader.get(signature);</span>
+
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if (listener == null) {</span>
+
+<span class="nc" id="L86">            listener = new TcpReader(signature);</span>
+
+            // We don't give a damn if it actually starts successfully, it will be reflected
+            // in the data sample as an error if it doesn't
+<span class="nc" id="L90">            listener.start();</span>
+
+<span class="nc" id="L92">            sig2reader.put(signature, listener);</span>
+        }
+
+<span class="nc" id="L95">        return listener.getInstance(address);</span>
+    }
+
+    @Override
+    protected void startup() throws Throwable {
+
+<span class="nc" id="L101">    }</span>
+
+    @Override
+    protected void shutdown() throws Throwable {
+
+<span class="nc" id="L106">        ThreadContext.push(&quot;shutdown&quot;);</span>
+
+        try {
+
+<span class="nc" id="L110">            SemaphoreGroup stopped = new SemaphoreGroup();</span>
+
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            for (Iterator&lt;TcpReader&gt; i = sig2reader.values().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L114">                TcpReader reader = i.next();</span>
+
+<span class="nc" id="L116">                logger.info(&quot;Stopping &quot; + reader);</span>
+
+<span class="nc" id="L118">                stopped.add(reader.stop());</span>
+<span class="nc" id="L119">            }</span>
+
+<span class="nc" id="L121">            stopped.waitForAll();</span>
+
+<span class="nc" id="L123">            logger.info(&quot;All readers stopped&quot;);</span>
+
+        } finally {
+<span class="nc" id="L126">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L128">    }</span>
+
+<span class="nc bnc" id="L130" title="All 2 branches missed.">    private class TcpReader extends ActiveService {</span>
+
+        private final ReaderSignature signature;
+        private boolean secure;
+
+        private Socket socket;
+        private BufferedReader br;
+
+<span class="nc" id="L138">        public TcpReader(ReaderSignature signature) {</span>
+
+<span class="nc" id="L140">            this.signature = signature;</span>
+<span class="nc" id="L141">            secure = signature.secure;</span>
+<span class="nc" id="L142">        }</span>
+
+        public TemperatureSensor getInstance(String address) {
+
+<span class="nc" id="L146">            throw new IllegalStateException(&quot;Not Implemented&quot;);</span>
+        }
+
+        @Override
+        protected void startup() throws Throwable {
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">            if (secure) {</span>
+
+<span class="nc" id="L154">                logger.info(&quot;Secure connection requested&quot;);</span>
+
+                try {
+
+<span class="nc" id="L158">                    socket = SSLContextFactory.createContext(signature.password).getSocketFactory().createSocket(signature.remoteHost, signature.port);</span>
+
+<span class="nc" id="L160">                } catch (SSLException ex) {</span>
+
+<span class="nc" id="L162">                    logger.warn(&quot;Can't establish a secure connection to &quot; + signature.remoteHost + &quot;:&quot; + signature.port, ex);</span>
+<span class="nc" id="L163">                    logger.warn(&quot;REVERTING TO INSECURE CONNECTION&quot;);</span>
+
+<span class="nc" id="L165">                    secure = false;</span>
+<span class="nc" id="L166">                }</span>
+            }
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">            if ( socket == null ) {</span>
+
+<span class="nc" id="L171">                socket = new Socket(signature.remoteHost, signature.port);</span>
+            }
+
+<span class="nc" id="L174">            br = new BufferedReader(new InputStreamReader(socket.getInputStream()));</span>
+
+<span class="nc bnc" id="L176" title="All 2 branches missed.">            if ( !secure ) {</span>
+
+                // In case we're talking to a secure socket implementation,
+                // we'll get stuck reading the input stream - they won't
+                // tell us anything, nor would they break away (well, maybe
+                // after a really long timeout). Therefore, we'll have to
+                // give them a kick so they kick us out and we'll get a
+                // visible indication of a failure.
+
+<span class="nc" id="L185">                PrintWriter pw = new PrintWriter(socket.getOutputStream());</span>
+
+<span class="nc" id="L187">                pw.println(&quot;&quot;);</span>
+<span class="nc" id="L188">                pw.println(&quot;&quot;);</span>
+<span class="nc" id="L189">                pw.println(&quot;&quot;);</span>
+<span class="nc" id="L190">                pw.println(&quot;&quot;);</span>
+<span class="nc" id="L191">                pw.println(&quot;&quot;);</span>
+<span class="nc" id="L192">                pw.println(&quot;&quot;);</span>
+<span class="nc" id="L193">                pw.flush();</span>
+
+                // If they're secure, and we're not, we'll get kicked out
+                // right here...
+            }
+<span class="nc" id="L198">        }</span>
+
+<span class="nc" id="L200">        final int RETRY_COUNT = 20;</span>
+
+        @Override
+        protected void execute() throws Throwable {
+
+<span class="nc" id="L205">            int retryCount = RETRY_COUNT;</span>
+
+<span class="nc bnc" id="L207" title="All 2 branches missed.">            while ( retryCount &gt; 0 ) {</span>
+
+<span class="nc bnc" id="L209" title="All 2 branches missed.">                while ( isEnabled() ) {</span>
+
+<span class="nc bnc" id="L211" title="All 2 branches missed.">                    if (br == null) {</span>
+
+                        // This means that the connection reestablishment
+                        // attempt has just failed
+<span class="nc" id="L215">                        break;</span>
+                    }
+
+                    try {
+
+<span class="nc bnc" id="L220" title="All 2 branches missed.">                        if (!readLine()) {</span>
+<span class="nc" id="L221">                            break;</span>
+                        }
+
+<span class="nc" id="L224">                    } catch (SSLException ex) {</span>
+
+<span class="nc bnc" id="L226" title="All 2 branches missed.">                        if (ex.getMessage() != null) {</span>
+
+<span class="nc bnc" id="L228" title="All 2 branches missed.">                            if (ex.getMessage().equals(&quot;Unrecognized SSL message, plaintext connection?&quot;)) {</span>
+
+                                // Let's retry as insecure
+
+<span class="nc" id="L232">                                logger.warn(&quot;Can't establish secure connection to &quot;</span>
+                                                               + signature.remoteHost + &quot;:&quot; + signature.port
+                                                               + &quot;, other end seems to be plaintext&quot;);
+<span class="nc" id="L235">                                logger.warn(&quot;REVERTING TO INSECURE CONNECTION&quot;);</span>
+
+<span class="nc" id="L237">                                secure = false;</span>
+<span class="nc" id="L238">                                socket = null;</span>
+<span class="nc" id="L239">                                br = null;</span>
+
+<span class="nc" id="L241">                                break;</span>
+                            }
+
+                        } else {
+
+                            // I don't know what it is
+<span class="nc" id="L247">                            throw ex;</span>
+                        }
+<span class="nc" id="L249">                    }</span>
+
+                }
+
+<span class="nc bnc" id="L253" title="All 2 branches missed.">                if (!isEnabled()) {</span>
+
+<span class="nc" id="L255">                    logger.info(&quot;Not enabled, terminating&quot;);</span>
+
+<span class="nc bnc" id="L257" title="All 4 branches missed.">                    assert(socket == null);</span>
+
+<span class="nc" id="L259">                    return;</span>
+                }
+
+                // If we're here, it means that the socket has gone bad and
+                // retryCount is positive. Let's try to reestablish the
+                // connection.
+
+<span class="nc" id="L266">                Thread.sleep(10000);</span>
+
+                try {
+
+<span class="nc" id="L270">                    socket = new Socket(signature.remoteHost, signature.port);</span>
+<span class="nc" id="L271">                    br = new BufferedReader(new InputStreamReader(socket.getInputStream()));</span>
+
+<span class="nc" id="L273">                    retryCount = RETRY_COUNT;</span>
+
+<span class="nc" id="L275">                    logger.info(&quot;Connection reestablished&quot;);</span>
+
+<span class="nc" id="L277">                } catch (IOException ioex) {</span>
+
+<span class="nc" id="L279">                    logger.info(&quot;Can't reestablish the connection, &quot;</span>
+                    	+ retryCount
+                    	+ &quot; retries left, cause:&quot;, ioex);
+
+<span class="nc" id="L283">                    socket = null;</span>
+<span class="nc" id="L284">                    br = null;</span>
+<span class="nc" id="L285">                }</span>
+
+<span class="nc" id="L287">                retryCount--;</span>
+            }
+
+<span class="nc" id="L290">            logger.fatal(&quot;Retry count exceeded, sensor server &quot;</span>
+                    + signature.remoteHost + &quot;:&quot; + signature.port + &quot; unavailable, terminating&quot;);
+<span class="nc" id="L292">        }</span>
+
+        @Override
+        protected void shutdown() throws Throwable {
+
+<span class="nc" id="L297">            ThreadContext.push(&quot;shutdown&quot;);</span>
+
+            try {
+
+<span class="nc bnc" id="L301" title="All 2 branches missed.">                if (socket != null) {</span>
+<span class="nc" id="L302">                    socket.close();</span>
+                }
+
+            } finally {
+<span class="nc" id="L306">                ThreadContext.pop();</span>
+            }
+
+<span class="nc" id="L309">        }</span>
+
+        private boolean readLine() throws IOException {
+
+<span class="nc" id="L313">            ThreadContext.push(&quot;readLine&quot;);</span>
+
+            try {
+
+<span class="nc" id="L317">                long timestamp = System.currentTimeMillis();</span>
+<span class="nc" id="L318">                String line = br.readLine();</span>
+
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                if ( line == null ) {</span>
+
+<span class="nc" id="L322">                    logger.error(&quot;Socket broken, exiting loop&quot;);</span>
+
+<span class="nc" id="L324">                    processError(timestamp, &quot;Connection Lost&quot;);</span>
+<span class="nc" id="L325">                    return false;</span>
+                }
+
+<span class="nc" id="L328">                StringTokenizer st = new StringTokenizer(line, &quot; &quot;);</span>
+
+                // There is a few reserved words:
+                //
+                //      D       Data
+                //      E       Error
+                //      +       Arrival
+                //      -       Departure
+                //
+                // If the first word (as in 'whitespace delimited
+                // sequence') is reserved, then the parsing logic
+                // changes. Otherwise, we process it just as before.
+
+<span class="nc" id="L341">                String header = st.nextToken();</span>
+
+<span class="nc bnc" id="L343" title="All 2 branches missed.">                if ( &quot;E&quot;.equals(header) ) {</span>
+
+<span class="nc" id="L345">                    processError(timestamp, line.substring(2));</span>
+
+<span class="nc bnc" id="L347" title="All 2 branches missed.">                } else if ( &quot;+&quot;.equals(header) ) {</span>
+
+<span class="nc" id="L349">                    processArrival(timestamp, st.nextToken());</span>
+
+<span class="nc bnc" id="L351" title="All 2 branches missed.">                } else if ( &quot;-&quot;.equals(header) ) {</span>
+
+<span class="nc" id="L353">                    processDeparture(timestamp, st.nextToken());</span>
+
+<span class="nc bnc" id="L355" title="All 2 branches missed.">                } else if ( &quot;D&quot;.equals(header) ) {</span>
+
+<span class="nc" id="L357">                    processData(timestamp, line.substring(2));</span>
+
+                } else {
+
+<span class="nc" id="L361">                    processData(timestamp, line);</span>
+                }
+
+<span class="nc" id="L364">                return true;</span>
+
+            } finally {
+<span class="nc" id="L367">                ThreadContext.pop();</span>
+            }
+        }
+
+        private void processData(long timestamp, String line) {
+
+<span class="nc" id="L373">            StringTokenizer st = new StringTokenizer(line, &quot; &quot;);</span>
+
+<span class="nc" id="L375">            String address = st.nextToken();</span>
+<span class="nc" id="L376">            String value = st.nextToken();</span>
+
+<span class="nc" id="L378">            TcpTemperatureSensor sensor = address2sensor.get(address);</span>
+
+<span class="nc bnc" id="L380" title="All 2 branches missed.">            if ( sensor != null ) {</span>
+
+<span class="nc" id="L382">                sensor.consume(new DataSample&lt;Double&gt;(timestamp, address, &quot;FIXME&quot;, Double.parseDouble(value), null));</span>
+            }
+<span class="nc" id="L384">        }</span>
+
+        private void processError(long timestamp, String line) {
+
+            // VT: FIXME: This may not be associated with a sensor address
+            // (such as 1-Wire short circuit). Therefore, it may be
+            // necessary to broadcast such a condition to all the sensors.
+
+            // VT: NOTE: However, it may so happen that the error is indeed
+            // related to an individual sensor, so let's try to process it
+            // as usual.
+
+<span class="nc" id="L396">            logger.warn(&quot;Error reported: &quot; + line);</span>
+
+<span class="nc" id="L398">            StringTokenizer st = new StringTokenizer(line, &quot; &quot;);</span>
+<span class="nc" id="L399">            String address = st.nextToken();</span>
+
+<span class="nc" id="L401">            TcpTemperatureSensor s = address2sensor.get(address);</span>
+
+<span class="nc bnc" id="L403" title="All 2 branches missed.">            if ( s == null ) {</span>
+
+<span class="nc" id="L405">                logger.warn(&quot;General error: &quot; + line);</span>
+
+<span class="nc bnc" id="L407" title="All 2 branches missed.">                for (Iterator&lt;String&gt; i = address2sensor.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L409">                    String sensorAddress = i.next();</span>
+<span class="nc" id="L410">                    TcpTemperatureSensor sensor = address2sensor.get(sensorAddress);</span>
+<span class="nc" id="L411">                    DataSample&lt;Double&gt; sample = new DataSample&lt;Double&gt;(timestamp, sensorAddress, &quot;FIXME&quot;, null, new IOException(line));</span>
+
+<span class="nc" id="L413">                    sensor.consume(sample);</span>
+<span class="nc" id="L414">                }</span>
+
+            } else {
+
+<span class="nc" id="L418">                String error = line.substring(address.length() + 1);</span>
+<span class="nc" id="L419">                s.consume(new DataSample&lt;Double&gt;(timestamp, address, &quot;FIXME&quot;, null, new IOException(error)));</span>
+            }
+<span class="nc" id="L421">        }</span>
+
+        private void processArrival(long timestamp, String address) {
+
+            // VT: NOTE: There's nothing to process, really. To the actual
+            // consumers, the arrival itself doesn't mean anything at all
+            // unless the sensor starts producing data - and this case is
+            // already handled.
+
+<span class="nc" id="L430">            logger.info(&quot;Sensor arrived: &quot; + address);</span>
+<span class="nc" id="L431">        }</span>
+
+        private void processDeparture(long timestamp, String address) {
+
+<span class="nc" id="L435">            logger.warn(&quot;Sensor departed: &quot; + address);</span>
+
+<span class="nc" id="L437">            TcpTemperatureSensor sensor = address2sensor.get(address);</span>
+
+<span class="nc bnc" id="L439" title="All 2 branches missed.">            if ( sensor != null ) {</span>
+
+                // VT: NOTE: Let the consumer worry about handling the
+                // momentary lapses - the control logic doesn't belong at
+                // this level
+<span class="nc" id="L444">                DataSample&lt;Double&gt; sample = new DataSample&lt;Double&gt;(timestamp, address, &quot;FIXME&quot;, null, new IOException(&quot;Sensor Departed&quot;));</span>
+<span class="nc" id="L445">                sensor.consume(sample);</span>
+            }
+<span class="nc" id="L447">        }</span>
+    }
+
+    private static class ReaderSignature extends TcpConnectionSignature {
+
+        public final String remoteHost;
+
+        public ReaderSignature(String remoteHost, int port, boolean secure, String password) {
+
+<span class="nc" id="L456">            super(port, secure, password);</span>
+
+<span class="nc" id="L458">            this.remoteHost = remoteHost;</span>
+<span class="nc" id="L459">        }</span>
+
+        @Override
+        protected void render(final StringBuilder sb) {
+
+<span class="nc" id="L464">            sb.append(&quot;(&quot;).append(remoteHost).append(&quot;:&quot;).append(port);</span>
+<span class="nc bnc" id="L465" title="All 2 branches missed.">            sb.append(secure ? &quot;,secure&quot; : &quot;&quot;);</span>
+<span class="nc bnc" id="L466" title="All 4 branches missed.">            sb.append(secure ? &quot;,&quot; : &quot;&quot;).append(secure ? password : &quot;&quot;);</span>
+<span class="nc" id="L467">        }</span>
+    }
+
+    private class TcpTemperatureSensor extends AbstractAnalogSensor implements DataSink&lt;Double&gt; {
+
+        private DataSample&lt;Double&gt; lastKnownSignal;
+
+<span class="nc" id="L474">        public TcpTemperatureSensor(String address, int pollIntervalMillis) {</span>
+<span class="nc" id="L475">            super(address, pollIntervalMillis);</span>
+
+<span class="nc" id="L477">            lastKnownSignal = new DataSample&lt;Double&gt;(System.currentTimeMillis(), address, &quot;FIXME&quot;, null, new IllegalStateException(&quot;Not Available&quot;));</span>
+<span class="nc" id="L478">        }</span>
+
+        @Override
+        public DataSample&lt;Double&gt; getSensorSignal() throws IOException {
+
+<span class="nc" id="L483">            return lastKnownSignal;</span>
+        }
+
+        @Override
+        protected void shutdown() throws Throwable {
+
+            // They don't need us anymore
+<span class="nc" id="L490">            address2sensor.remove(getAddress());</span>
+<span class="nc" id="L491">        }</span>
+
+        @Override
+        protected void startup() throws Throwable {
+
+            // Do nothing
+<span class="nc" id="L497">        }</span>
+
+        @Override
+        public void consume(DataSample&lt;Double&gt; sample) {
+
+<span class="nc" id="L502">            lastKnownSignal = sample;</span>
+<span class="nc" id="L503">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

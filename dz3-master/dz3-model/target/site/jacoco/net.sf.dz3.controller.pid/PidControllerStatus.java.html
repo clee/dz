@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PidControllerStatus.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller.pid</a> &gt; <span class="el_source">PidControllerStatus.java</span></div><h1>PidControllerStatus.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller.pid;
+
+import net.sf.dz3.controller.ProcessControllerStatus;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+
+/**
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class PidControllerStatus extends ProcessControllerStatus {
+
+    /**
+     * Proportional value.
+     */
+    public final double p;
+
+    /**
+     * Integral value.
+     */
+    public final double i;
+
+    /**
+     * Derivative value.
+     */
+    public final double d;
+
+    /**
+     * Create an instance.
+     * 
+     * @param setpoint Current setpoint.
+     * @param error Current error value.
+     * @param signal Current signal value.
+     * @param p Current P value.
+     * @param i Current I value.
+     * @param d Current D value.
+     */
+    public PidControllerStatus(double setpoint, double error, DataSample&lt;Double&gt; signal, double p, double i, double d) {
+
+<span class="fc" id="L39">        super(setpoint, error, signal);</span>
+
+<span class="fc" id="L41">        this.p = p;</span>
+<span class="fc" id="L42">        this.i = i;</span>
+<span class="fc" id="L43">        this.d = d;</span>
+<span class="fc" id="L44">    }</span>
+
+    /**
+     * Get a string representation of a PID controller status.
+     * 
+     * @return A string representation of a status put together by a superclass,
+     * followed by slash delimited P, I, D values.
+     */
+    @Override
+    public final String toString() {
+
+<span class="fc" id="L55">        return super.toString() + &quot;/&quot; + p + &quot;/&quot; + i + &quot;/&quot; + d;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

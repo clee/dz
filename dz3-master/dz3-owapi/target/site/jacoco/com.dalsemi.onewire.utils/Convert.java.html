@@ -1,0 +1,727 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Convert.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.utils</a> &gt; <span class="el_source">Convert.java</span></div><h1>Convert.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.utils;
+
+/**
+ * Utilities for conversion between miscellaneous datatypes.
+ *
+ * @version    1.00, 28 December 2001
+ * @author     SH
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class Convert {
+
+    /** returns hex character for each digit, 0-15 */
+<span class="nc" id="L41">    private static final char[] lookup_hex = new char[] {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};</span>
+
+    /**
+     * Not to be instantiated
+     */
+    private Convert() {
+    }
+
+    // ----------------------------------------------------------------------
+    // Temperature conversions
+    // ----------------------------------------------------------------------
+
+    // ??? does this optimization help out on TINI, where double-division is
+    // ??? potentially slower?  If not, feel free to delete it.
+    // ???
+    /** cache the value of five divided by nine, which is irrational */
+    private static final double FIVE_NINTHS = (5.0d / 9.0d);
+
+    /**
+     * Converts a temperature reading from Celsius to Fahrenheit.
+     * 
+     * @param celsiusTemperature temperature value in Celsius.
+     * 
+     * @return the Fahrenheit conversion of the supplied temperature.
+     */
+    public static final double toFahrenheit(double celsiusTemperature) {
+       
+        // (9/5)=1.8
+<span class="nc" id="L69">        return celsiusTemperature * 1.8d + 32.0d;</span>
+    }
+
+    /**
+     * Converts a temperature reading from Fahrenheit to Celsius.
+     *
+     * @param  fahrenheitTemperature temperature value in Fahrenheit.
+     *
+     * @return  the Celsius conversion of the supplied temperature.
+     */
+    public static final double toCelsius (double fahrenheitTemperature)
+    {
+<span class="nc" id="L81">        return (fahrenheitTemperature - 32.0d)*FIVE_NINTHS;</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // Long &lt;-&gt; ByteArray conversions
+    // ----------------------------------------------------------------------
+
+    /**
+     * This method constructs a long from a LSByte byte array of specified length.
+     *
+     * @param  byteArray byte array to convert to a long (LSByte first)
+     * @param  offset byte offset into the array where to start to convert
+     * @param  len number of bytes to use to convert to a long
+     *
+     * @returns value constructed from bytes
+     */
+    public static final long toLong(byte[] byteArray, int offset, int len) {
+<span class="nc" id="L98">        long val = 0;</span>
+
+<span class="nc" id="L100">        len = Math.min(len, 8);</span>
+
+        // Concatenate the byte array into one variable.
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        for (int i = (len - 1); i &gt;= 0; i--) {</span>
+<span class="nc" id="L104">            val &lt;&lt;= 8;</span>
+<span class="nc" id="L105">            val |= (byteArray[offset + i] &amp; 0x00FF);</span>
+        }
+
+<span class="nc" id="L108">        return val;</span>
+    }
+
+    /**
+     * This method constructs a long from a LSByte byte array of specified length.
+     * Uses 8 bytes starting at the first index.
+     *
+     * @param  byteArray byte array to convert to a long (LSByte first)
+     *
+     * @returns value constructed from bytes
+     */
+    public static final long toLong(byte[] byteArray) {
+<span class="nc" id="L120">        return toLong(byteArray, 0, Math.min(8, byteArray.length));</span>
+    }
+
+    /**
+     * This method constructs a LSByte byte array with specified length from a long.
+     *
+     * @param  longVal the long value to convert to a byte array.
+     * @param  byteArray LSByte first byte array, holds bytes from long
+     * @param  offset byte offset into the array
+     * @param  len number of bytes to get
+     *
+     * @returns value constructed from bytes
+     */
+    public static final void toByteArray(long longVal, byte[] byteArray, int offset, int len) {
+<span class="nc" id="L134">        int max = offset + len;</span>
+
+        // Concatenate the byte array into one variable.
+<span class="nc bnc" id="L137" title="All 2 branches missed.">        for (int i = offset; i &lt; max; i++) {</span>
+<span class="nc" id="L138">            byteArray[i] = (byte)longVal;</span>
+<span class="nc" id="L139">            longVal &gt;&gt;&gt;= 8;</span>
+        }
+<span class="nc" id="L141">    }</span>
+
+    /**
+     * This method constructs a LSByte byte array with 8 bytes from a long.
+     *
+     * @param  longVal the long value to convert to a byte array.
+     * @param  byteArray LSByte first byte array, holds bytes from long
+     *
+     */
+    public static final void toByteArray(long longVal, byte[] byteArray) {
+<span class="nc" id="L151">        toByteArray(longVal, byteArray, 0, 8);</span>
+<span class="nc" id="L152">    }</span>
+
+    /**
+     * This method constructs a LSByte byte array with 8 bytes from a long.
+     *
+     * @param  longVal the long value to convert to a byte array.
+     *
+     * @returns value constructed from bytes
+     */
+    public static final byte[] toByteArray(long longVal) {
+<span class="nc" id="L162">        byte[] byteArray = new byte[8];</span>
+<span class="nc" id="L163">        toByteArray(longVal, byteArray, 0, 8);</span>
+<span class="nc" id="L164">        return byteArray;</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // Int &lt;-&gt; ByteArray conversions
+    // ----------------------------------------------------------------------
+
+    /**
+     * This method constructs an int from a LSByte byte array of specified length.
+     *
+     * @param  byteArray byte array to convert to an int (LSByte first)
+     * @param  offset byte offset into the array where to start to convert
+     * @param  len number of bytes to use to convert to an int
+     *
+     * @returns value constructed from bytes
+     */
+    public static final int toInt(byte[] byteArray, int offset, int len) {
+<span class="nc" id="L181">        int val = 0;</span>
+
+<span class="nc" id="L183">        len = Math.min(len, 4);</span>
+
+        // Concatenate the byte array into one variable.
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        for (int i = (len - 1); i &gt;= 0; i--) {</span>
+<span class="nc" id="L187">            val &lt;&lt;= 8;</span>
+<span class="nc" id="L188">            val |= (byteArray [offset + i] &amp; 0x00FF);</span>
+        }
+
+<span class="nc" id="L191">        return val;</span>
+    }
+
+    /**
+     * This method constructs an int from a LSByte byte array of specified length.
+     * Uses 4 bytes starting at the first index.
+     *
+     * @param  byteArray byte array to convert to an int (LSByte first)
+     *
+     * @returns value constructed from bytes
+     */
+    public static final int toInt(byte[] byteArray) {
+<span class="nc" id="L203">        return toInt(byteArray, 0, Math.min(4, byteArray.length));</span>
+    }
+
+    /**
+     * This method constructs a LSByte byte array with specified length from an int.
+     *
+     * @param  intVal the int value to convert to a byte array.
+     * @param  byteArray LSByte first byte array, holds bytes from int
+     * @param  offset byte offset into the array
+     * @param  len number of bytes to get
+     */
+    public static final void toByteArray(int intVal, byte[] byteArray, int offset, int len) {
+<span class="nc" id="L215">        int max = offset + len;</span>
+
+        // Concatenate the byte array into one variable.
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        for (int i = offset; i &lt; max; i++) {</span>
+<span class="nc" id="L219">            byteArray[i] = (byte)intVal;</span>
+<span class="nc" id="L220">            intVal &gt;&gt;&gt;= 8;</span>
+        }
+<span class="nc" id="L222">    }</span>
+
+    /**
+     * This method constructs a LSByte byte array with 4 bytes from an int.
+     *
+     * @param  intVal the int value to convert to a byte array.
+     * @param  byteArray LSByte first byte array, holds bytes from long
+     *
+     */
+    public static final void toByteArray(int intVal, byte[] byteArray) {
+<span class="nc" id="L232">        toByteArray(intVal, byteArray, 0, 4);</span>
+<span class="nc" id="L233">    }</span>
+
+    /**
+     * This method constructs a LSByte byte array with 4 bytes from an int.
+     *
+     * @param  longVal the long value to convert to a byte array.
+     *
+     * @returns value constructed from bytes
+     */
+    public static final byte[] toByteArray(int intVal) {
+<span class="nc" id="L243">        byte[] byteArray = new byte[4];</span>
+<span class="nc" id="L244">        toByteArray(intVal, byteArray, 0, 4);</span>
+<span class="nc" id="L245">        return byteArray;</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // String &lt;-&gt; ByteArray conversions
+    // ----------------------------------------------------------------------
+
+    /**
+     * &lt;P&gt;Converts a hex-encoded string into an array of bytes.&lt;/P&gt;
+     * &lt;P&gt;To illustrate the rules for parsing, the following String:&lt;br&gt;
+     * &quot;FF 0 1234 567&quot;&lt;br&gt;
+     * becomes:&lt;br&gt;
+     * byte[]{0xFF,0x00,0x12,0x34,0x56,0x07}
+     * &lt;/P&gt;
+     *
+     * @param strData hex-encoded numerical string
+     * @return byte[] the decoded bytes
+     */
+    public static final byte[] toByteArray(String strData) {
+<span class="nc" id="L264">        byte[] bDataTmp = new byte[strData.length()*2];</span>
+<span class="nc" id="L265">        int len = toByteArray(strData, bDataTmp, 0, bDataTmp.length);</span>
+<span class="nc" id="L266">        byte[] bData = new byte[len];</span>
+<span class="nc" id="L267">        System.arraycopy(bDataTmp, 0, bData, 0, len);</span>
+<span class="nc" id="L268">        return bData;</span>
+    }
+
+    /**
+     * &lt;P&gt;Converts a hex-encoded string into an array of bytes.&lt;/P&gt;
+     * &lt;P&gt;To illustrate the rules for parsing, the following String:&lt;br&gt;
+     * &quot;FF 0 1234 567&quot;&lt;br&gt;
+     * becomes:&lt;br&gt;
+     * byte[]{0xFF,0x00,0x12,0x34,0x56,0x07}
+     * &lt;/P&gt;
+     *
+     * @param strData hex-encoded numerical string
+     * @param bData byte[] which will hold the decoded bytes
+     * @return The number of bytes converted
+     */
+    public static final int toByteArray(String strData, byte[] bData) {
+<span class="nc" id="L284">        return toByteArray(strData, bData, 0, bData.length);</span>
+    }
+
+    /**
+     * &lt;P&gt;Converts a hex-encoded string into an array of bytes.&lt;/P&gt;
+     * &lt;P&gt;To illustrate the rules for parsing, the following String:&lt;br&gt;
+     * &quot;FF 0 1234 567&quot;&lt;br&gt;
+     * becomes:&lt;br&gt;
+     * byte[]{0xFF,0x00,0x12,0x34,0x56,0x07}
+     * &lt;/P&gt;
+     *
+     * @param strData hex-encoded numerical string
+     * @param bData byte[] which will hold the decoded bytes
+     * @param offset the offset into bData to start placing bytes
+     * @param length the maximum number of bytes to convert
+     * @return The number of bytes converted
+     */
+    public static final int toByteArray(String strData, byte[] bData, int offset, int length) {
+<span class="nc" id="L302">        int strIndex = 0, strLength = strData.length();</span>
+<span class="nc" id="L303">        int index = offset;</span>
+<span class="nc" id="L304">        int end = length + offset;</span>
+
+<span class="nc bnc" id="L306" title="All 4 branches missed.">        while (index &lt; end &amp;&amp; strIndex &lt; strLength) {</span>
+<span class="nc" id="L307">            char lower = '0', upper;</span>
+            do {
+<span class="nc" id="L309">                upper = strData.charAt(strIndex++);</span>
+<span class="nc bnc" id="L310" title="All 4 branches missed.">            } while (strIndex &lt; strLength &amp;&amp; Character.isWhitespace(upper));</span>
+
+<span class="nc bnc" id="L312" title="All 2 branches missed.">            if (strIndex &lt; strLength) {</span>
+<span class="nc" id="L313">                lower = strData.charAt(strIndex++);</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                if (Character.isWhitespace(lower)) {</span>
+<span class="nc" id="L315">                    lower = upper;</span>
+<span class="nc" id="L316">                    upper = '0';</span>
+                }
+            } else {
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                if(!Character.isWhitespace(upper)) {</span>
+<span class="nc" id="L320">                    lower = upper;</span>
+                }
+<span class="nc" id="L322">                upper = '0';</span>
+            }
+
+<span class="nc" id="L325">            bData[index++] = (byte)((Character.digit(upper, 16) &lt;&lt; 4) | Character.digit(lower, 16));</span>
+<span class="nc" id="L326">        }</span>
+        
+<span class="nc" id="L328">        return (index-offset);</span>
+    }
+
+    /**
+     * Converts a byte array into a hex-encoded String, using the provided delimiter.
+     *
+     * @param data The byte[] to convert to a hex-encoded string
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(byte[] data) {
+<span class="nc" id="L338">        return toHexString(data, 0, data.length, &quot;&quot;);</span>
+    }
+
+    /**
+     * Converts a byte array into a hex-encoded String, using the provided delimiter.
+     *
+     * @param data The byte[] to convert to a hex-encoded string
+     * @param offset the offset to start converting bytes
+     * @param length the number of bytes to convert
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(byte[] data, int offset, int length) {
+<span class="nc" id="L350">        return toHexString(data, offset, length, &quot;&quot;);</span>
+    }
+
+
+    /**
+     * Converts a byte array into a hex-encoded String, using the provided delimiter.
+     *
+     * @param data The byte[] to convert to a hex-encoded string
+     * @param delimiter the delimiter to place between each byte of data
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(byte[] data, String delimiter) {
+<span class="nc" id="L362">        return toHexString(data, 0, data.length, delimiter);</span>
+    }
+
+    /**
+     * Converts a byte array into a hex-encoded String, using the provided delimiter.
+     *
+     * @param data The byte[] to convert to a hex-encoded string
+     * @param offset the offset to start converting bytes
+     * @param length the number of bytes to convert
+     * @param delimiter the delimiter to place between each byte of data
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(byte[] data, int offset, int length, String delimiter) {
+        
+<span class="nc" id="L376">        StringBuilder value = new StringBuilder(length*(2+delimiter.length()));</span>
+<span class="nc" id="L377">        int max = length+offset;</span>
+<span class="nc" id="L378">        int lastDelim = max-1;</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">        for (int i = offset; i &lt; max; i++) {</span>
+<span class="nc" id="L380">            byte bits = data[i];</span>
+<span class="nc" id="L381">            value.append(lookup_hex[(bits&gt;&gt;4)&amp;0x0F]);</span>
+<span class="nc" id="L382">            value.append(lookup_hex[bits&amp;0x0F]);</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">            if(i&lt;lastDelim)</span>
+<span class="nc" id="L384">                value.append(delimiter);</span>
+        }
+<span class="nc" id="L386">        return value.toString();</span>
+    }
+
+    /**
+     * &lt;P&gt;Converts a single byte into a hex-encoded string.&lt;/P&gt;
+     *
+     * @param bValue the byte to encode
+     * @return String Hex-encoded String
+     */
+    public static final String toHexString(byte bValue) {
+<span class="nc" id="L396">        char[] hexValue = new char[2];</span>
+<span class="nc" id="L397">        hexValue[1] = lookup_hex[bValue&amp;0x0F];</span>
+<span class="nc" id="L398">        hexValue[0] = lookup_hex[(bValue&gt;&gt;4)&amp;0x0F];</span>
+<span class="nc" id="L399">        return new String(hexValue);</span>
+    }
+
+    /**
+     * Converts a char array into a hex-encoded String, using the provided
+     * delimiter.
+     *
+     * @param data The char[] to convert to a hex-encoded string
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(char[] data) {
+<span class="nc" id="L410">        return toHexString(data, 0, data.length, &quot;&quot;);</span>
+    }
+
+    /**
+     * Converts a byte array into a hex-encoded String, using the provided
+     * delimiter.
+     *
+     * @param data The char[] to convert to a hex-encoded string
+     * @param offset the offset to start converting bytes
+     * @param length the number of bytes to convert
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(char[] data, int offset, int length) {
+<span class="nc" id="L423">        return toHexString(data, offset, length, &quot;&quot;);</span>
+    }
+
+
+    /**
+     * Converts a char array into a hex-encoded String, using the provided
+     * delimiter.
+     *
+     * @param data The char[] to convert to a hex-encoded string
+     * @param delimiter the delimiter to place between each byte of data
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(char[] data, String delimiter) {
+<span class="nc" id="L436">        return toHexString(data, 0, data.length, delimiter);</span>
+    }
+
+    /**
+     * Converts a char array into a hex-encoded String, using the provided
+     * delimiter.
+     *
+     * @param data The char[] to convert to a hex-encoded string
+     * @param offset the offset to start converting bytes
+     * @param length the number of bytes to convert
+     * @param delimiter the delimiter to place between each byte of data
+     * @return Hex-encoded String
+     */
+    public static final String toHexString(char[] data, int offset, int length, String delimiter) {
+        
+<span class="nc" id="L451">        StringBuilder value = new StringBuilder(length*(2+delimiter.length()));</span>
+<span class="nc" id="L452">        int max = length+offset;</span>
+<span class="nc" id="L453">        int lastDelim = max-1;</span>
+<span class="nc bnc" id="L454" title="All 2 branches missed.">        for (int i = offset; i &lt; max; i++) {</span>
+<span class="nc" id="L455">            char bits = data[i];</span>
+<span class="nc" id="L456">            value.append(lookup_hex[(bits&gt;&gt;4)&amp;0x0F]);</span>
+<span class="nc" id="L457">            value.append(lookup_hex[bits&amp;0x0F]);</span>
+<span class="nc bnc" id="L458" title="All 2 branches missed.">            if(i&lt;lastDelim) {</span>
+<span class="nc" id="L459">                value.append(delimiter);</span>
+            }
+        }
+<span class="nc" id="L462">        return value.toString();</span>
+    }
+
+    /**
+     * &lt;P&gt;Converts a single character into a hex-encoded string.&lt;/P&gt;
+     *
+     * @param bValue the byte to encode
+     * @return String Hex-encoded String
+     */
+    public static final String toHexString(char bValue) {
+<span class="nc" id="L472">        char[] hexValue = new char[2];</span>
+<span class="nc" id="L473">        hexValue[1] = lookup_hex[bValue&amp;0x0F];</span>
+<span class="nc" id="L474">        hexValue[0] = lookup_hex[(bValue&gt;&gt;4)&amp;0x0F];</span>
+<span class="nc" id="L475">        return new String(hexValue);</span>
+    }
+
+
+    // ----------------------------------------------------------------------
+    // String &lt;-&gt; Long conversions
+    // ----------------------------------------------------------------------
+
+    /**
+     * &lt;P&gt;Converts a hex-encoded string (LSByte) into a long.&lt;/P&gt;
+     * &lt;P&gt;To illustrate the rules for parsing, the following String:&lt;br&gt;
+     * &quot;FF 0 1234 567 12 03&quot;&lt;br&gt;
+     * becomes:&lt;br&gt;
+     * long 0x03120756341200ff
+     * &lt;/P&gt;
+     *
+     * @param strData hex-encoded numerical string
+     * @return the decoded long
+     */
+    public static final long toLong(String strData) {
+<span class="nc" id="L495">        return toLong(toByteArray(strData));</span>
+    }
+
+    /**
+     * &lt;P&gt;Converts a long into a hex-encoded string (LSByte).&lt;/P&gt;
+     *
+     * @param lValue the long integer to encode
+     * @return String Hex-encoded String
+     */
+    public static final String toHexString(long lValue) {
+<span class="nc" id="L505">        return toHexString(toByteArray(lValue),&quot;&quot;);</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // String &lt;-&gt; Int conversions
+    // ----------------------------------------------------------------------
+
+    /**
+     * &lt;P&gt;Converts a hex-encoded string (LSByte) into an int.&lt;/P&gt;
+     * &lt;P&gt;To illustrate the rules for parsing, the following String:&lt;br&gt;
+     * &quot;FF 0 1234 567 12 03&quot;&lt;br&gt;
+     * becomes:&lt;br&gt;
+     * long 0x03120756341200ff
+     * &lt;/P&gt;
+     *
+     * @param strData hex-encoded numerical string
+     * @return the decoded int
+     */
+    public static final int toInt(String strData) {
+<span class="nc" id="L524">        return toInt(toByteArray(strData));</span>
+    }
+
+    /**
+     * &lt;P&gt;Converts an integer into a hex-encoded string (LSByte).&lt;/P&gt;
+     *
+     * @param iValue the integer to encode
+     * @return String Hex-encoded String
+     */
+    public static final String toHexString(int iValue) {
+<span class="nc" id="L534">        return toHexString(toByteArray(iValue),&quot;&quot;);</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // Double conversions
+    // ----------------------------------------------------------------------
+
+    /** Field Double NEGATIVE_INFINITY */
+    static final double d_POSITIVE_INFINITY = 1.0d / 0.0d;
+    /** Field Double NEGATIVE_INFINITY */
+    static final double d_NEGATIVE_INFINITY = -1.0d / 0.0d;
+
+    /**
+     * &lt;P&gt;Converts a double value into a string with the specified number of
+     * digits after the decimal place.&lt;/P&gt;
+     *
+     * @param dubbel the double value to convert to a string
+     * @param nFrac the number of digits to display after the decimal point
+     *
+     * @return String representation of the double value with the specified
+     *         number of digits after the decimal place.
+     */
+    public static final String toString(double dubbel, int nFrac) {
+        
+        // check for special case
+<span class="nc bnc" id="L559" title="All 2 branches missed.">        if(dubbel==d_POSITIVE_INFINITY) {</span>
+<span class="nc" id="L560">            return &quot;Infinity&quot;;</span>
+        }
+        
+<span class="nc bnc" id="L563" title="All 2 branches missed.">        if(dubbel==d_NEGATIVE_INFINITY) {</span>
+<span class="nc" id="L564">            return &quot;-Infinity&quot;;</span>
+        }
+        
+<span class="nc bnc" id="L567" title="All 2 branches missed.">        if(Double.compare(dubbel, Double.NaN) == 0) {</span>
+<span class="nc" id="L568">            return &quot;NaN&quot;;</span>
+        }
+
+        // check for fast out (no fractional digits)
+<span class="nc bnc" id="L572" title="All 2 branches missed.">        if (nFrac &lt;= 0) {</span>
+            // round the whole portion
+<span class="nc" id="L574">            return Long.toString((long) (dubbel + 0.5d));</span>
+        }
+
+        // extract the non-fractional portion
+<span class="nc" id="L578">        long dWhole = (long) dubbel;</span>
+
+        // figure out if it's positive or negative. We need to remove
+        // the sign from the fractional part
+<span class="nc bnc" id="L582" title="All 2 branches missed.">        double sign = (dWhole &lt; 0) ? -1d : 1d;</span>
+
+        // figure out how many places to shift fractional portion
+<span class="nc" id="L585">        double shifter = 1;</span>
+<span class="nc bnc" id="L586" title="All 2 branches missed.">        for (int i = 0; i &lt; nFrac; i++) {</span>
+<span class="nc" id="L587">            shifter *= 10;</span>
+        }
+
+        // extract, unsign, shift, and round the fractional portion
+<span class="nc" id="L591">        long dFrac = (long) ((dubbel - dWhole) * sign * shifter + 0.5d);</span>
+
+        // convert the fractional portion to a string
+<span class="nc" id="L594">        String fracString = Long.toString(dFrac);</span>
+<span class="nc" id="L595">        int fracLength = fracString.length();</span>
+
+        // ensure that rounding the fraction didn't carry into the whole portion
+<span class="nc bnc" id="L598" title="All 2 branches missed.">        if (fracLength &gt; nFrac) {</span>
+
+<span class="nc" id="L600">            dWhole += 1;</span>
+<span class="nc" id="L601">            fracLength = 0;</span>
+        }
+
+        // convert the whole portion to a string
+<span class="nc" id="L605">        String wholeString = Long.toString(dWhole);</span>
+<span class="nc" id="L606">        int wholeLength = wholeString.length();</span>
+
+        // create the string buffer
+<span class="nc" id="L609">        char[] dubbelChars = new char[wholeLength + 1 + nFrac];</span>
+
+        // append the non-fractional portion
+<span class="nc" id="L612">        wholeString.getChars(0, wholeLength, dubbelChars, 0);</span>
+
+        // and the decimal place
+<span class="nc" id="L615">        dubbelChars[wholeLength] = '.';</span>
+
+        // append any necessary leading zeroes
+<span class="nc" id="L618">        int i = wholeLength + 1;</span>
+<span class="nc" id="L619">        int max = i + nFrac - fracLength;</span>
+<span class="nc bnc" id="L620" title="All 2 branches missed.">        for (; i &lt; max; i++) {</span>
+<span class="nc" id="L621">            dubbelChars[i] = '0';</span>
+        }
+
+        // append the fractional portion
+<span class="nc bnc" id="L625" title="All 2 branches missed.">        if (fracLength &gt; 0) {</span>
+<span class="nc" id="L626">            fracString.getChars(0, fracLength, dubbelChars, max);</span>
+        }
+
+<span class="nc" id="L629">        return new String(dubbelChars, 0, dubbelChars.length);</span>
+    }
+
+
+    // ----------------------------------------------------------------------
+    // Float conversions
+    // ----------------------------------------------------------------------
+
+    /** Field Float NEGATIVE_INFINITY */
+    static final float f_POSITIVE_INFINITY = 1.0f / 0.0f;
+    /** Field Float NEGATIVE_INFINITY */
+    static final float f_NEGATIVE_INFINITY = -1.0f / 0.0f;
+
+    /**
+     * &lt;P&gt;Converts a float value into a string with the specified number of
+     * digits after the decimal place.&lt;/P&gt;
+     * &lt;P&gt;Note: this function does not properly handle special case float
+     * values such as Infinity and NaN.&lt;/P&gt;
+     *
+     * @param flote the float value to convert to a string
+     * @param nFrac the number of digits to display after the decimal point
+     *
+     * @return String representation of the float value with the specified
+     *         number of digits after the decimal place.
+     */
+    public static final String toString(float flote, int nFrac) {
+
+        // check for special case
+<span class="nc bnc" id="L657" title="All 2 branches missed.">        if (flote == f_POSITIVE_INFINITY) {</span>
+<span class="nc" id="L658">            return &quot;Infinity&quot;;</span>
+        }
+
+<span class="nc bnc" id="L661" title="All 2 branches missed.">        if (flote == f_NEGATIVE_INFINITY) {</span>
+<span class="nc" id="L662">            return &quot;-Infinity&quot;;</span>
+        }
+
+<span class="nc bnc" id="L665" title="All 2 branches missed.">        if (Float.compare(flote, Float.NaN) == 0) {</span>
+<span class="nc" id="L666">            return &quot;NaN&quot;;</span>
+        }
+
+        // check for fast out (no fractional digits)
+<span class="nc bnc" id="L670" title="All 2 branches missed.">        if (nFrac &lt;= 0) {</span>
+            // round the whole portion
+<span class="nc" id="L672">            return Long.toString((long) (flote + 0.5f));</span>
+        }
+
+        // extract the non-fractional portion
+<span class="nc" id="L676">        long fWhole = (long) flote;</span>
+
+        // figure out if it's positive or negative. We need to remove
+        // the sign from the fractional part
+<span class="nc bnc" id="L680" title="All 2 branches missed.">        float sign = (fWhole &lt; 0) ? -1f : 1f;</span>
+
+        // figure out how many places to shift fractional portion
+<span class="nc" id="L683">        float shifter = 1;</span>
+<span class="nc bnc" id="L684" title="All 2 branches missed.">        for (int i = 0; i &lt; nFrac; i++)</span>
+<span class="nc" id="L685">            shifter *= 10;</span>
+
+        // extract, shift, and round the fractional portion
+<span class="nc" id="L688">        long fFrac = (long) ((flote - fWhole) * sign * shifter + 0.5f);</span>
+
+        // convert the fractional portion to a string
+<span class="nc" id="L691">        String fracString = Long.toString(fFrac);</span>
+<span class="nc" id="L692">        int fracLength = fracString.length();</span>
+
+        // ensure that rounding the fraction didn't carry into the whole portion
+<span class="nc bnc" id="L695" title="All 2 branches missed.">        if (fracLength &gt; nFrac) {</span>
+<span class="nc" id="L696">            fWhole += 1;</span>
+<span class="nc" id="L697">            fracLength = 0;</span>
+        }
+
+        // convert the whole portion to a string
+<span class="nc" id="L701">        String wholeString = String.valueOf(fWhole);</span>
+<span class="nc" id="L702">        int wholeLength = wholeString.length();</span>
+
+        // create the string buffer
+<span class="nc" id="L705">        char[] floteChars = new char[wholeLength + 1 + nFrac];</span>
+
+        // append the non-fractional portion
+<span class="nc" id="L708">        wholeString.getChars(0, wholeLength, floteChars, 0);</span>
+
+        // and the decimal place
+<span class="nc" id="L711">        floteChars[wholeLength] = '.';</span>
+
+        // append any necessary leading zeroes
+<span class="nc" id="L714">        int i = wholeLength + 1;</span>
+<span class="nc" id="L715">        int max = i + nFrac - fracLength;</span>
+<span class="nc bnc" id="L716" title="All 2 branches missed.">        for (; i &lt; max; i++) {</span>
+<span class="nc" id="L717">            floteChars[i] = '0';</span>
+        }
+
+        // append the fractional portion
+<span class="nc bnc" id="L721" title="All 2 branches missed.">        if (fracLength &gt; 0)</span>
+<span class="nc" id="L722">            fracString.getChars(0, fracLength, floteChars, max);</span>
+
+<span class="nc" id="L724">        return new String(floteChars, 0, floteChars.length);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

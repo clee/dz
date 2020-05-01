@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HysteresisController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller</a> &gt; <span class="el_source">HysteresisController.java</span></div><h1>HysteresisController.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller;
+
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.conf.ConfigurableProperty;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.jmx.JmxAttribute;
+
+/**
+ * A hysteresis controller.
+ * &lt;p&gt;
+ * The controller output becomes positive when the process variable becomes
+ * higher than the setpoint plus hysteresis, and it becomes negative when the
+ * process variable becomes lower than the setpoint minus hysteresis.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class HysteresisController extends AbstractProcessController {
+
+    /**
+     * {@link #getSetpoint()} + {@code thresholdHigh} is the upper tipping point.
+     */
+    private double thresholdHigh;
+    
+    /**
+     * {@link #getSetpoint()} - {@code thresholdLow} is the lower tipping point.
+     */
+    private double thresholdLow;
+
+    /**
+     * The controller state. Initial state is off.
+     */
+<span class="fc" id="L32">    private boolean state = false;</span>
+
+    /**
+     * Create an instance with default hysteresis value.
+     * 
+     * @param setpoint Initial setpoint.
+     */
+    public HysteresisController(double setpoint) {
+
+<span class="fc" id="L41">	this(setpoint, -1f, 1f);</span>
+<span class="fc" id="L42">    }</span>
+
+    /**
+     * Create an instance.
+     * 
+     * @param setpoint Initial setpoint.
+     * @param hysteresis Initial hysteresis.
+     */
+    public HysteresisController(double setpoint, double hysteresis) {
+
+<span class="fc" id="L52">	this(setpoint, -hysteresis, hysteresis);</span>
+<span class="fc" id="L53">    }</span>
+    
+    /**
+     * 
+     * @param setpoint Initial setpoint.
+     * @param thresholdLow Lower tipping point.
+     * @param thresholdHigh Upper tipping point.
+     */
+    public HysteresisController(double setpoint, double thresholdLow, double thresholdHigh) {
+	
+<span class="fc" id="L63">	super(setpoint);</span>
+	
+<span class="fc" id="L65">	setLow(thresholdLow);</span>
+<span class="fc" id="L66">	setHigh(thresholdHigh);</span>
+<span class="fc" id="L67">    }</span>
+    
+    /**
+     * Set {@link #thresholdLow}.
+     * 
+     * @param thresholdLow Desired low threshold.
+     * 
+     * @exception IllegalArguentException if the value is non-negative.
+     */
+    @ConfigurableProperty(
+	    	defaultValue = &quot;-1&quot;,
+	        propertyName = &quot;threshold.low&quot;,
+	        description = &quot;Desired low threshold&quot;
+	    )
+    private void setLow(double thresholdLow) {
+	
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">	if (thresholdLow &gt;= 0) {</span>
+<span class="nc" id="L84">	    throw new IllegalArgumentException(&quot;Low threshold must be negative (value given is &quot; + thresholdLow + &quot;)&quot;);</span>
+	}
+
+<span class="fc" id="L87">	this.thresholdLow = thresholdLow;</span>
+<span class="fc" id="L88">    }</span>
+
+    /**
+     * Set {@link #thresholdHigh}.
+     * 
+     * @param thresholdHigh Desired high threshold.
+     * 
+     * @exception IllegalArguentException if the value is non-positive.
+     */
+    @ConfigurableProperty(
+	    	defaultValue = &quot;1&quot;,
+	        propertyName = &quot;threshold.high&quot;,
+	        description = &quot;Desired high threshold&quot;
+	    )
+    private void setHigh(double thresholdHigh) {
+	
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">	if (thresholdHigh &lt;= 0) {</span>
+<span class="nc" id="L105">	    throw new IllegalArgumentException(&quot;High threshold must be positive(value given is &quot; + thresholdHigh + &quot;)&quot;);</span>
+	}
+
+<span class="fc" id="L108">	this.thresholdHigh = thresholdHigh;</span>
+<span class="fc" id="L109">    }</span>
+
+    /**
+     * @return Current value of low threshold.
+     */
+    @JmxAttribute(description = &quot;threshold.low&quot;)
+    public double getThresholdLow() {
+<span class="fc" id="L116">	return thresholdLow;</span>
+    }
+
+    /**
+     * @return Current value of high threshold.
+     */
+    @JmxAttribute(description = &quot;threshold.high&quot;)
+    public double getThresholdHigh() {
+<span class="nc" id="L124">	return thresholdHigh;</span>
+    }
+
+    @Override
+    public final synchronized DataSample&lt;Double&gt; compute() {
+
+<span class="fc" id="L130">	DataSample&lt;Double&gt; pv = getProcessVariable();</span>
+	
+<span class="pc bpc" id="L132" title="1 of 4 branches missed.">	if (pv == null || pv.isError()) {</span>
+	    
+	    // Don't have to do a thing, nothing happened yet, nothing good at least
+<span class="fc" id="L135">	    return null;</span>
+	    
+	} else {
+
+<span class="fc" id="L139">	    double setpoint = getSetpoint();</span>
+	    
+<span class="fc bfc" id="L141" title="All 2 branches covered.">	    if (state) {</span>
+
+<span class="fc bfc" id="L143" title="All 2 branches covered.">		if (pv.sample - thresholdLow &lt;= setpoint) {</span>
+
+<span class="fc" id="L145">		    state = false;</span>
+		}
+
+	    } else {
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">		if (pv.sample - thresholdHigh &gt;= setpoint) {</span>
+
+<span class="fc" id="L152">		    state = true;</span>
+		}
+	    }
+	}
+
+<span class="fc" id="L157">        String sourceName = pv.sourceName + &quot;.pc&quot;;</span>
+<span class="fc" id="L158">        String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+
+<span class="fc bfc" id="L160" title="All 2 branches covered.">        return new DataSample&lt;Double&gt;(pv.timestamp, sourceName, signature,state ? 1.0 : -1.0, null);</span>
+    }
+    
+    /**
+     * @return Controller {@link #state}.
+     */
+    @JmxAttribute(description = &quot;state&quot;)
+    public boolean getState() {
+	
+<span class="fc" id="L169">	return state;</span>
+    }
+
+    @Override
+    protected final String getShortName() {
+<span class="fc" id="L174">        return &quot;hys&quot;;</span>
+    }
+
+    @Override
+    public ProcessControllerStatus getStatus() {
+	
+<span class="fc" id="L180">	ProcessControllerStatus superStatus = super.getStatus(); </span>
+
+<span class="fc" id="L182">        return new HysteresisControllerStatus(superStatus, state);</span>
+    }
+
+    @Override
+    protected void setpointChanged() {
+        
+        // Do absolutely nothing.
+<span class="nc" id="L189">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

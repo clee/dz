@@ -1,0 +1,3 @@
+net/sf/dz3/device/sensor/impl/onewire/OwapiDeviceFactory2020.class
+net/sf/dz3/device/sensor/impl/onewire/BusAdapter.class
+net/sf/dz3/device/sensor/impl/onewire/BusAdapter$1.class

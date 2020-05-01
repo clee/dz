@@ -1,0 +1,1395 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OwapiDeviceFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.onewire</a> &gt; <span class="el_source">OwapiDeviceFactory.java</span></div><h1>OwapiDeviceFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.onewire;
+
+import java.io.IOException;
+import java.util.ConcurrentModificationException;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import com.dalsemi.onewire.OneWireAccessProvider;
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+import com.dalsemi.onewire.container.HumidityContainer;
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.container.SwitchContainer;
+import com.dalsemi.onewire.container.TemperatureContainer;
+import com.dalsemi.onewire.utils.OWPath;
+
+import net.sf.dz3.device.factory.AbstractDeviceFactory;
+import net.sf.dz3.device.factory.DataMap;
+import net.sf.dz3.device.factory.SingleSwitchProxy;
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.dz3.device.sensor.DeviceContainer;
+import net.sf.dz3.device.sensor.SensorType;
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.dz3.device.sensor.impl.ContainerMap;
+import net.sf.dz3.device.sensor.impl.StringChannelAddress;
+import net.sf.dz3.instrumentation.Marker;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.jmx.JmxAware;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * 1-Wire device factory.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class OwapiDeviceFactory extends AbstractDeviceFactory&lt;OneWireDeviceContainer&gt; implements OneWireNetworkEventListener {
+
+    /**
+     * Adapter port.
+     *
+     * This value is injected via constructor. If the port is bad, the device factory
+     * will fail to {@link #start()}.
+     */
+    private final String adapterPort;
+
+    /**
+     * Adapter speed.
+     *
+     * This value is injected via constructor. If the value given is bad, it will be
+     * defaulted to {@link DSPortAdapter#SPEED_REGULAR}.
+     */
+    private final int adapterSpeed;
+
+    /**
+     * Mapping from the adapter speed value to speed name.
+     */
+<span class="nc" id="L66">    private final Map&lt;Integer, String&gt; speedInt2speedName = new TreeMap&lt;Integer, String&gt;();</span>
+
+    /**
+     * 1-Wire adapter.
+     *
+     * Initialized in {@link #startup()}.
+     */
+<span class="nc" id="L73">    private DSPortAdapter adapter = null;</span>
+
+    /**
+     * Device map.
+     * &lt;p&gt;
+     * The key is the device path, the value is a sorted map where the key is
+     * the hardware address, and the value is the device container. Such a
+     * complication is required to optimize the access by opening the minimal
+     * number of paths and eliminating redundancy.
+     *
+     * @see AbstractDeviceFactory#address2dcGlobal
+     */
+<span class="nc" id="L85">    Map&lt;OWPath, ContainerMap&gt; path2device = new TreeMap&lt;OWPath, ContainerMap&gt;();</span>
+
+    /**
+     * The network monitor.
+     */
+    private OneWireNetworkMonitor monitor;
+
+    /**
+     * Low-level state map. The key is the device address, the value is last
+     * known state obtained using {@code readDevice()}.
+     */
+<span class="nc" id="L96">    protected Map&lt;String, byte[]&gt; stateMap = new TreeMap&lt;String, byte[]&gt;();</span>
+
+    /**
+     * Create an instance.
+     *
+     * @param port Port to use.
+     * @param speed Speed to use (choices are &quot;regular&quot;, &quot;flex&quot;, &quot;overdrive&quot;, &quot;hyperdrive&quot;.
+     */
+<span class="nc" id="L104">    public OwapiDeviceFactory(String port, String speed) {</span>
+
+<span class="nc" id="L106">        ThreadContext.push(&quot;DeviceFactory&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L110" title="All 4 branches missed.">            if (port == null || &quot;&quot;.equals(port)) {</span>
+<span class="nc" id="L111">                throw new IllegalArgumentException(&quot;port can't be null or empty&quot;);</span>
+            }
+
+<span class="nc" id="L114">            adapterPort = port;</span>
+
+<span class="nc" id="L116">            logger.info(&quot;Port:  &quot; + adapterPort);</span>
+
+<span class="nc" id="L118">            Map&lt;String, Integer&gt; speedName2speedInt = new TreeMap&lt;String, Integer&gt;();</span>
+
+<span class="nc" id="L120">            speedName2speedInt.put(&quot;overdrive&quot;, DSPortAdapter.SPEED_OVERDRIVE);</span>
+<span class="nc" id="L121">            speedName2speedInt.put(&quot;hyperdrive&quot;, DSPortAdapter.SPEED_HYPERDRIVE);</span>
+<span class="nc" id="L122">            speedName2speedInt.put(&quot;flex&quot;, DSPortAdapter.SPEED_FLEX);</span>
+<span class="nc" id="L123">            speedName2speedInt.put(&quot;regular&quot;, DSPortAdapter.SPEED_REGULAR);</span>
+
+<span class="nc" id="L125">            speedInt2speedName.put(DSPortAdapter.SPEED_OVERDRIVE, &quot;overdrive&quot;);</span>
+<span class="nc" id="L126">            speedInt2speedName.put(DSPortAdapter.SPEED_HYPERDRIVE, &quot;hyperdrive&quot;);</span>
+<span class="nc" id="L127">            speedInt2speedName.put(DSPortAdapter.SPEED_FLEX, &quot;flex&quot;);</span>
+<span class="nc" id="L128">            speedInt2speedName.put(DSPortAdapter.SPEED_REGULAR, &quot;regular&quot;);</span>
+
+<span class="nc" id="L130">            Integer speedValue = speedName2speedInt.get(speed);</span>
+
+<span class="nc bnc" id="L132" title="All 2 branches missed.">            if (speedValue == null) {</span>
+<span class="nc" id="L133">                logger.warn(&quot;Unknown speed '&quot; + speed + &quot;, defaulted to regular&quot;);</span>
+            }
+
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            adapterSpeed = speedValue == null ? DSPortAdapter.SPEED_REGULAR : speedValue;</span>
+
+<span class="nc" id="L138">            logger.info(&quot;Speed: &quot; + speedInt2speedName.get(adapterSpeed));</span>
+
+        } finally {
+<span class="nc" id="L141">            ThreadContext.pop();</span>
+        }
+
+<span class="nc" id="L144">    }</span>
+
+    @Override
+    protected AnalogSensor createSensorProxy(String address, SensorType type) {
+
+        // Short poll interval is OK - if the device isn't present, no big deal,
+        // when it becomes available, the TemperatureProxy will take care of that anyway
+<span class="nc" id="L151">        SensorProxy proxy = new OwapiSensorProxy(address, 1000, type, getMonitor());</span>
+
+        // If it doesn't start, help us God
+<span class="nc" id="L154">        proxy.start();</span>
+
+<span class="nc" id="L156">        return proxy;</span>
+    }
+
+    /**
+     * Get an instance of a switch.
+     *
+     * @param compositeAddress 1-Wire address, followed by a colon, followed by channel number.
+     *
+     * @return An instance of a {@link Switch single channel switch}, unconditionally. In case when
+     * the device with a given address is not present on a bus, no indication will be given
+     * until the actual operation (accessor or mutator) is performed, which will result in
+     * {@link IOException}.
+     */
+    @Override
+    public synchronized Switch getSwitch(String compositeAddress) {
+
+<span class="nc" id="L172">        ThreadContext.push(&quot;getSwitch&quot;);</span>
+
+        try {
+
+<span class="nc" id="L176">            StringChannelAddress switchAddress = new StringChannelAddress(compositeAddress);</span>
+
+            // Since there's no one to one correspondence between the 1-Wire device container
+            // and the single channel switch object, we have to create a proxy in any case
+            // and let it take care of everything
+
+<span class="nc" id="L182">            SwitchChannelSplitter proxy = address2proxy.get(switchAddress.hardwareAddress);</span>
+
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (proxy == null) {</span>
+
+<span class="nc" id="L186">                proxy = new SwitchChannelSplitter();</span>
+
+<span class="nc" id="L188">                address2proxy.put(switchAddress.hardwareAddress, proxy);</span>
+            }
+
+<span class="nc" id="L191">            return proxy.getSwitch(switchAddress);</span>
+
+        } finally {
+<span class="nc" id="L194">            ThreadContext.pop();</span>
+        }
+    }
+
+    @Override
+    protected void startup() throws Throwable {
+
+<span class="nc" id="L201">        ThreadContext.push(&quot;startup&quot;);</span>
+
+        try {
+
+<span class="nc" id="L205">            Set&lt;String&gt; portsAvailable = getPortsAvailable();</span>
+
+<span class="nc bnc" id="L207" title="All 2 branches missed.">            if (adapter == null) {</span>
+
+<span class="nc" id="L209">                throw new IllegalArgumentException(&quot;Port '&quot; + adapterPort + &quot;' unavailable, valid values: &quot;</span>
+                        + portsAvailable + &quot;\n&quot;
+                        + &quot;Things to check:\n&quot;
+                        + &quot;    http://stackoverflow.com/questions/9628988/ubuntu-rxtx-does-not-recognize-usb-serial-device yet?&quot;);
+            }
+
+<span class="nc bnc" id="L215" title="All 2 branches missed.">            if (!adapter.selectPort(adapterPort)) {</span>
+
+                // VT: NOTE: Having succeeded at selecting the port doesn't
+                // necessarily mean that we'll be fine. Serial based adapters
+                // don't seem to be accessed during selectPort(), and it's quite
+                // possible to successfully select a non-existing port.
+                // Additional test is required to make sure we're OK.
+
+<span class="nc" id="L223">                throw new IllegalArgumentException(&quot;Unable to select port '&quot; + adapterPort</span>
+                        + &quot;', make sure it's the right one (available: &quot; + portsAvailable + &quot;)&quot;);
+            }
+
+            try {
+
+                // Now, *this* should take care of it...
+
+<span class="nc" id="L231">                adapter.reset();</span>
+
+<span class="nc" id="L233">            } catch (OneWireIOException ex) {</span>
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                if (&quot;Error communicating with adapter&quot;.equals(ex.getMessage())) {</span>
+
+<span class="nc" id="L237">                    throw new IOException(&quot;Port '&quot; + adapterPort</span>
+                            + &quot;' doesn't seem to have adapter connected, check others: &quot; + portsAvailable, ex);
+                }
+<span class="nc" id="L240">            }</span>
+
+<span class="nc" id="L242">            logger.info(&quot;Adapter class: &quot; + adapter.getClass().getName());</span>
+<span class="nc" id="L243">            logger.info(&quot;Adapter port:  &quot; + adapterPort);</span>
+
+            // VT: NOTE: It is not necessary to use the lock at this point
+            // because the service is not yet started
+
+            try {
+
+<span class="nc" id="L250">                logger.info(&quot;Setting adapter speed to &quot; + speedInt2speedName.get(adapterSpeed));</span>
+<span class="nc" id="L251">                adapter.setSpeed(adapterSpeed);</span>
+
+<span class="nc" id="L253">            } catch (Throwable t) {</span>
+
+<span class="nc" id="L255">                logger.error(&quot;Failed to set adapter speed, cause:&quot;, t);</span>
+
+<span class="nc" id="L257">            }</span>
+
+<span class="nc" id="L259">            monitor = new OneWireNetworkMonitor(adapter, lock);</span>
+
+<span class="nc" id="L261">            synchronized (this) {</span>
+
+                // This is necessary to release getMonitor()
+<span class="nc" id="L264">                notifyAll();</span>
+<span class="nc" id="L265">            }</span>
+<span class="nc" id="L266">            monitor.start();</span>
+
+<span class="nc" id="L268">            monitor.addListener(this);</span>
+<span class="nc" id="L269">            monitor.getSemUp().waitFor();</span>
+
+<span class="nc" id="L271">            logger.info(&quot;started&quot;);</span>
+
+        } finally {
+<span class="nc" id="L274">            ThreadContext.pop();</span>
+<span class="nc" id="L275">            ThreadContext.clearStack();</span>
+        }
+<span class="nc" id="L277">    }</span>
+
+    /**
+     * Get the network monitor.
+     *
+     * The reason for existence of this method is to retrieve the monitor instance
+     * to register it with JMX. Other than this, you never, ever have to do anything
+     * with the network monitor, and this method shouldn't exist at all - except for
+     * the memory leak that has to be tracked down and eliminated.
+     *
+     * @return The 1-Wire network monitor.
+     */
+    public synchronized OneWireNetworkMonitor getMonitor() {
+
+<span class="nc bnc" id="L291" title="All 2 branches missed.">        while (monitor == null) {</span>
+
+<span class="nc" id="L293">            logger.info(&quot;Waiting for the monitor to become available&quot;);</span>
+
+            try {
+
+<span class="nc" id="L297">                wait(1000);</span>
+
+<span class="nc" id="L299">            } catch (InterruptedException ex) {</span>
+
+<span class="nc" id="L301">                logger.warn(&quot;Interrupted, ignored, waiting some more&quot;, ex);</span>
+<span class="nc" id="L302">            }</span>
+        }
+
+<span class="nc" id="L305">        return monitor;</span>
+    }
+
+    /**
+     * Find all available ports and assign the adapter for the one we need,
+     * if possible.
+     * @return
+     */
+    private Set&lt;String&gt; getPortsAvailable() {
+
+<span class="nc" id="L315">        ThreadContext.push(&quot;getPortsAvailable&quot;);</span>
+
+        try {
+
+<span class="nc" id="L319">            Set&lt;String&gt; portsAvailable = new TreeSet&lt;String&gt;();</span>
+
+            for (Enumeration&lt;DSPortAdapter&gt; adapters = OneWireAccessProvider
+<span class="nc bnc" id="L322" title="All 2 branches missed.">                    .enumerateAllAdapters(); adapters.hasMoreElements();) {</span>
+
+<span class="nc" id="L324">                DSPortAdapter a = adapters.nextElement();</span>
+
+<span class="nc" id="L326">                logger.debug(&quot;Adapter found: &quot; + a.getAdapterName());</span>
+
+<span class="nc bnc" id="L328" title="All 2 branches missed.">                for (Enumeration&lt;String&gt; ports = a.getPortNames(); ports.hasMoreElements();) {</span>
+
+<span class="nc" id="L330">                    String portName = ports.nextElement();</span>
+
+<span class="nc" id="L332">                    logger.debug(&quot;Port found: &quot; + portName);</span>
+
+<span class="nc bnc" id="L334" title="All 2 branches missed.">                    if (adapterPort.equals(portName)) {</span>
+
+<span class="nc" id="L336">                        adapter = a;</span>
+
+                        // Let's not break here, to collect all available port
+                        // names
+                    }
+
+<span class="nc" id="L342">                    portsAvailable.add(portName);</span>
+<span class="nc" id="L343">                }</span>
+<span class="nc" id="L344">            }</span>
+
+<span class="nc" id="L346">            return portsAvailable;</span>
+        } finally {
+<span class="nc" id="L348">            ThreadContext.pop();</span>
+        }
+    }
+
+    @Override
+    protected void shutdown() throws Throwable {
+
+<span class="nc" id="L355">        ThreadContext.push(&quot;shutdown&quot;);</span>
+
+        try {
+
+<span class="nc" id="L359">            logger.info(&quot;Stopping monitor...&quot;);</span>
+<span class="nc" id="L360">            monitor.stop().waitFor();</span>
+<span class="nc" id="L361">            logger.info(&quot;Stopped&quot;);</span>
+
+        } finally {
+<span class="nc" id="L364">            ThreadContext.pop();</span>
+<span class="nc" id="L365">            ThreadContext.clearStack();</span>
+        }
+<span class="nc" id="L367">    }</span>
+
+    /**
+     * Keep polling the device state until stopped.
+     *
+     * @exception Throwable if anything goes wrong.
+     */
+    @Override
+    protected final void execute() throws Throwable {
+
+<span class="nc" id="L377">        ThreadContext.push(&quot;execute&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L381" title="All 2 branches missed.">            while (isEnabled()) {</span>
+
+                try {
+
+<span class="nc" id="L385">                    poll();</span>
+
+<span class="nc" id="L387">                } catch (ConcurrentModificationException ex) {</span>
+
+                    // No big deal
+
+<span class="nc" id="L391">                    logger.debug(&quot;Arrival/departure during poll, ignored&quot;, ex);</span>
+
+<span class="nc" id="L393">                } catch (Throwable t) {</span>
+
+<span class="nc" id="L395">                    logger.error(&quot;Poll broken:&quot;, t);</span>
+
+                    // dumpMap(path2device, &quot;path2device&quot;);
+
+                    // Possibly, the cause of this was a network departure.
+                    // Let's refresh the device map
+
+<span class="nc" id="L402">                    monitor.rescan().waitFor();</span>
+<span class="nc" id="L403">                }</span>
+            }
+
+        } finally {
+<span class="nc" id="L407">            ThreadContext.pop();</span>
+<span class="nc" id="L408">            ThreadContext.clearStack();</span>
+        }
+<span class="nc" id="L410">    }</span>
+
+    private void poll() throws InterruptedException, OneWireException {
+
+<span class="nc" id="L414">        ThreadContext.push(&quot;poll&quot;);</span>
+<span class="nc" id="L415">        Marker m = new Marker(&quot;poll&quot;);</span>
+
+        try {
+
+<span class="nc" id="L419">            DataMap localDataMap = new DataMap();</span>
+
+<span class="nc bnc" id="L421" title="All 2 branches missed.">            if (path2device.isEmpty()) {</span>
+
+<span class="nc" id="L423">                logger.debug(&quot;No devices - forcing rescan&quot;);</span>
+
+<span class="nc" id="L425">                monitor.rescan().waitFor();</span>
+
+<span class="nc" id="L427">                return;</span>
+            }
+
+<span class="nc bnc" id="L430" title="All 2 branches missed.">            for (Iterator&lt;OWPath&gt; i = path2device.keySet().iterator(); i.hasNext();) {</span>
+
+                // The lock gets acquired and released only here
+<span class="nc" id="L433">                processPath(i.next(), localDataMap);</span>
+
+                // If someone else wants to work with devices, this point is where they get the lock during te poll
+            }
+
+<span class="nc bnc" id="L438" title="All 2 branches missed.">            if (path2device.isEmpty()) {</span>
+
+                // VT: FIXME: I'm not sure this is needed at all
+<span class="nc" id="L441">                logger.warn(&quot;path2device is empty?&quot;);</span>
+
+<span class="nc" id="L443">                Thread.sleep(1000);</span>
+            }
+
+<span class="nc" id="L446">            localDataMap.transferTo(dataMap);</span>
+<span class="nc" id="L447">            logger.debug(&quot;Data map: &quot; + dataMap);</span>
+
+        } finally {
+
+<span class="nc" id="L451">            m.close();</span>
+<span class="nc" id="L452">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L454">    }</span>
+
+    private void processPath(OWPath path, DataMap dataMap) throws OneWireException {
+
+<span class="nc" id="L458">        ThreadContext.push(&quot;processPath&quot;);</span>
+<span class="nc" id="L459">        Marker m = new Marker(&quot;processPath&quot;);</span>
+
+<span class="nc" id="L461">        logger.debug(&quot;Processing &quot; + path);</span>
+
+<span class="nc" id="L463">        lock.writeLock().lock();</span>
+
+        try {
+
+<span class="nc" id="L467">            m.checkpoint(&quot;got lock&quot;);</span>
+
+<span class="nc" id="L469">            path.open();</span>
+
+<span class="nc" id="L471">            m.checkpoint(&quot;open&quot;);</span>
+
+<span class="nc" id="L473">            ContainerMap address2dcForPath = path2device.get(path);</span>
+
+<span class="nc bnc" id="L475" title="All 4 branches missed.">            if (address2dcForPath == null || address2dcForPath.isEmpty()) {</span>
+
+<span class="nc" id="L477">                logger.warn(&quot;No addresses present for  '&quot; + path + &quot;'&quot;);</span>
+<span class="nc" id="L478">                return;</span>
+            }
+
+            // VT: FIXME: To speed things up, it would make sense to
+            // go a level down. Issue a temperature convert command for
+            // all the temperature sensors on this branch, then read
+            // them all. Don't forget to check if there are any
+            // temperature sensors on the branch.
+
+<span class="nc bnc" id="L487" title="All 2 branches missed.">            for (Iterator&lt;String&gt; ai = address2dcForPath.iterator(); ai.hasNext();) {</span>
+
+                // To improve the shutdown time, let's check if
+                // we're still enabled, otherwise we might be just
+                // going, and going, and going...
+
+<span class="nc bnc" id="L493" title="All 2 branches missed.">                if (!isEnabled()) {</span>
+
+<span class="nc" id="L495">                    logger.info(&quot;Oops! Not enabled anymore...&quot;);</span>
+<span class="nc" id="L496">                    return;</span>
+                }
+
+<span class="nc" id="L499">                String address = ai.next();</span>
+<span class="nc" id="L500">                Set&lt;DeviceContainer&gt; dcSet = address2dcForPath.get(address);</span>
+
+<span class="nc" id="L502">                processAddress(address, dcSet);</span>
+<span class="nc" id="L503">            }</span>
+
+<span class="nc" id="L505">        } catch (OneWireException ex) {</span>
+
+<span class="nc" id="L507">            logger.error(&quot;Can't process path &quot; + path + &quot;, 1-Wire exception rethrown&quot;);</span>
+<span class="nc" id="L508">            throw ex;</span>
+
+<span class="nc" id="L510">        } catch (Throwable t) {</span>
+
+<span class="nc" id="L512">            throw new OneWireException(&quot;Can't process path &quot; + path, t);</span>
+
+        } finally {
+
+<span class="nc" id="L516">            lock.writeLock().unlock();</span>
+
+<span class="nc" id="L518">            m.close();</span>
+<span class="nc" id="L519">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L521">    }</span>
+
+    @SuppressWarnings(&quot;deprecation&quot;)
+    private void processAddress(String address, Set&lt;DeviceContainer&gt; dcSet) throws OneWireException {
+
+<span class="nc" id="L526">        ThreadContext.push(&quot;processAddress&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L530" title="All 2 branches missed.">            if (dcSet == null) {</span>
+
+<span class="nc" id="L532">                logger.warn(&quot;No devices for &quot; + address + &quot;???&quot;);</span>
+<span class="nc" id="L533">                return;</span>
+            }
+
+<span class="nc" id="L536">            logger.debug(&quot;processing &quot; + address);</span>
+
+<span class="nc bnc" id="L538" title="All 2 branches missed.">            for (Iterator&lt;DeviceContainer&gt; di = dcSet.iterator(); di.hasNext();) {</span>
+
+<span class="nc" id="L540">                OneWireDeviceContainer dc = (OneWireDeviceContainer) di.next();</span>
+<span class="nc" id="L541">                OneWireContainer owc = dc.container;</span>
+
+                // VT: NOTE: The 1-Wire container is wrapped
+                // into the device container. Therefore, it
+                // is possible that we'll run into the same
+                // 1-Wire container more than once,
+                // therefore, we should be checking the
+                // device container class, not the 1-Wire
+                // container, to prevent redundant probes.
+
+                try {
+
+<span class="nc bnc" id="L553" title="All 2 branches missed.">                    if (dc instanceof OneWireTemperatureContainer) {</span>
+
+<span class="nc" id="L555">                        TemperatureContainer tc = (TemperatureContainer) owc;</span>
+
+<span class="nc" id="L557">                        double temp = getTemperature(tc);</span>
+
+<span class="nc" id="L559">                        logger.debug(address + &quot;: &quot; + temp + &quot;C&quot;);</span>
+
+<span class="nc" id="L561">                        dataMap.put(address, Type.TEMPERATURE, new Double(temp));</span>
+
+<span class="nc" id="L563">                        stateChanged(dc, temp);</span>
+
+<span class="nc bnc" id="L565" title="All 2 branches missed.">                    } else if (dc instanceof OneWireSwitchContainer) {</span>
+
+                        // Don't do it if the device is DS2409 - we'll get
+                        // screwed up trying to restore the state.
+                        // They are managed automatically when the path is
+                        // selected anyway.
+
+<span class="nc bnc" id="L572" title="All 2 branches missed.">                        if (!&quot;DS2409&quot;.equals(owc.getName())) {</span>
+
+<span class="nc" id="L574">                            dataMap.put(address, Type.SWITCH, getState((SwitchContainer) owc));</span>
+                        }
+
+<span class="nc bnc" id="L577" title="All 2 branches missed.">                    } else if (dc instanceof OneWireHumidityContainer) {</span>
+
+<span class="nc" id="L579">                        HumidityContainer hc = (HumidityContainer) owc;</span>
+
+<span class="nc" id="L581">                        long hstart = System.currentTimeMillis();</span>
+
+<span class="nc" id="L583">                        byte[] state = hc.readDevice();</span>
+
+<span class="nc" id="L585">                        hc.doHumidityConvert(state);</span>
+
+                        // state = hc.readDevice();
+
+<span class="nc" id="L589">                        double humidity = hc.getHumidity(state);</span>
+
+<span class="nc" id="L591">                        logger.debug(&quot;Humidity: &quot; + humidity + &quot; (took &quot;</span>
+<span class="nc" id="L592">                                + (System.currentTimeMillis() - hstart) + &quot;ms to figure out)&quot;);</span>
+
+<span class="nc" id="L594">                        dataMap.put(address, Type.HUMIDITY, new Double(humidity));</span>
+
+<span class="nc" id="L596">                        stateChanged(dc, humidity);</span>
+                    }
+
+<span class="nc" id="L599">                } catch (OneWireException ex) {</span>
+
+<span class="nc" id="L601">                    stateChanged(dc, ex);</span>
+
+<span class="nc" id="L603">                    logger.error(&quot;Failed to read &quot; + address + &quot;, 1-Wire exception rethrown&quot;);</span>
+<span class="nc" id="L604">                    throw ex;</span>
+
+<span class="nc" id="L606">                } catch (Throwable t) {</span>
+
+<span class="nc" id="L608">                    stateChanged(dc, t);</span>
+
+<span class="nc" id="L610">                    throw new OneWireException(&quot;Failed to read &quot; + address + &quot;, cause:&quot;, t);</span>
+<span class="nc" id="L611">                }</span>
+<span class="nc" id="L612">            }</span>
+
+        } finally {
+<span class="nc" id="L615">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L617">    }</span>
+
+    /**
+     * Handle a network arrival.
+     *
+     * @param e Network arrival information.
+     */
+    @SuppressWarnings(&quot;deprecation&quot;)
+    @Override
+    public void networkArrival(OneWireNetworkEvent e) {
+
+        // We know it's actually a different class...
+
+<span class="nc" id="L630">        OwapiNetworkEvent e2 = (OwapiNetworkEvent) e;</span>
+
+        // It is assumed that the device that came with this event is not in
+        // the device map. If it is, we've screwed up somewhere else...
+        // Let's check it.
+
+<span class="nc" id="L636">        OneWireContainer owc = e2.getDeviceContainer();</span>
+<span class="nc" id="L637">        String address = owc.getAddressAsString();</span>
+
+<span class="nc" id="L639">        Set&lt;DeviceContainer&gt; dcSet = address2dcGlobal.get(address);</span>
+
+<span class="nc bnc" id="L641" title="All 2 branches missed.">        if (dcSet != null) {</span>
+
+<span class="nc bnc" id="L643" title="All 2 branches missed.">            for (Iterator&lt;DeviceContainer&gt; i = dcSet.iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L645">                DeviceContainer oldContainer = i.next();</span>
+
+<span class="nc bnc" id="L647" title="All 2 branches missed.">                if (oldContainer != null) {</span>
+
+<span class="nc" id="L649">                    logger.warn(&quot;Arrival notification for device already present: &quot; + e);</span>
+<span class="nc" id="L650">                    logger.warn(&quot;Duplicate device is: &quot; + oldContainer);</span>
+                }
+<span class="nc" id="L652">            }</span>
+        }
+
+        // Let's set the resolution before registering the device with the
+        // device map so the poll doesn't interfere, and the device state
+        // gets cached
+
+<span class="nc bnc" id="L659" title="All 2 branches missed.">        if (owc instanceof TemperatureContainer) {</span>
+
+<span class="nc bnc" id="L661" title="All 2 branches missed.">            for (int retry = 0; retry &lt; 5; retry++) {</span>
+
+                try {
+
+<span class="nc" id="L665">                    setHiRes((TemperatureContainer) owc, e2.path);</span>
+<span class="nc" id="L666">                    break;</span>
+
+<span class="nc" id="L668">                } catch (Throwable t) {</span>
+
+<span class="nc" id="L670">                    logger.warn(&quot;Failed to setHiRes on &quot; + address + &quot;, trying again (&quot; + retry</span>
+                            + &quot;)&quot;);
+                }
+            }
+
+<span class="nc bnc" id="L675" title="All 2 branches missed.">        } else if (owc instanceof SwitchContainer) {</span>
+
+            // Restore the device state. DS2409 are not included in the map
+            // anyway.
+
+<span class="nc" id="L680">            SwitchState ss = (SwitchState) dataMap.get(address, Type.SWITCH);</span>
+
+<span class="nc bnc" id="L682" title="All 2 branches missed.">            if (ss != null) {</span>
+
+                // Yup, we've seen this device before
+
+<span class="nc" id="L686">                SwitchContainer sc = (SwitchContainer) owc;</span>
+
+                try {
+
+<span class="nc" id="L690">                    lock.writeLock().lock();</span>
+
+<span class="nc" id="L692">                    byte[] state = sc.readDevice();</span>
+
+<span class="nc" id="L694">                    sc.setLatchState(0, ss.state[0], ss.smart, state);</span>
+<span class="nc" id="L695">                    sc.setLatchState(1, ss.state[1], ss.smart, state);</span>
+
+<span class="nc" id="L697">                    sc.writeDevice(state);</span>
+
+<span class="nc" id="L699">                    logger.warn(&quot;Restored state for &quot; + address + &quot;: &quot; + ss);</span>
+
+<span class="nc" id="L701">                } catch (OneWireException ex) {</span>
+
+<span class="nc" id="L703">                    logger.error(&quot;Failed to restore switch state (&quot; + address + &quot;), cause:&quot;, ex);</span>
+
+                } finally {
+
+<span class="nc" id="L707">                    lock.writeLock().unlock();</span>
+                }
+            }
+        }
+
+<span class="nc" id="L712">        ContainerMap address2dcForPath = path2device.get(e2.path);</span>
+
+<span class="nc bnc" id="L714" title="All 2 branches missed.">        if (address2dcForPath == null) {</span>
+
+<span class="nc" id="L716">            address2dcForPath = new ContainerMap();</span>
+
+<span class="nc" id="L718">            path2device.put(e2.path, address2dcForPath);</span>
+        }
+
+<span class="nc" id="L721">        Set&lt;OneWireDeviceContainer&gt; newDcSet = createContainer(owc);</span>
+
+<span class="nc bnc" id="L723" title="All 2 branches missed.">        for (Iterator&lt;OneWireDeviceContainer&gt; i = newDcSet.iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L725">            DeviceContainer dc = i.next();</span>
+
+<span class="nc" id="L727">            logger.debug(&quot;Created container: &quot; + dc + &quot; (&quot; + dc.getType() + &quot;)&quot;);</span>
+
+<span class="nc" id="L729">            address2dcForPath.add(dc);</span>
+<span class="nc" id="L730">            address2dcGlobal.add(dc);</span>
+<span class="nc" id="L731">        }</span>
+<span class="nc" id="L732">    }</span>
+
+    /**
+     * Try to set the highest possible resolution available from the temperature
+     * container.
+     *
+     * @param tc Temperature container to set the resolution of.
+     * @param path Path to reach the container.
+     */
+    @SuppressWarnings(&quot;deprecation&quot;)
+    private void setHiRes(final TemperatureContainer tc, final OWPath path) {
+
+        try {
+
+<span class="nc" id="L746">            lock.writeLock().lock();</span>
+
+            //String address = ((OneWireContainer) tc).getAddressAsString();
+
+<span class="nc" id="L750">            path.open();</span>
+
+<span class="nc" id="L752">            byte[] state = tc.readDevice();</span>
+
+<span class="nc bnc" id="L754" title="All 2 branches missed.">            if (tc.hasSelectableTemperatureResolution()) {</span>
+
+<span class="nc" id="L756">                double[] resolution = tc.getTemperatureResolutions();</span>
+
+<span class="nc" id="L758">                String s = &quot;&quot;;</span>
+
+<span class="nc bnc" id="L760" title="All 2 branches missed.">                for (int idx = 0; idx &lt; resolution.length; idx++) {</span>
+
+<span class="nc" id="L762">                    s += Double.toString(resolution[idx]) + &quot; &quot;;</span>
+                }
+
+<span class="nc" id="L765">                logger.debug(&quot;Temperature resolutions available: &quot; + s);</span>
+
+<span class="nc" id="L767">                tc.setTemperatureResolution(resolution[resolution.length - 1], state);</span>
+            }
+
+<span class="nc" id="L770">            tc.writeDevice(state);</span>
+
+<span class="nc" id="L772">            stateMap.put(((OneWireContainer) tc).getAddressAsString(), state);</span>
+
+<span class="nc" id="L774">        } catch (Throwable t) {</span>
+
+<span class="nc" id="L776">            logger.warn(&quot;Failed to set high resolution on &quot;</span>
+<span class="nc" id="L777">                    + ((OneWireContainer) tc).getAddressAsString() + &quot;, cause:&quot;, t);</span>
+
+        } finally {
+
+<span class="nc" id="L781">            lock.writeLock().unlock();</span>
+        }
+<span class="nc" id="L783">    }</span>
+
+    /**
+     * Create DZ containers for 1-Wire container.
+     *
+     * @param owc 1-Wire device container.
+     * @return Set of DZ device containers created for a given 1-Wire device
+     * container.
+     */
+    private Set&lt;OneWireDeviceContainer&gt; createContainer(final OneWireContainer owc) {
+
+<span class="nc" id="L794">        Set&lt;OneWireDeviceContainer&gt; result = new TreeSet&lt;OneWireDeviceContainer&gt;();</span>
+
+        // Let's see what kind of a device we have...
+
+<span class="nc bnc" id="L798" title="All 2 branches missed.">        if (owc instanceof HumidityContainer) {</span>
+
+<span class="nc" id="L800">            result.add(new OneWireHumidityContainer(owc));</span>
+        }
+
+<span class="nc bnc" id="L803" title="All 2 branches missed.">        if (owc instanceof TemperatureContainer) {</span>
+
+<span class="nc" id="L805">            result.add(new OneWireTemperatureContainer(owc));</span>
+        }
+
+        // VT: NOTE: This means we can't use DS2409 for actuators, only branches
+<span class="nc bnc" id="L809" title="All 4 branches missed.">        if ((owc instanceof SwitchContainer) &amp;&amp; !(&quot;DS2409&quot;.equals(owc.getName()))) {</span>
+
+<span class="nc" id="L811">            result.add(new OneWireSwitchContainer(this, owc));</span>
+        }
+
+<span class="nc bnc" id="L814" title="All 2 branches missed.">        if (result.isEmpty()) {</span>
+
+            // This is too deep down the stack, and we can't afford to throw
+            // an exception. Let's create a generic container and let the
+            // callers figure the rest out.
+
+            // VT: FIXME: This is a kludge, but it worked since 2000
+<span class="nc bnc" id="L821" title="All 2 branches missed.">            if (&quot;DS2409&quot;.equals(owc.getName())) {</span>
+<span class="nc" id="L822">                logger.info(&quot;Skipping (can only be a coupler) &quot; + owc</span>
+                        + &quot;, generic container created&quot;);
+            } else {
+
+<span class="nc" id="L826">                logger.info(&quot;createContainer(): don't know how to handle &quot;</span>
+                        + owc + &quot;, generic container created&quot;);
+            }
+
+<span class="nc" id="L830">            result.add(new OneWireDeviceContainer(owc));</span>
+        }
+
+<span class="nc" id="L833">        return result;</span>
+    }
+
+    /**
+     * Handle a network departure.
+     *
+     * @param e Event to handle.
+     */
+    @Override
+    public void networkDeparture(OneWireNetworkEvent e) {
+
+<span class="nc" id="L844">        ThreadContext.push(&quot;networkDeparture&quot;);</span>
+
+        try {
+
+            // We know it's actually a different class...
+
+<span class="nc" id="L850">            OwapiNetworkEvent e2 = (OwapiNetworkEvent) e;</span>
+
+            // The only valid element in the event is the address
+
+<span class="nc" id="L854">            Set&lt;DeviceContainer&gt; oldContainers = address2dcGlobal.remove(e.address);</span>
+
+<span class="nc bnc" id="L856" title="All 2 branches missed.">            if (oldContainers == null) {</span>
+
+<span class="nc" id="L858">                logger.warn(&quot;Departure notification for device that is not present: &quot; + e.address);</span>
+            }
+
+            // If the path is known, we don't have to iterate through all of
+            // them
+
+<span class="nc" id="L864">            boolean removed = false;</span>
+
+<span class="nc bnc" id="L866" title="All 2 branches missed.">            if (e2.path != null) {</span>
+
+<span class="nc" id="L868">                logger.debug(&quot;Departure on known path: &quot; + e2.path);</span>
+
+<span class="nc" id="L870">                ContainerMap address2dcForPath = path2device.get(e2.path);</span>
+
+<span class="nc bnc" id="L872" title="All 2 branches missed.">                if (address2dcForPath == null) {</span>
+
+<span class="nc" id="L874">                    logger.warn(&quot;networkDeparture(&quot; + e + &quot;): No devices for path &quot; + e2.path);</span>
+
+                    // dumpMap(path2device, &quot;path2device&quot;);
+
+<span class="nc" id="L878">                    removed = networkDeparture(e2.address);</span>
+
+                } else {
+
+<span class="nc" id="L882">                    removed = networkDeparture(address2dcForPath, e2.address);</span>
+                }
+
+<span class="nc bnc" id="L885" title="All 4 branches missed.">                if (address2dcForPath != null &amp;&amp; address2dcForPath.isEmpty()) {</span>
+
+<span class="nc" id="L887">                    logger.info(&quot;Empty path &quot; + e2.path + &quot;, removed&quot;);</span>
+
+<span class="nc" id="L889">                    path2device.remove(e2.path);</span>
+                }
+
+<span class="nc" id="L892">            } else {</span>
+
+                // All right, we don't have the path... Why?
+
+<span class="nc" id="L896">                removed = networkDeparture(e2.address);</span>
+            }
+
+<span class="nc bnc" id="L899" title="All 2 branches missed.">            if (!removed) {</span>
+
+                // The device wasn't found???
+
+<span class="nc" id="L903">                logger.warn(&quot;Got the departure notification before arrival notification for &quot;</span>
+                        + e.address);
+            }
+
+        } finally {
+<span class="nc" id="L908">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L910">    }</span>
+
+    /**
+     * Handle a network departure for a known path.
+     *
+     * @param address2dcForPath Address to device mapping for the path the
+     * device is supposed to be.
+     * @param address Device address to handle departure of.
+     * @return true if device has been successfully unmapped, false otherwise.
+     */
+    private boolean networkDeparture(final ContainerMap address2dcForPath, final String address) {
+
+<span class="nc" id="L922">        ThreadContext.push(&quot;networkDeparture&quot;);</span>
+
+        try {
+
+<span class="nc bnc" id="L926" title="All 2 branches missed.">            if (address2dcForPath == null) {</span>
+
+                // This should have been checked up the stack
+
+<span class="nc" id="L930">                throw new IllegalArgumentException(&quot;Null map for &quot; + address);</span>
+            }
+
+<span class="nc" id="L933">            Set&lt;DeviceContainer&gt; dcSet = address2dcForPath.get(address);</span>
+
+<span class="nc bnc" id="L935" title="All 4 branches missed.">            if (dcSet == null || dcSet.isEmpty()) {</span>
+
+                // Nope, this is not our device
+
+<span class="nc" id="L939">                return false;</span>
+            }
+
+            // O! This is the one
+
+            // dumpMap(address2dcForPath, &quot;address2dcForPath before&quot;);
+
+<span class="nc" id="L946">            Set&lt;DeviceContainer&gt; removed = address2dcForPath.remove(address);</span>
+
+<span class="nc bnc" id="L948" title="All 2 branches missed.">            for (Iterator&lt;DeviceContainer&gt; i = removed.iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L950">                DeviceContainer container = i.next();</span>
+<span class="nc" id="L951">                logger.debug(&quot;Removed: &quot; + container + &quot; (#&quot; + Integer.toHexString(container.hashCode()) + &quot;)&quot;);</span>
+<span class="nc" id="L952">            }</span>
+
+            // dumpMap(address2dcForPath, &quot;address2dcForPath after&quot;);
+
+            // We don't need the device state either, lest it gets cached and
+            // interferes with the subsequent reads
+
+<span class="nc" id="L959">            stateMap.remove(address);</span>
+
+<span class="nc" id="L961">            return true;</span>
+
+        } finally {
+<span class="nc" id="L964">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Handle a network departure for unknown path.
+     *
+     * @param address Device addres to handle departure of.
+     * @return true if device has been sucessfully unmapped, false otherwise.
+     */
+    private boolean networkDeparture(final String address) {
+
+<span class="nc" id="L976">        boolean removed = false;</span>
+
+<span class="nc" id="L978">        logger.info(&quot;Departure on unknown path&quot;);</span>
+
+<span class="nc bnc" id="L980" title="All 2 branches missed.">        for (Iterator&lt;OWPath&gt; pi = path2device.keySet().iterator(); pi.hasNext();) {</span>
+
+<span class="nc" id="L982">            OWPath path = pi.next();</span>
+<span class="nc" id="L983">            ContainerMap address2dcForPath = path2device.get(path);</span>
+
+<span class="nc bnc" id="L985" title="All 2 branches missed.">            if (address2dcForPath == null) {</span>
+
+<span class="nc" id="L987">                logger.warn(&quot;networkDeparture(&quot; + address + &quot;): No devices for path &quot; + path);</span>
+
+                // dumpMap(path2device, &quot;path2device&quot;);
+
+<span class="nc" id="L991">                continue;</span>
+            }
+
+<span class="nc" id="L994">            removed = networkDeparture(address2dcForPath, address);</span>
+
+            /*
+             * if (removed) { dumpMap(address2dcForPath, &quot;address2dcForPath
+             * AFTER&quot;); }
+             */
+
+<span class="nc bnc" id="L1001" title="All 2 branches missed.">            if (address2dcForPath.isEmpty()) {</span>
+
+                // There are no more devices on this path, so there's no
+                // need to open it at all
+
+<span class="nc" id="L1006">                logger.info(&quot;Path doesn't contain any devices, removed: &quot; + path);</span>
+<span class="nc" id="L1007">                pi.remove();</span>
+            }
+
+<span class="nc bnc" id="L1010" title="All 2 branches missed.">            if (removed) {</span>
+
+<span class="nc" id="L1012">                break;</span>
+            }
+<span class="nc" id="L1014">        }</span>
+
+<span class="nc" id="L1016">        return removed;</span>
+    }
+
+    @Override
+    public void networkFault(OneWireNetworkEvent e, String message) {
+
+        // VT: FIXME: This is pretty bad, most probably a 1-Wire network short
+        // circuit. But this is rare enough to be worrying about it at this stage.
+
+<span class="nc" id="L1025">        throw new UnsupportedOperationException(&quot;Not Implemented: handling '&quot; + message + &quot;', event: &quot; + e);</span>
+    }
+
+    /**
+     * Get the temperature container reading.
+     *
+     * @param tc Temperature container to get the reading from.
+     * @exception OneWireException if there was a problem talking to 1-Wire&amp;reg;
+     * device.
+     * @return Current temperature.
+     * @throws OneWireIOException If there was a problem with 1-Wire subsystem.
+     */
+    @SuppressWarnings(&quot;deprecation&quot;)
+    final double getTemperature(final TemperatureContainer tc) throws OneWireException, OneWireIOException {
+
+<span class="nc" id="L1040">        ThreadContext.push(&quot;getTemperature&quot;);</span>
+<span class="nc" id="L1041">        Marker m = new Marker(&quot;getTemperature&quot;);</span>
+
+        try {
+
+            // get the current resolution and other settings of the device
+
+<span class="nc" id="L1047">            String address = ((OneWireContainer) tc).getAddressAsString();</span>
+            double lastTemp;
+
+            // VT: FIXME: What if the state is not available yet?
+            // Theoretically, it should be 'cause setHiRes should have been
+            // called, but this has to be verified
+
+<span class="nc" id="L1054">            byte[] state = stateMap.get(address);</span>
+
+<span class="nc bnc" id="L1056" title="All 2 branches missed.">            if (state == null) {</span>
+
+<span class="nc" id="L1058">                logger.warn(&quot;device state is not available yet, possibly setHiRes failed&quot;);</span>
+
+<span class="nc" id="L1060">                state = tc.readDevice();</span>
+            }
+
+<span class="nc" id="L1063">            m.checkpoint(&quot;readDevice/0&quot;);</span>
+
+            // perform a temperature conversion
+
+<span class="nc" id="L1067">            tc.doTemperatureConvert(state);</span>
+
+<span class="nc" id="L1069">            m.checkpoint(&quot;doTemperatureConvert&quot;);</span>
+
+            // read the result of the conversion
+
+<span class="nc" id="L1073">            state = tc.readDevice();</span>
+
+<span class="nc" id="L1075">            m.checkpoint(&quot;readDevice/1&quot;);</span>
+
+            // extract the result out of state
+<span class="nc" id="L1078">            lastTemp = tc.getTemperature(state);</span>
+
+<span class="nc bnc" id="L1080" title="All 2 branches missed.">            if (lastTemp == 85.0) {</span>
+
+                // Known bug, ignore
+
+<span class="nc" id="L1084">                throw new IllegalStateException(&quot;Temp read is 85C, ignored&quot;);</span>
+            }
+
+<span class="nc" id="L1087">            stateMap.put(address, state);</span>
+
+<span class="nc" id="L1089">            return lastTemp;</span>
+
+        } finally {
+
+<span class="nc" id="L1093">            m.close();</span>
+<span class="nc" id="L1094">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Get the switch container state.
+     *
+     * @param sc Switch container to get the state of.
+     * @return The switch state object.
+     * @exception OneWireException if there was a problem with 1-Wire API.
+     */
+    @SuppressWarnings(&quot;deprecation&quot;)
+    private SwitchState getState(final SwitchContainer sc) throws OneWireException {
+
+        // We don't have to get the lock here, because we're in the lock
+        // protected context already
+
+<span class="nc" id="L1111">        SwitchState ss = new SwitchState();</span>
+<span class="nc" id="L1112">        byte[] state = sc.readDevice();</span>
+
+<span class="nc" id="L1114">        ss.smart = sc.hasSmartOn();</span>
+<span class="nc" id="L1115">        ss.state[0] = sc.getLatchState(0, state);</span>
+<span class="nc" id="L1116">        ss.state[1] = sc.getLatchState(1, state);</span>
+
+<span class="nc" id="L1118">        return ss;</span>
+    }
+
+    /**
+     * Broadcast the signal notification.
+     *
+     * @param dc Device container for the sensor whose state has changed.
+     * @param value Current sensor reading.
+     */
+    private void stateChanged(final DeviceContainer dc, final double value) {
+
+<span class="nc" id="L1129">        ThreadContext.push(&quot;stateChanged&quot;);</span>
+
+        try {
+
+<span class="nc" id="L1133">            logger.debug(dc + &quot;: &quot; + value);</span>
+
+<span class="nc" id="L1135">            ((AbstractSensorContainer) dc).stateChanged(value, null);</span>
+
+        } finally {
+<span class="nc" id="L1138">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L1140">    }</span>
+
+    /**
+     * Broadcast the exception notification.
+     *
+     * @param dc Device container for the sensor whose state has changed.
+     * @param t Exception.
+     */
+    private void stateChanged(final DeviceContainer dc, final Throwable t) {
+
+<span class="nc" id="L1150">        ThreadContext.push(&quot;stateChanged&quot;);</span>
+
+        try {
+
+<span class="nc" id="L1154">            logger.debug(dc, t);</span>
+
+            try {
+
+<span class="nc" id="L1158">                ((AbstractSensorContainer) dc).stateChanged(null, t);</span>
+
+<span class="nc" id="L1160">            } catch (ClassCastException ex) {</span>
+
+<span class="nc" id="L1162">                logger.error(&quot;Oops... not a sensor&quot;, t);</span>
+<span class="nc" id="L1163">            }</span>
+
+        } finally {
+<span class="nc" id="L1166">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L1168">    }</span>
+
+    /**
+     * Get a path object for a given address.
+     *
+     * @param address Address to get the path for.
+     * @return A path object for a given address.
+     * @exception NoSuchElementException if there's no path for given address.
+     */
+    public final OWPath getDevicePath(final String address) {
+
+<span class="nc bnc" id="L1179" title="All 2 branches missed.">        for (Iterator&lt;OWPath&gt; i = path2device.keySet().iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L1181">            OWPath path = i.next();</span>
+<span class="nc" id="L1182">            ContainerMap address2dcForPath = path2device.get(path);</span>
+
+<span class="nc bnc" id="L1184" title="All 2 branches missed.">            if (address2dcForPath.containsKey(address)) {</span>
+
+<span class="nc" id="L1186">                return path;</span>
+            }
+<span class="nc" id="L1188">        }</span>
+
+<span class="nc" id="L1190">        throw new NoSuchElementException(&quot;No path found for '&quot; + address + &quot;'&quot;);</span>
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L1199">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="nc" id="L1201">                getClass().getSimpleName(),</span>
+                adapterPort,
+<span class="nc" id="L1203">                &quot;1-Wire Device Factory at &quot; + speedInt2speedName.get(adapterSpeed) + &quot; speed on &quot; + adapterPort);</span>
+    }
+
+    /**
+     * Volatile switch state representation.
+     */
+<span class="nc" id="L1209">    protected class SwitchState {</span>
+
+        /**
+         * True if the switch supports smart operation.
+         */
+<span class="nc" id="L1214">        boolean smart = false;</span>
+
+        /**
+         * Switch state. VT: FIXME: Extend this for cases like DS2408 (where the
+         * number of channels is not 2).
+         */
+<span class="nc" id="L1220">        boolean[] state = { false, false };</span>
+
+        /**
+         * @return String representation of the switch state.
+         */
+        @Override
+        public final String toString() {
+
+<span class="nc bnc" id="L1228" title="All 2 branches missed.">            String result = &quot;[&quot; + (smart ? &quot;smart&quot; : &quot;dumb&quot;);</span>
+
+<span class="nc" id="L1230">            result += &quot;][&quot;;</span>
+
+<span class="nc bnc" id="L1232" title="All 2 branches missed.">            for (int idx = 0; idx &lt; state.length; idx++) {</span>
+
+<span class="nc bnc" id="L1234" title="All 2 branches missed.">                if (idx != 0) {</span>
+
+<span class="nc" id="L1236">                    result += &quot;,&quot;;</span>
+                }
+
+<span class="nc" id="L1239">                result += state[idx];</span>
+            }
+
+<span class="nc" id="L1242">            result += &quot;]&quot;;</span>
+
+<span class="nc" id="L1244">            return result;</span>
+        }
+    }
+
+    private class OwapiSensorProxy extends SensorProxy implements DataSink&lt;Double&gt;, JmxAware, OneWireNetworkEventListener {
+
+<span class="nc" id="L1250">        public OwapiSensorProxy(String address, int pollIntervalMillis, SensorType type, OneWireNetworkMonitor monitor) {</span>
+
+<span class="nc" id="L1252">            super(address, pollIntervalMillis, type);</span>
+
+<span class="nc" id="L1254">            monitor.addListener(this);</span>
+<span class="nc" id="L1255">        }</span>
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L1263">            return new JmxDescriptor(</span>
+                    &quot;dz&quot;,
+<span class="nc" id="L1265">                    getClass().getSimpleName(),</span>
+<span class="nc" id="L1266">                    type.type + getAddress(),</span>
+<span class="nc" id="L1267">                    &quot;1-Wire &quot; + type.description + &quot; sensor , adress &quot; + getAddress());</span>
+        }
+
+        @Override
+        public void networkArrival(OneWireNetworkEvent e) {
+
+<span class="nc" id="L1273">            ThreadContext.push(&quot;networkArrival&quot;);</span>
+
+            try {
+
+                // Nothing to do here, the arrival will be handled asynchronously by getSensorSignal() shortly
+
+            } finally {
+<span class="nc" id="L1280">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L1282">        }</span>
+
+        @Override
+        public void networkDeparture(OneWireNetworkEvent e) {
+
+<span class="nc" id="L1287">            ThreadContext.push(&quot;networkDeparture&quot;);</span>
+
+            try {
+
+<span class="nc bnc" id="L1291" title="All 2 branches missed.">                if (container == null) {</span>
+
+                    // We've already been eliminated in this round, nothing to do
+<span class="nc" id="L1294">                    return;</span>
+                }
+
+<span class="nc bnc" id="L1297" title="All 2 branches missed.">                if (e.address.equals(container.getAddress())) {</span>
+
+<span class="nc" id="L1299">                    logger.debug(&quot;Signal: &quot; + e);</span>
+
+<span class="nc" id="L1301">                    consume(new DataSample&lt;Double&gt;(</span>
+<span class="nc" id="L1302">                            System.currentTimeMillis(), type + getAddress(), type + getAddress(),</span>
+                            null, new OneWireIOException(&quot;Departed&quot;)));
+
+<span class="nc" id="L1305">                    logger.debug(&quot;Discarded container: #&quot; + Integer.toHexString(container.hashCode()));</span>
+<span class="nc" id="L1306">                    container = null;</span>
+                }
+
+            } finally {
+<span class="nc" id="L1310">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L1312">        }</span>
+
+        @Override
+        public void networkFault(OneWireNetworkEvent e, String message) {
+
+<span class="nc" id="L1317">            ThreadContext.push(&quot;networkFault&quot;);</span>
+
+            try {
+
+                // This is an event pertinent to everyone
+
+<span class="nc" id="L1323">                consume(new DataSample&lt;Double&gt;(</span>
+<span class="nc" id="L1324">                        System.currentTimeMillis(), type + getAddress(), type + getAddress(),</span>
+                        null, new OneWireIOException(message)));
+
+            } finally {
+<span class="nc" id="L1328">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L1330">        }</span>
+    }
+
+    private class OwapiSingleSwitchProxy extends SingleSwitchProxy&lt;OneWireSwitchContainer&gt; {
+
+<span class="nc" id="L1335">        public OwapiSingleSwitchProxy(ContainerMap address2dcGlobal, StringChannelAddress address) {</span>
+<span class="nc" id="L1336">            super(address2dcGlobal, address);</span>
+<span class="nc" id="L1337">        }</span>
+
+        @Override
+        public synchronized boolean getState() throws IOException {
+
+<span class="nc" id="L1342">            ThreadContext.push(&quot;getState&quot;);</span>
+
+            try {
+
+<span class="nc" id="L1346">                OneWireSwitchContainer sc = getContainer(address.hardwareAddress);</span>
+
+<span class="nc bnc" id="L1348" title="All 2 branches missed.">                if (sc == null) {</span>
+<span class="nc" id="L1349">                    throw new IOException(&quot;No container found for &quot; + address + &quot;, assuming not present&quot;);</span>
+                }
+
+<span class="nc" id="L1352">                return sc.read(Integer.parseInt(address.channel));</span>
+
+            } finally {
+<span class="nc" id="L1355">                ThreadContext.pop();</span>
+            }
+        }
+
+        @Override
+        public synchronized void setState(boolean state) throws IOException {
+
+<span class="nc" id="L1362">            ThreadContext.push(&quot;setState&quot;);</span>
+
+            try {
+
+<span class="nc" id="L1366">                OneWireSwitchContainer sc = getContainer(address.hardwareAddress);</span>
+
+<span class="nc bnc" id="L1368" title="All 2 branches missed.">                if (sc == null) {</span>
+<span class="nc" id="L1369">                    throw new IOException(&quot;No container found for &quot; + address + &quot;, assuming not present&quot;);</span>
+                }
+
+<span class="nc" id="L1372">                sc.write(Integer.parseInt(address.channel), state);</span>
+
+            } finally {
+<span class="nc" id="L1375">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L1377">        }</span>
+
+        @Override
+        public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L1382">            return new JmxDescriptor(</span>
+                    &quot;dz&quot;,
+<span class="nc" id="L1384">                    getClass().getSimpleName(),</span>
+<span class="nc" id="L1385">                    Integer.toHexString(hashCode()) + &quot;#&quot; + getAddress(),</span>
+                    &quot;1-Wire single switch proxy&quot;);
+        }
+    }
+
+    @Override
+    protected Switch createSingleSwitchProxy(ContainerMap address2dcGlobal, StringChannelAddress switchAddress) {
+<span class="nc" id="L1392">      return new OwapiSingleSwitchProxy(address2dcGlobal, switchAddress);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

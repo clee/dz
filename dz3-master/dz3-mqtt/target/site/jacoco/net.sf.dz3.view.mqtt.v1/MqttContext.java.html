@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MqttContext.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">MQTT Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.mqtt.v1</a> &gt; <span class="el_source">MqttContext.java</span></div><h1>MqttContext.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.mqtt.v1;
+
+import java.util.UUID;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+import org.eclipse.paho.client.mqttv3.IMqttClient;
+import org.eclipse.paho.client.mqttv3.MqttCallback;
+import org.eclipse.paho.client.mqttv3.MqttClient;
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+import org.eclipse.paho.client.mqttv3.MqttPersistenceException;
+
+import net.sf.dz3.instrumentation.Marker;
+
+public class MqttContext {
+
+    public static final int DEFAULT_PORT = 1883;
+
+    /**
+     * Tags that may be encountered in JSON payloads.
+     */
+<span class="fc" id="L25">    @SuppressWarnings(&quot;squid:S1845&quot;)</span>
+    public enum JsonTag {
+<span class="fc" id="L27">        DEVICE_ID(&quot;device_id&quot;),</span>
+<span class="fc" id="L28">        ENTITY_TYPE(&quot;entity_type&quot;),</span>
+<span class="fc" id="L29">        EVENT_DATA(&quot;event_data&quot;),</span>
+<span class="fc" id="L30">        EVENT_TYPE(&quot;event_type&quot;),</span>
+<span class="fc" id="L31">        NAME(&quot;name&quot;),</span>
+<span class="fc" id="L32">        SIGNAL(&quot;signal&quot;),</span>
+<span class="fc" id="L33">        SIGNATURE(&quot;signature&quot;),</span>
+<span class="fc" id="L34">        TIMESTAMP(&quot;timestamp&quot;);</span>
+
+        public final String name;
+
+<span class="fc" id="L38">        private JsonTag(String name) {</span>
+<span class="fc" id="L39">            this.name = name;</span>
+<span class="fc" id="L40">        }</span>
+    }
+
+<span class="fc" id="L43">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    /**
+     * VT: FIXME: Provide an ability to generate and keep a persistent UUID
+     */
+<span class="fc" id="L48">    public final String clientId = UUID.randomUUID().toString();</span>
+
+    public final String host;
+    public final int port;
+    public final String username;
+    public final String password;
+
+    /**
+     * Root topic for publishing. Can't be the same as the topic for subscriptions.
+     */
+    public final String rootTopicPub;
+
+    /**
+     * Root topic for subscriptions. Can't be the same as the topic for publishing.
+     */
+    public final String rootTopicSub;
+
+    public final MqttCallback callback;
+
+    /**
+     * Quality of Service.
+     *
+     * VT: FIXME: It may be a good idea to make this a constructor argument, to provide the right QOS
+     * for the right application (wall dashboard is one thing, control system is totally another).
+     *
+     * VT: FIXME: QOS for publishing and subscriptions may need to be different.
+     *
+     * Just a reminder to self,
+     *
+     * QOS 0 is &quot;at most once&quot;
+     * QOS 1 is &quot;at least once&quot;
+     * QOS 2 is &quot;exactly once&quot;
+     */
+<span class="fc" id="L81">    public final int QOS = 0;</span>
+
+    private final IMqttClient client;
+
+    public MqttContext(
+            String host, int port,
+            String username, String password,
+            String rootTopicPub, String rootTopicSub,
+<span class="fc" id="L89">            MqttCallback callback) throws MqttException {</span>
+
+<span class="fc" id="L91">        this.host = host;</span>
+<span class="fc" id="L92">        this.port = port;</span>
+<span class="fc" id="L93">        this.username = username;</span>
+<span class="fc" id="L94">        this.password = password;</span>
+<span class="fc" id="L95">        this.rootTopicPub = rootTopicPub;</span>
+<span class="fc" id="L96">        this.rootTopicSub = rootTopicSub;</span>
+<span class="fc" id="L97">        this.callback = callback;</span>
+
+        /* only authenticate if both credentials are present */
+<span class="pc bpc" id="L100" title="3 of 4 branches missed.">        if (username != null &amp;&amp; password != null) {</span>
+<span class="nc" id="L101">            client = new MqttClient(&quot;tcp://&quot; + username + &quot;:&quot; + password + &quot;@&quot; + host + &quot;:&quot; + port, clientId);</span>
+        } else {
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            if (username != null) {</span>
+                // Bad idea to have no password
+<span class="nc" id="L105">                logger.warn(&quot;Missing MQTT password, connecting unauthenticated. This behavior will not be allowed in future releases.&quot;);</span>
+            }
+<span class="fc" id="L107">            client = new MqttClient(&quot;tcp://&quot; + host + &quot;:&quot; + port, clientId);</span>
+        }
+<span class="fc" id="L109">    }</span>
+
+    public void start() throws MqttException {
+
+<span class="fc" id="L113">        ThreadContext.push(&quot;start&quot;);</span>
+<span class="fc" id="L114">        Marker m = new Marker(&quot;start&quot;);</span>
+
+        try {
+
+<span class="fc" id="L118">            MqttConnectOptions options = new MqttConnectOptions();</span>
+<span class="fc" id="L119">            options.setAutomaticReconnect(true);</span>
+<span class="fc" id="L120">            options.setCleanSession(true);</span>
+<span class="fc" id="L121">            options.setConnectionTimeout(10);</span>
+
+<span class="fc" id="L123">            client.setCallback(callback);</span>
+<span class="fc" id="L124">            client.connect(options);</span>
+
+<span class="fc" id="L126">            client.subscribe(rootTopicSub, QOS);</span>
+
+        } finally {
+
+<span class="fc" id="L130">            m.close();</span>
+<span class="fc" id="L131">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L133">    }</span>
+
+    public void publish(String topic, MqttMessage message) throws MqttException, MqttPersistenceException {
+<span class="nc" id="L136">        client.publish(topic, message);</span>
+<span class="nc" id="L137">    }</span>
+
+    public void disconnect() throws MqttException {
+<span class="nc" id="L140">        client.disconnect();</span>
+<span class="nc" id="L141">    }</span>
+
+    public void close() throws MqttException {
+<span class="fc" id="L144">        client.disconnect();</span>
+<span class="fc" id="L145">        client.close();</span>
+<span class="fc" id="L146">    }</span>
+
+    /**
+     * Check if connected. If not, reconnect.
+     */
+    public void reconnect() {
+
+<span class="nc" id="L153">        ThreadContext.push(&quot;reconnect&quot;);</span>
+        try {
+
+<span class="nc bnc" id="L156" title="All 2 branches missed.">            if (client.isConnected()) {</span>
+                // nothing to do
+<span class="nc" id="L158">                return;</span>
+            }
+
+<span class="nc" id="L161">            logger.warn(&quot;hmm, lost connection... Did we sleep? Is the broker still up?&quot;);</span>
+<span class="nc" id="L162">            client.connect();</span>
+<span class="nc" id="L163">            client.subscribe(rootTopicSub);</span>
+
+<span class="nc" id="L165">        } catch (MqttException ex) {</span>
+
+            // We don't have any option other than keep trying in a bit; this method will be
+            // called again shortly. Devices will be marked as stale anyway, no big loss
+            // unless they're mission critical - but those better be connected in a more
+            // direct way.
+
+<span class="nc" id="L172">            logger.error(&quot;failed to reconnect(), nothing we can do now&quot;, ex);</span>
+
+        } finally {
+<span class="nc" id="L175">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L177">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

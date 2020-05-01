@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TransientUsageCounter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Common Components</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.util.counter</a> &gt; <span class="el_source">TransientUsageCounter.java</span></div><h1>TransientUsageCounter.java</h1><pre class="source lang-java linenums">package net.sf.dz3.util.counter;
+
+import java.io.IOException;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.jukebox.datastream.signal.model.DataSource;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Usage counter proof of concept with no persistent state.
+ *  
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class TransientUsageCounter extends AbstractUsageCounter {
+
+    /**
+     * Create an instance with the default (time based usage) counter strategy and no storage keys.
+     * 
+     * @param name Human readable name for the user interface.
+     * @param target What to count.
+     * 
+     * @throws IOException if things go sour.
+     */
+    public TransientUsageCounter(String name, DataSource&lt;Double&gt; target) throws IOException {
+
+<span class="nc" id="L27">        super(name, target, null);</span>
+<span class="nc" id="L28">    }</span>
+
+    /**
+     * Create an instance with no storage keys.
+     * 
+     * @param name Human readable name for the user interface.
+     * @param counter Counter to use.
+     * @param target What to count.
+     * 
+     * @throws IOException if things go sour.
+     */
+    public TransientUsageCounter(String name, CounterStrategy counter, DataSource&lt;Double&gt; target) throws IOException {
+
+<span class="nc" id="L41">        super(name, counter, target, null);</span>
+<span class="nc" id="L42">    }</span>
+
+    /**
+     * Create an instance.
+     * 
+     * @param name Human readable name for the user interface.
+     * @param counter Counter to use.
+     * @param target What to count.
+     * @param storageKeys How to store the counter data.
+     * 
+     * @throws IOException if things go sour.
+     */
+    public TransientUsageCounter(String name, CounterStrategy counter, DataSource&lt;Double&gt; target, Object[] storageKeys) throws IOException {
+
+<span class="fc" id="L56">        super(name, counter, target, storageKeys);</span>
+<span class="fc" id="L57">    }</span>
+
+    @Override
+    protected void alert(long threshold, long current) {
+        
+<span class="fc" id="L62">        ThreadContext.push(&quot;alert@&quot; + Integer.toHexString(hashCode()));</span>
+        
+        try {
+
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            if (threshold == 0) {</span>
+<span class="fc" id="L67">                logger.debug(&quot;Threshold not set&quot;);</span>
+<span class="fc" id="L68">                return;</span>
+            }
+
+<span class="fc" id="L71">            long percent = (long)(getUsageRelative() * 100);</span>
+            
+<span class="fc bfc" id="L73" title="All 2 branches covered.">            String message = getName() + &quot;: current usage &quot; + percent + &quot;%&quot; + (percent &gt; 100 ? &quot; (OVERDUE)&quot; : &quot;&quot;);</span>
+            
+<span class="fc bfc" id="L75" title="All 2 branches covered.">            if (percent &lt; 50) {</span>
+<span class="fc" id="L76">                logger.debug(message);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            } else if (percent &lt; 80) {</span>
+<span class="fc" id="L78">                logger.info(message);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            } else if (percent &lt; 100) {</span>
+<span class="fc" id="L80">                logger.warn(message);</span>
+            } else {
+<span class="fc" id="L82">                logger.error(message);</span>
+            }
+        
+        } finally {
+<span class="fc" id="L86">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L88">    }</span>
+
+    @Override
+    protected CounterState load() throws IOException {
+
+        // One hour limit
+<span class="nc" id="L94">        return new CounterState(1000L * 60L * 60L, 0);</span>
+    }
+
+    @Override
+    protected void save() throws IOException {
+
+<span class="nc" id="L100">        ThreadContext.push(&quot;save@&quot; + Integer.toHexString(hashCode()));</span>
+
+        try {
+
+            // Do absolutely nothing except logging the current usage
+<span class="nc" id="L105">            logger.info(&quot;Current usage: &quot; + getUsageAbsolute() + &quot;/&quot; + getThreshold() + &quot;(&quot; + getUsageRelative() + &quot;)&quot;);</span>
+        
+        } finally {
+<span class="nc" id="L108">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L110">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+        
+<span class="nc" id="L115">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+                &quot;Resource Usage Counter&quot;,
+<span class="nc" id="L118">                getName(),</span>
+                &quot;Keeps track of resource usage and logs it&quot;);
+    }
+
+    @Override
+    protected void doReset() throws IOException {
+        
+        // Do absolutely nothing
+<span class="fc" id="L126">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

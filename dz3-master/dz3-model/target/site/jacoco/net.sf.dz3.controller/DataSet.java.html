@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DataSet.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller</a> &gt; <span class="el_source">DataSet.java</span></div><h1>DataSet.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller;
+
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
+/**
+ * Entity supporting the data sampling.
+ *
+ * VT: FIXME: Implement variable expiration time.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homaclimatecontrol.com&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class DataSet&lt;T&gt; {
+
+    /**
+     * The data set. The key is sampling time, the value is sample value.
+     */
+<span class="fc" id="L20">    private LinkedHashMap&lt;Long, T&gt; dataSet = new LinkedHashMap&lt;&gt;();</span>
+
+    /**
+     * The expiration interval. Values older than the last key by this many
+     * milliseconds are expired.
+     */
+    private long expirationInterval;
+
+    /**
+     * Strictness. If this is set to true, the {@link #record record()} will not
+     * accept values for the time less than already recorded, and {@link #record
+     * record()} will throw {@codeIllegalArgumentException}.
+     * &lt;p&gt;
+     * This is not necessarily a good thing.
+     */
+    private final boolean strict;
+
+    /**
+     * Last known timestamp. {@code null} if none recorded yet.
+     */
+    private Long lastTimestamp;
+
+    /**
+     * Last known value. {@code null} if none recorded yet.
+     */
+    private T lastValue;
+
+    /**
+     * Create the instance allowing out-of-order updates.
+     *
+     * @param expirationInterval How many milliseconds to keep the data.
+     * @exception IllegalArgumentException if the expiration interval is
+     * non-positive (&lt;= 0). Be careful with the short intervals, it's going to
+     * be your fault, not mine.
+     */
+    public DataSet(final long expirationInterval) {
+<span class="fc" id="L56">        this(expirationInterval, false);</span>
+<span class="fc" id="L57">    }</span>
+
+    /**
+     * Create the instance.
+     *
+     * @param expirationInterval How many milliseconds to keep the data.
+     *
+     * @param strict If set to true, out-of-order updates will not be accepted.
+     *
+     * @exception IllegalArgumentException if the expiration interval is
+     * non-positive (&lt;= 0). Be careful with the short intervals, it's going to
+     * be your fault, not mine.
+     */
+<span class="fc" id="L70">    public DataSet(final long expirationInterval, boolean strict) {</span>
+
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        if (expirationInterval &lt;= 0) {</span>
+
+<span class="nc" id="L74">            throw new IllegalArgumentException(&quot;Expiration interval must be positive, value given is &quot;</span>
+                    + expirationInterval);
+        }
+
+<span class="fc" id="L78">        this.expirationInterval = expirationInterval;</span>
+<span class="fc" id="L79">        this.strict = strict;</span>
+<span class="fc" id="L80">    }</span>
+
+    /**
+     * Get the expiration interval.
+     *
+     * @return Expiration interval, milliseconds.
+     */
+    public final long getExpirationInterval() {
+
+<span class="nc" id="L89">        return expirationInterval;</span>
+    }
+
+    /**
+     * Record the sample.
+     *
+     * @param millis Absolute time, milliseconds.
+     * @param value The sample value.
+     */
+    public final synchronized void record(final long millis, final T value) {
+<span class="fc" id="L99">        record(millis, value, false);</span>
+<span class="fc" id="L100">    }</span>
+
+    /**
+     * Record the sample.
+     *
+     * @param millis Absolute time, milliseconds.
+     * @param value The sample value.
+     * @param merge if {@code false}, record the value in any case. If {@code true}, record only
+     * if it is different from the last one recorded.
+     */
+    public final synchronized void record(final long millis, final T value, boolean merge) {
+
+        // We don't care if there was a value associated with the given key
+        // before, so we return nothing.
+
+<span class="fc bfc" id="L115" title="All 6 branches covered.">        if (strict &amp;&amp; lastTimestamp != null &amp;&amp; lastTimestamp &gt;= millis) {</span>
+
+<span class="fc" id="L117">                throw new IllegalArgumentException(&quot;Data element out of sequence: last key is &quot; + lastTimestamp</span>
+                        + &quot;, key being added is &quot; + millis);
+        }
+
+<span class="pc bpc" id="L121" title="1 of 6 branches missed.">        if (lastValue != null &amp;&amp; merge &amp;&amp; lastValue.equals(value)) {</span>
+
+            // Will replace it with the same value and new timestamp right below. Slower on
+            // the way in, faster on the way out.
+
+<span class="fc" id="L126">            dataSet.remove(lastTimestamp);</span>
+        }
+
+<span class="fc" id="L129">        dataSet.put(Long.valueOf(millis), value);</span>
+<span class="fc" id="L130">        lastValue = value;</span>
+<span class="fc" id="L131">        lastTimestamp = millis;</span>
+
+<span class="fc" id="L133">        expire();</span>
+<span class="fc" id="L134">    }</span>
+
+    /**
+     * Expire all the data elements older than the last by {@link
+     * #expirationInterval expiration interval}.
+     */
+    private final void expire() {
+
+        try {
+
+<span class="fc" id="L144">            Long expireBefore = Long.valueOf(lastTimestamp.longValue() - expirationInterval);</span>
+
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">            for (Iterator&lt;Long&gt; i = dataSet.keySet().iterator(); i.hasNext();) {</span>
+
+<span class="fc" id="L148">                Long found = i.next();</span>
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">                if (found &lt; expireBefore) {</span>
+
+<span class="fc" id="L152">                    i.remove();</span>
+
+                } else {
+
+                    // We're done, all other keys will be younger
+
+<span class="fc" id="L158">                    return;</span>
+                }
+
+<span class="fc" id="L161">            }</span>
+
+<span class="nc" id="L163">        } catch (NoSuchElementException nseex) {</span>
+
+            // We're fine, the map is empty
+<span class="nc" id="L166">        }</span>
+<span class="nc" id="L167">    }</span>
+
+    /**
+     * @return Iterator on the time values for the data entries.
+     */
+    public final Iterator&lt;Long&gt; iterator() {
+
+<span class="fc" id="L174">        return dataSet.keySet().iterator();</span>
+    }
+
+    public final Iterator&lt;Map.Entry&lt;Long, T&gt;&gt; entryIterator() {
+
+<span class="fc" id="L179">      return dataSet.entrySet().iterator();</span>
+    }
+
+    /**
+     * Get the data set size.
+     *
+     * @return {@link #dataSet dataSet} size.
+     */
+    public final long size() {
+
+<span class="fc" id="L189">        return dataSet.size();</span>
+    }
+
+    /**
+     * Get the value recorded at the given time.
+     *
+     * @param time Time to look up the data for. Must be exact, otherwise,
+     * exception will be thrown.
+     * @return Value recorded at the given time.
+     *
+     * @exception NoSuchElementException if the value for the given time is not
+     * in the set.
+     */
+    public final T get(final long time) {
+
+<span class="fc" id="L204">        T result = dataSet.get(Long.valueOf(time));</span>
+
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">        if (result == null) {</span>
+
+<span class="fc" id="L208">            throw new NoSuchElementException(&quot;No value for time &quot; + time);</span>
+        }
+
+<span class="nc" id="L211">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

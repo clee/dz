@@ -1,0 +1,1405 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NetAdapterHost.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">NetAdapterHost.java</span></div><h1>NetAdapterHost.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 2002 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.UnknownHostException;
+import java.util.Hashtable;
+import java.util.Random;
+
+import org.apache.logging.log4j.LogManager;
+
+import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.net.Socket;
+import java.util.Enumeration;
+
+import com.dalsemi.onewire.OneWireAccessProvider;
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.utils.CRC16;
+import com.dalsemi.onewire.utils.Convert;
+
+/**
+ * &lt;P&gt;NetAdapterHost is the host (or server) component for a network-based
+ * DSPortAdapter.  It actually wraps the hardware DSPortAdapter and handles
+ * connections from outside sources (NetAdapter) who want to access it.&lt;/P&gt;
+ *
+ * &lt;P&gt;NetAdapterHost is designed to be run in a thread, waiting for incoming
+ * connections.  You can run this in the same thread as your main program or
+ * you can establish the connections yourself (presumably using some higher
+ * level of security) and then call the &lt;code&gt;handleConnection(Socket)&lt;/code&gt;
+ * {@see #handleConnection(Socket)}.&lt;/P&gt;
+ *
+ * &lt;P&gt;Once a NetAdapter is connected with the host, a version check is performed
+ * followed by a simple authentication step.  The authentication is dependent
+ * upon a secret shared between the NetAdapter and the host.  Both will use
+ * a default value, that each will agree with if you don't provide a secret
+ * of your own.  To set the secret, add the following line to your
+ * onewire.properties file:
+ * &lt;ul&gt;
+ *    &lt;li&gt;NetAdapter.secret=&quot;This is my custom secret&quot;&lt;/li&gt;
+ * &lt;/ul&gt;
+ * Optionally, the secret can be set by calling the &lt;code&gt;setSecret(String)&lt;/code&gt;
+ * {@see #setSecret(String)}&lt;/P&gt;
+ *
+ * &lt;P&gt;The NetAdapter and NetAdapterHost support multicast broadcasts for
+ * automatic discovery of compatible servers on your LAN.  To start the
+ * multicast listener for this NetAdapterHost, call the
+ * &lt;code&gt;createMulticastListener()&lt;/code&gt; method
+ * {@see #createMulticastListener()}.&lt;/P&gt;
+ *
+ * &lt;P&gt;For information on creating the client component, see the JavaDocs
+ * for the  {@link com.dalsemi.onewire.adapter.NetAdapter NetAdapter}.
+ *
+ * @see NetAdapter
+ *
+ * @author SH
+ * @version    1.00, 9 Jan 2002
+ */
+public class NetAdapterHost
+   implements Runnable, NetAdapterConstants
+{
+   /** random number generator, used to issue challenges to client */
+<span class="nc" id="L90">   protected static final Random rand = new Random();</span>
+
+   /** The adapter this NetAdapter will proxy too */
+<span class="nc" id="L93">   protected DSPortAdapter adapter = null;</span>
+
+   /** The server socket for listening for connections */
+<span class="nc" id="L96">   protected ServerSocket serverSocket = null;</span>
+
+   /** secret for authentication with the server */
+<span class="nc" id="L99">   protected byte[] netAdapterSecret = null;</span>
+
+   /** boolean flags for stopping the host */
+<span class="nc" id="L102">   protected volatile boolean hostStopped = false, hostRunning = false;</span>
+
+   /** boolean flag to indicate whether or not the host is single or multi-threaded */
+<span class="nc" id="L105">   protected boolean singleThreaded = true;</span>
+
+   /** Map of all Service threads created, only for multi-threaded */
+<span class="nc" id="L108">   protected Hashtable hashHandlers = null;</span>
+
+   /** Optional, listens for datagram packets from potential clients */
+<span class="nc" id="L111">   protected MulticastListener multicastListener = null;</span>
+
+   /** timeout for socket receive, in seconds */
+<span class="nc" id="L114">   protected int timeoutInSeconds = 30;</span>
+
+   /**
+    * &lt;P&gt;Creates an instance of a NetAdapterHost which wraps the provided
+    * adapter.  The host listens on the default port as specified by
+    * NetAdapterConstants.&lt;/P&gt;
+    *
+    * &lt;P&gt;Note that the secret used for authentication is the value specified
+    * in the onewire.properties file as &quot;NetAdapter.secret=mySecret&quot;.
+    * To set the secret to another value, use the
+    * &lt;code&gt;setSecret(String)&lt;/code&gt; method.&lt;/P&gt;
+    *
+    * @param adapter DSPortAdapter that this NetAdapterHost will proxy
+    * commands to.
+    *
+    * @throws IOException if a network error occurs or the listen socket
+    * cannot be created on the specified port.
+    */
+   public NetAdapterHost(DSPortAdapter adapter)
+      throws IOException
+   {
+<span class="nc" id="L135">      this(adapter, DEFAULT_PORT, false);</span>
+<span class="nc" id="L136">   }</span>
+
+   /**
+    * &lt;P&gt;Creates a single-threaded instance of a NetAdapterHost which wraps the
+    * provided adapter.  The host listens on the specified port.&lt;/P&gt;
+    *
+    * &lt;P&gt;Note that the secret used for authentication is the value specified
+    * in the onewire.properties file as &quot;NetAdapter.secret=mySecret&quot;.
+    * To set the secret to another value, use the
+    * &lt;code&gt;setSecret(String)&lt;/code&gt; method.&lt;/P&gt;
+    *
+    * @param adapter DSPortAdapter that this NetAdapterHost will proxy
+    * commands to.
+    * @param listenPort the TCP/IP port to listen on for incoming connections
+    *
+    * @throws IOException if a network error occurs or the listen socket
+    * cannot be created on the specified port.
+    */
+   public NetAdapterHost(DSPortAdapter adapter, int listenPort)
+      throws IOException
+   {
+<span class="nc" id="L157">      this(adapter, listenPort, false);</span>
+<span class="nc" id="L158">   }</span>
+
+   /**
+    * &lt;P&gt;Creates an (optionally multithreaded) instance of a NetAdapterHost
+    * which wraps the provided adapter.  The listen port is set to the
+    * default port as defined in NetAdapterConstants.&lt;/P&gt;
+    *
+    * &lt;P&gt;Note that the secret used for authentication is the value specified
+    * in the onewire.properties file as &quot;NetAdapter.secret=mySecret&quot;.
+    * To set the secret to another value, use the
+    * &lt;code&gt;setSecret(String)&lt;/code&gt; method.&lt;/P&gt;
+    *
+    * @param adapter DSPortAdapter that this NetAdapterHost will proxy
+    * commands to.
+    * @param multiThread if true, multiple TCP/IP connections are allowed
+    * to interact simulataneously with this adapter.
+    *
+    * @throws IOException if a network error occurs or the listen socket
+    * cannot be created on the specified port.
+    */
+   public NetAdapterHost(DSPortAdapter adapter, boolean multiThread)
+      throws IOException
+   {
+<span class="nc" id="L181">      this(adapter, DEFAULT_PORT, multiThread);</span>
+<span class="nc" id="L182">   }</span>
+
+   /**
+    * &lt;P&gt;Creates an (optionally multi-threaded) instance of a NetAdapterHost which
+    * wraps the provided adapter.  The host listens on the specified port.&lt;/P&gt;
+    *
+    * &lt;P&gt;Note that the secret used for authentication is the value specified
+    * in the onewire.properties file as &quot;NetAdapter.secret=mySecret&quot;.
+    * To set the secret to another value, use the
+    * &lt;code&gt;setSecret(String)&lt;/code&gt; method.&lt;/P&gt;
+    *
+    * @param adapter DSPortAdapter that this NetAdapterHost will proxy
+    * commands to.
+    * @param listenPort the TCP/IP port to listen on for incoming connections
+    * @param multiThread if true, multiple TCP/IP connections are allowed
+    * to interact simulataneously with this adapter.
+    *
+    * @throws IOException if a network error occurs or the listen socket
+    * cannot be created on the specified port.
+    */
+   public NetAdapterHost(DSPortAdapter adapter, int listenPort,
+                         boolean multiThread)
+      throws IOException
+<span class="nc" id="L205">   {</span>
+      //save reference to adapter
+<span class="nc" id="L207">      this.adapter = adapter;</span>
+
+      // create the server socket
+<span class="nc" id="L210">      this.serverSocket = new ServerSocket(listenPort);</span>
+
+      // set multithreaded flag
+<span class="nc bnc" id="L213" title="All 2 branches missed.">      this.singleThreaded = !multiThread;</span>
+<span class="nc bnc" id="L214" title="All 2 branches missed.">      if(multiThread)</span>
+      {
+<span class="nc" id="L216">         this.hashHandlers = new Hashtable();</span>
+<span class="nc" id="L217">         this.timeoutInSeconds = 0;</span>
+      }
+
+      // get the shared secret
+<span class="nc" id="L221">      String secret = OneWireAccessProvider.getProperty(&quot;NetAdapter.secret&quot;);</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">      if(secret!=null)</span>
+<span class="nc" id="L223">         netAdapterSecret = secret.getBytes();</span>
+      else
+<span class="nc" id="L225">         netAdapterSecret = DEFAULT_SECRET.getBytes();</span>
+<span class="nc" id="L226">   }</span>
+
+   /**
+    * &lt;P&gt;Creates an instance of a NetAdapterHost which wraps the provided
+    * adapter.  The host listens on the default port as specified by
+    * NetAdapterConstants.&lt;/P&gt;
+    *
+    * &lt;P&gt;Note that the secret used for authentication is the value specified
+    * in the onewire.properties file as &quot;NetAdapter.secret=mySecret&quot;.
+    * To set the secret to another value, use the
+    * &lt;code&gt;setSecret(String)&lt;/code&gt; method.&lt;/P&gt;
+    *
+    * @param adapter DSPortAdapter that this NetAdapterHost will proxy
+    * commands to.
+    * @param serverSock the ServerSocket for incoming connections
+    *
+    * @throws IOException if a network error occurs or the listen socket
+    * cannot be created on the specified port.
+    */
+   public NetAdapterHost(DSPortAdapter adapter, ServerSocket serverSock)
+      throws IOException
+   {
+<span class="nc" id="L248">      this(adapter, serverSock, false);</span>
+<span class="nc" id="L249">   }</span>
+
+   /**
+    * &lt;P&gt;Creates an (optionally multi-threaded) instance of a NetAdapterHost which
+    * wraps the provided adapter.  The host listens on the specified port.&lt;/P&gt;
+    *
+    * &lt;P&gt;Note that the secret used for authentication is the value specified
+    * in the onewire.properties file as &quot;NetAdapter.secret=mySecret&quot;.
+    * To set the secret to another value, use the
+    * &lt;code&gt;setSecret(String)&lt;/code&gt; method.&lt;/P&gt;
+    *
+    * @param adapter DSPortAdapter that this NetAdapterHost will proxy
+    * commands to.
+    * @param serverSock the ServerSocket for incoming connections
+    * @param multiThread if true, multiple TCP/IP connections are allowed
+    * to interact simulataneously with this adapter.
+    *
+    * @throws IOException if a network error occurs or the listen socket
+    * cannot be created on the specified port.
+    */
+   public NetAdapterHost(DSPortAdapter adapter, ServerSocket serverSock,
+                         boolean multiThread)
+      throws IOException
+<span class="nc" id="L272">   {</span>
+      //save reference to adapter
+<span class="nc" id="L274">      this.adapter = adapter;</span>
+
+      // create the server socket
+<span class="nc" id="L277">      this.serverSocket = serverSock;</span>
+
+      // set multithreaded flag
+<span class="nc bnc" id="L280" title="All 2 branches missed.">      this.singleThreaded = !multiThread;</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">      if(multiThread)</span>
+      {
+<span class="nc" id="L283">         this.hashHandlers = new Hashtable();</span>
+<span class="nc" id="L284">         this.timeoutInSeconds = 0;</span>
+      }
+
+      // get the shared secret
+<span class="nc" id="L288">      String secret = OneWireAccessProvider.getProperty(&quot;NetAdapter.secret&quot;);</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">      if(secret!=null)</span>
+<span class="nc" id="L290">         netAdapterSecret = secret.getBytes();</span>
+      else
+<span class="nc" id="L292">         netAdapterSecret = DEFAULT_SECRET.getBytes();</span>
+<span class="nc" id="L293">   }</span>
+
+   /**
+    * Sets the secret used for authenticating incoming client connections.
+    *
+    * @param secret The shared secret information used for authenticating
+    *               incoming client connections.
+    */
+   public void setSecret(String secret)
+   {
+<span class="nc" id="L303">      netAdapterSecret = secret.getBytes();</span>
+<span class="nc" id="L304">   }</span>
+
+   /**
+    * Creates a Multicast Listener to allow NetAdapter clients to discover
+    * this NetAdapterHost automatically.  Uses defaults for Multicast group
+    * and port.
+    */
+   public void createMulticastListener()
+      throws IOException,UnknownHostException
+   {
+<span class="nc" id="L314">      createMulticastListener(DEFAULT_MULTICAST_PORT);</span>
+<span class="nc" id="L315">   }</span>
+
+   /**
+    * Creates a Multicast Listener to allow NetAdapter clients to discover
+    * this NetAdapterHost automatically.  Uses default for Multicast group.
+    *
+    * @param port The port the Multicast socket will receive packets on
+    */
+   public void createMulticastListener(int port)
+      throws IOException,UnknownHostException
+   {
+<span class="nc" id="L326">      String group</span>
+<span class="nc" id="L327">         = OneWireAccessProvider.getProperty(&quot;NetAdapter.MulticastGroup&quot;);</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">      if(group==null)</span>
+<span class="nc" id="L329">         group = DEFAULT_MULTICAST_GROUP;</span>
+<span class="nc" id="L330">      createMulticastListener(port, group);</span>
+<span class="nc" id="L331">   }</span>
+
+   /**
+    * Creates a Multicast Listener to allow NetAdapter clients to discover
+    * this NetAdapterHost automatically.
+    *
+    * @param port The port the Multicast socket will receive packets on
+    * @param group The group the Multicast socket will join
+    */
+   public void createMulticastListener(int port, String group)
+      throws IOException,UnknownHostException
+   {
+<span class="nc bnc" id="L343" title="All 2 branches missed.">      if(multicastListener==null)</span>
+      {
+         // 4 bytes for integer versionUID
+<span class="nc" id="L346">         byte[] versionBytes = Convert.toByteArray(versionUID);</span>
+
+         // this byte array is 5 because length is used to determine different
+         // packet types by client
+<span class="nc" id="L350">         byte[] listenPortBytes = new byte[5];</span>
+<span class="nc" id="L351">         Convert.toByteArray(serverSocket.getLocalPort(),</span>
+                             listenPortBytes, 0, 4);
+<span class="nc" id="L353">         listenPortBytes[4] = (byte)0x0FF;</span>
+
+<span class="nc" id="L355">         multicastListener = new MulticastListener(port, group,</span>
+                                           versionBytes, listenPortBytes);
+<span class="nc" id="L357">         (new Thread(multicastListener)).start();</span>
+      }
+<span class="nc" id="L359">   }</span>
+
+
+   /**
+    * Run method for threaded NetAdapterHost.  Maintains server socket which
+    * waits for incoming connections.  Whenever a connection is received
+    * launches it services the socket or (optionally) launches a new thread
+    * for servicing the socket.
+    */
+   public void run()
+   {
+<span class="nc" id="L370">      hostRunning = true;</span>
+<span class="nc bnc" id="L371" title="All 2 branches missed.">      while(!hostStopped)</span>
+      {
+<span class="nc" id="L373">         Socket sock = null;</span>
+         try
+         {
+<span class="nc" id="L376">            sock = serverSocket.accept();</span>
+<span class="nc" id="L377">            handleConnection(sock);</span>
+         }
+<span class="nc" id="L379">         catch(IOException ioe1)</span>
+         {
+            try
+            {
+<span class="nc bnc" id="L383" title="All 2 branches missed.">               if(sock!=null)</span>
+<span class="nc" id="L384">                  sock.close();</span>
+            }
+<span class="nc" id="L386">            catch(IOException ioe2)</span>
+<span class="nc" id="L387">            {;}</span>
+<span class="nc" id="L388">         }</span>
+<span class="nc" id="L389">      }</span>
+<span class="nc" id="L390">      hostRunning = false;</span>
+<span class="nc" id="L391">   }</span>
+
+   /**
+    * Handles a socket connection.  If single-threaded, the connection is
+    * serviced in the current thread.  If multi-threaded, a new thread is
+    * created for servicing this connection.
+    */
+   public void handleConnection(Socket sock)
+       throws IOException
+   {
+<span class="nc" id="L401">      SocketHandler sh = new SocketHandler(sock);</span>
+<span class="nc bnc" id="L402" title="All 2 branches missed.">      if(singleThreaded)</span>
+      {
+         // single-threaded
+<span class="nc" id="L405">         sh.run();</span>
+      }
+      else
+      {
+         // multi-threaded
+<span class="nc" id="L410">         Thread t = new Thread(sh);</span>
+<span class="nc" id="L411">         t.start();</span>
+<span class="nc" id="L412">         synchronized(hashHandlers)</span>
+         {
+<span class="nc" id="L414">            hashHandlers.put(t, sh);</span>
+<span class="nc" id="L415">         }</span>
+      }
+<span class="nc" id="L417">   }</span>
+   /**
+    * Stops all threads and kills the server socket.
+    */
+   public void stopHost()
+   {
+<span class="nc" id="L423">      this.hostStopped = true;</span>
+      try
+      {
+<span class="nc" id="L426">         this.serverSocket.close();</span>
+      }
+<span class="nc" id="L428">      catch(IOException ioe)</span>
+<span class="nc" id="L429">      {;}</span>
+
+      // wait for run method to quit, with a timeout of 1 second
+<span class="nc" id="L432">      int i = 0;</span>
+<span class="nc bnc" id="L433" title="All 4 branches missed.">      while(hostRunning &amp;&amp; i++&lt;100)</span>
+<span class="nc" id="L434">         try{Thread.sleep(10);}catch(Exception e){;}</span>
+
+<span class="nc bnc" id="L436" title="All 2 branches missed.">      if(!singleThreaded)</span>
+      {
+<span class="nc" id="L438">         synchronized(hashHandlers)</span>
+         {
+<span class="nc" id="L440">            Enumeration e = hashHandlers.elements();</span>
+<span class="nc bnc" id="L441" title="All 2 branches missed.">            while(e.hasMoreElements())</span>
+<span class="nc" id="L442">               ((SocketHandler)e.nextElement()).stopHandler();</span>
+<span class="nc" id="L443">         }</span>
+      }
+
+<span class="nc bnc" id="L446" title="All 2 branches missed.">      if(multicastListener!=null)</span>
+<span class="nc" id="L447">         multicastListener.stopListener();</span>
+
+      // ensure that there is no exclusive use of the adapter
+<span class="nc" id="L450">      adapter.endExclusive();</span>
+<span class="nc" id="L451">   }</span>
+
+   /**
+    * Transmits the versionUID of the current NetAdapter protocol to
+    * the client connection.  If it matches the clients versionUID,
+    * the client returns RET_SUCCESS.
+    *
+    * @param conn The connection to send/receive data.
+    * @return &lt;code&gt;true&lt;/code&gt; if the versionUID matched.
+    */
+   private boolean sendVersionUID(Connection conn)
+      throws IOException
+   {
+      // write server version
+<span class="nc" id="L465">      conn.output.writeInt(versionUID);</span>
+<span class="nc" id="L466">      conn.output.flush();</span>
+
+<span class="nc" id="L468">      byte retVal = conn.input.readByte();</span>
+
+<span class="nc bnc" id="L470" title="All 2 branches missed.">      return (retVal==RET_SUCCESS);</span>
+   }
+
+   /**
+    * Reads in command from client and calls the appropriate handler function.
+    *
+    * @param conn The connection to send/receive data.
+    *
+    */
+   private void processRequests(Connection conn)
+      throws IOException
+   {
+      //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+      if(DEBUG)
+         System.out.println(&quot;\n------------------------------------------&quot;);
+      //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+
+      // get the next command
+<span class="nc" id="L488">      byte cmd = 0x00;</span>
+
+<span class="nc" id="L490">      cmd = conn.input.readByte();</span>
+
+      //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+      if(DEBUG)
+         System.out.println(&quot;CMD received: &quot; + Integer.toHexString(cmd));
+      //\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\//\\
+
+      try
+      {
+         // ... and fire the appropriate method
+<span class="nc bnc" id="L500" title="All 36 branches missed.">         switch(cmd)</span>
+         {
+            /* Connection keep-alive and close commands */
+            case CMD_PINGCONNECTION:
+               // no-op, might update timer of some sort later
+<span class="nc" id="L505">               conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L506">               conn.output.flush();</span>
+<span class="nc" id="L507">               break;</span>
+            case CMD_CLOSECONNECTION:
+<span class="nc" id="L509">               close(conn);</span>
+<span class="nc" id="L510">               break;</span>
+            /* Raw Data commands */
+            case CMD_RESET:
+<span class="nc" id="L513">               adapterReset(conn);</span>
+<span class="nc" id="L514">               break;</span>
+            case CMD_PUTBIT:
+<span class="nc" id="L516">               adapterPutBit(conn);</span>
+<span class="nc" id="L517">               break;</span>
+            case CMD_PUTBYTE:
+<span class="nc" id="L519">               adapterPutByte(conn);</span>
+<span class="nc" id="L520">               break;</span>
+            case CMD_GETBIT:
+<span class="nc" id="L522">               adapterGetBit(conn);</span>
+<span class="nc" id="L523">               break;</span>
+            case CMD_GETBYTE:
+<span class="nc" id="L525">               adapterGetByte(conn);</span>
+<span class="nc" id="L526">               break;</span>
+            case CMD_GETBLOCK:
+<span class="nc" id="L528">               adapterGetBlock(conn);</span>
+<span class="nc" id="L529">               break;</span>
+            case CMD_DATABLOCK:
+<span class="nc" id="L531">               adapterDataBlock(conn);</span>
+<span class="nc" id="L532">               break;</span>
+            /* Power methods */
+            case CMD_SETPOWERDURATION:
+<span class="nc" id="L535">               adapterSetPowerDuration(conn);</span>
+<span class="nc" id="L536">               break;</span>
+            case CMD_STARTPOWERDELIVERY:
+<span class="nc" id="L538">               adapterStartPowerDelivery(conn);</span>
+<span class="nc" id="L539">               break;</span>
+            case CMD_SETPROGRAMPULSEDURATION:
+<span class="nc" id="L541">               adapterSetProgramPulseDuration(conn);</span>
+<span class="nc" id="L542">               break;</span>
+            case CMD_STARTPROGRAMPULSE:
+<span class="nc" id="L544">               adapterStartProgramPulse(conn);</span>
+<span class="nc" id="L545">               break;</span>
+            case CMD_STARTBREAK:
+<span class="nc" id="L547">               adapterStartBreak(conn);</span>
+<span class="nc" id="L548">               break;</span>
+            case CMD_SETPOWERNORMAL:
+<span class="nc" id="L550">               adapterSetPowerNormal(conn);</span>
+<span class="nc" id="L551">               break;</span>
+            /* Speed methods */
+            case CMD_SETSPEED:
+<span class="nc" id="L554">               adapterSetSpeed(conn);</span>
+<span class="nc" id="L555">               break;</span>
+            case CMD_GETSPEED:
+<span class="nc" id="L557">               adapterGetSpeed(conn);</span>
+<span class="nc" id="L558">               break;</span>
+            /* Network Semaphore methods */
+            case CMD_BEGINEXCLUSIVE:
+<span class="nc" id="L561">               adapterBeginExclusive(conn);</span>
+<span class="nc" id="L562">               break;</span>
+            case CMD_ENDEXCLUSIVE:
+<span class="nc" id="L564">               adapterEndExclusive(conn);</span>
+<span class="nc" id="L565">               break;</span>
+            /* Searching methods */
+            case CMD_FINDFIRSTDEVICE:
+<span class="nc" id="L568">               adapterFindFirstDevice(conn);</span>
+<span class="nc" id="L569">               break;</span>
+            case CMD_FINDNEXTDEVICE:
+<span class="nc" id="L571">               adapterFindNextDevice(conn);</span>
+<span class="nc" id="L572">               break;</span>
+            case CMD_GETADDRESS:
+<span class="nc" id="L574">               adapterGetAddress(conn);</span>
+<span class="nc" id="L575">               break;</span>
+            case CMD_SETSEARCHONLYALARMINGDEVICES:
+<span class="nc" id="L577">               adapterSetSearchOnlyAlarmingDevices(conn);</span>
+<span class="nc" id="L578">               break;</span>
+            case CMD_SETNORESETSEARCH:
+<span class="nc" id="L580">               adapterSetNoResetSearch(conn);</span>
+<span class="nc" id="L581">               break;</span>
+            case CMD_SETSEARCHALLDEVICES:
+<span class="nc" id="L583">               adapterSetSearchAllDevices(conn);</span>
+<span class="nc" id="L584">               break;</span>
+            case CMD_TARGETALLFAMILIES:
+<span class="nc" id="L586">               adapterTargetAllFamilies(conn);</span>
+<span class="nc" id="L587">               break;</span>
+            case CMD_TARGETFAMILY:
+<span class="nc" id="L589">               adapterTargetFamily(conn);</span>
+<span class="nc" id="L590">               break;</span>
+            case CMD_EXCLUDEFAMILY:
+<span class="nc" id="L592">               adapterExcludeFamily(conn);</span>
+<span class="nc" id="L593">               break;</span>
+            /* feature methods */
+            case CMD_CANBREAK:
+<span class="nc" id="L596">               adapterCanBreak(conn);</span>
+<span class="nc" id="L597">               break;</span>
+            case CMD_CANDELIVERPOWER:
+<span class="nc" id="L599">               adapterCanDeliverPower(conn);</span>
+<span class="nc" id="L600">               break;</span>
+            case CMD_CANDELIVERSMARTPOWER:
+<span class="nc" id="L602">               adapterCanDeliverSmartPower(conn);</span>
+<span class="nc" id="L603">               break;</span>
+            case CMD_CANFLEX:
+<span class="nc" id="L605">               adapterCanFlex(conn);</span>
+<span class="nc" id="L606">               break;</span>
+            case CMD_CANHYPERDRIVE:
+<span class="nc" id="L608">               adapterCanHyperdrive(conn);</span>
+<span class="nc" id="L609">               break;</span>
+            case CMD_CANOVERDRIVE:
+<span class="nc" id="L611">               adapterCanOverdrive(conn);</span>
+<span class="nc" id="L612">               break;</span>
+            case CMD_CANPROGRAM:
+<span class="nc" id="L614">               adapterCanProgram(conn);</span>
+<span class="nc" id="L615">               break;</span>
+            default:
+               //System.out.println(&quot;Unkown command: &quot; + cmd);
+               break;
+         }
+      }
+<span class="nc" id="L621">      catch(OneWireException owe)</span>
+      {
+<span class="nc" id="L623">         conn.output.writeByte(RET_FAILURE);</span>
+<span class="nc" id="L624">         conn.output.writeUTF(owe.toString());</span>
+<span class="nc" id="L625">         conn.output.flush();</span>
+<span class="nc" id="L626">      }</span>
+<span class="nc" id="L627">   }</span>
+
+   /**
+    * Closes the provided connection.
+    *
+    * @param conn The connection to send/receive data.
+    */
+   private void close(Connection conn)
+   {
+      try
+      {
+<span class="nc bnc" id="L638" title="All 2 branches missed.">         if(conn.sock!=null)</span>
+         {
+<span class="nc" id="L640">            conn.sock.close();</span>
+         }
+      }
+<span class="nc" id="L643">      catch(IOException ioe)</span>
+<span class="nc" id="L644">      { /*drain*/; }</span>
+
+<span class="nc" id="L646">      conn.sock = null;</span>
+<span class="nc" id="L647">      conn.input = null;</span>
+<span class="nc" id="L648">      conn.output = null;</span>
+
+      // ensure that there is no exclusive use of the adapter
+<span class="nc" id="L651">      adapter.endExclusive();</span>
+<span class="nc" id="L652">   }</span>
+
+   //--------
+   //-------- Finding iButton/1-Wire device options
+   //--------
+
+   private void adapterFindFirstDevice (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L661">      boolean b = adapter.findFirstDevice();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   findFirstDevice returned &quot; + b);
+      }
+
+<span class="nc" id="L668">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L669">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L670">      conn.output.flush();</span>
+<span class="nc" id="L671">   }</span>
+
+   private void adapterFindNextDevice (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L676">      boolean b = adapter.findNextDevice();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   findNextDevice returned &quot; + b);
+      }
+
+<span class="nc" id="L683">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L684">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L685">      conn.output.flush();</span>
+<span class="nc" id="L686">   }</span>
+
+   private void adapterGetAddress (Connection conn)
+      throws IOException
+   {
+      // read in the address
+<span class="nc" id="L692">      byte[] address = new byte[8];</span>
+      // call getAddress
+<span class="nc" id="L694">      adapter.getAddress(address);</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   adapter.getAddress(byte[]) called, speed=&quot; + adapter.getSpeed());
+      }
+
+<span class="nc" id="L701">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L702">      conn.output.write(address, 0, 8);</span>
+<span class="nc" id="L703">      conn.output.flush();</span>
+<span class="nc" id="L704">   }</span>
+
+   private void adapterSetSearchOnlyAlarmingDevices (Connection conn)
+      throws IOException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   setSearchOnlyAlarmingDevices called, speed=&quot; + adapter.getSpeed());
+      }
+
+<span class="nc" id="L714">      adapter.setSearchOnlyAlarmingDevices();</span>
+
+<span class="nc" id="L716">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L717">      conn.output.flush();</span>
+<span class="nc" id="L718">   }</span>
+
+   private void adapterSetNoResetSearch (Connection conn)
+      throws IOException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   setNoResetSearch called, speed=&quot; + adapter.getSpeed());
+      }
+
+<span class="nc" id="L728">      adapter.setNoResetSearch();</span>
+
+<span class="nc" id="L730">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L731">      conn.output.flush();</span>
+<span class="nc" id="L732">   }</span>
+
+   private void adapterSetSearchAllDevices (Connection conn)
+      throws IOException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   setSearchAllDevices called, speed=&quot; + adapter.getSpeed());
+      }
+
+<span class="nc" id="L742">      adapter.setSearchAllDevices();</span>
+
+<span class="nc" id="L744">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L745">      conn.output.flush();</span>
+<span class="nc" id="L746">   }</span>
+
+   private void adapterTargetAllFamilies (Connection conn)
+      throws IOException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   targetAllFamilies called, speed=&quot; + adapter.getSpeed());
+      }
+
+<span class="nc" id="L756">      adapter.targetAllFamilies();</span>
+
+<span class="nc" id="L758">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L759">      conn.output.flush();</span>
+<span class="nc" id="L760">   }</span>
+
+   private void adapterTargetFamily (Connection conn)
+      throws IOException
+   {
+      // get the number of family codes to expect
+<span class="nc" id="L766">      int len = conn.input.readInt();</span>
+      // get the family codes
+<span class="nc" id="L768">      byte[] family = new byte[len];</span>
+<span class="nc" id="L769">      conn.input.readFully(family, 0, len);</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   targetFamily called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      families: &quot; + Convert.toHexString(family));
+      }
+
+      // call targetFamily
+<span class="nc" id="L778">      adapter.targetFamily(family);</span>
+
+<span class="nc" id="L780">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L781">      conn.output.flush();</span>
+<span class="nc" id="L782">   }</span>
+
+   private void adapterExcludeFamily (Connection conn)
+      throws IOException
+   {
+      // get the number of family codes to expect
+<span class="nc" id="L788">      int len = conn.input.readInt();</span>
+      // get the family codes
+<span class="nc" id="L790">      byte[] family = new byte[len];</span>
+<span class="nc" id="L791">      conn.input.readFully(family, 0, len);</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   excludeFamily called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      families: &quot; + Convert.toHexString(family));
+      }
+
+      // call excludeFamily
+<span class="nc" id="L800">      adapter.excludeFamily(family);</span>
+
+<span class="nc" id="L802">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L803">      conn.output.flush();</span>
+<span class="nc" id="L804">   }</span>
+
+   //--------
+   //-------- 1-Wire Network Semaphore methods
+   //--------
+
+   private void adapterBeginExclusive(Connection conn)
+      throws IOException, OneWireException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   adapter.beginExclusive called, speed=&quot; + adapter.getSpeed());
+      }
+
+      // get blocking boolean
+<span class="nc" id="L819">      boolean blocking = conn.input.readBoolean();</span>
+      // call beginExclusive (don't forget to ignore the value read above)
+<span class="nc" id="L821">      adapter.beginExclusive();</span>
+
+<span class="nc" id="L823">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L824">      conn.output.writeBoolean(true);</span>
+<span class="nc" id="L825">      conn.output.flush();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;      adapter.beginExclusive returned &quot; + true);
+      }
+<span class="nc" id="L831">   }</span>
+
+   private void adapterEndExclusive(Connection conn)
+      throws IOException, OneWireException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   adapter.endExclusive called, speed=&quot; + adapter.getSpeed());
+      }
+
+      // call endExclusive
+<span class="nc" id="L842">      adapter.endExclusive();</span>
+
+<span class="nc" id="L844">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L845">      conn.output.flush();</span>
+<span class="nc" id="L846">   }</span>
+
+   //--------
+   //-------- Primitive 1-Wire Network data methods
+   //--------
+
+   private void adapterReset(Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L855">      int i = adapter.reset();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   reset, speed=&quot; + adapter.getSpeed() + &quot;, returned &quot; + i);
+      }
+
+<span class="nc" id="L862">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L863">      conn.output.writeInt(i);</span>
+<span class="nc" id="L864">      conn.output.flush();</span>
+<span class="nc" id="L865">   }</span>
+
+   private void adapterPutBit(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the value of the bit
+<span class="nc" id="L871">      boolean bit = conn.input.readBoolean();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   putBit called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      bit=&quot; + bit);
+      }
+
+<span class="nc" id="L879">      adapter.putBit(bit);</span>
+
+<span class="nc" id="L881">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L882">      conn.output.flush();</span>
+<span class="nc" id="L883">   }</span>
+
+   private void adapterPutByte(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the value of the byte
+<span class="nc" id="L889">      byte b = conn.input.readByte();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   putByte called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      byte=&quot; + Convert.toHexString(b));
+      }
+
+<span class="nc" id="L897">      adapter.putByte(b);</span>
+
+<span class="nc" id="L899">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L900">      conn.output.flush();</span>
+<span class="nc" id="L901">   }</span>
+
+   private void adapterGetBit(Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L906">      boolean bit = adapter.getBit();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   getBit called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      bit=&quot; + bit);
+      }
+
+<span class="nc" id="L914">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L915">      conn.output.writeBoolean(bit);</span>
+<span class="nc" id="L916">      conn.output.flush();</span>
+<span class="nc" id="L917">   }</span>
+
+   private void adapterGetByte(Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L922">      int b = adapter.getByte();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   getByte called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      byte=&quot; + Convert.toHexString((byte)b));
+      }
+
+<span class="nc" id="L930">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L931">      conn.output.writeByte(b);</span>
+<span class="nc" id="L932">      conn.output.flush();</span>
+<span class="nc" id="L933">   }</span>
+   private void adapterGetBlock(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the number requested
+<span class="nc" id="L938">      int len = conn.input.readInt();</span>
+      if(DEBUG)
+      {
+         System.out.println(&quot;   getBlock called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      len=&quot; + len);
+      }
+
+      // get the bytes
+<span class="nc" id="L946">      byte[] b = adapter.getBlock(len);</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;      returned: &quot; + Convert.toHexString(b));
+      }
+
+<span class="nc" id="L953">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L954">      conn.output.write(b, 0, len);</span>
+<span class="nc" id="L955">      conn.output.flush();</span>
+<span class="nc" id="L956">   }</span>
+
+   private void adapterDataBlock(Connection conn)
+      throws IOException, OneWireException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   DataBlock called, speed=&quot; + adapter.getSpeed());
+      }
+      // get the number to block
+<span class="nc" id="L966">      int len = conn.input.readInt();</span>
+      // get the bytes to block
+<span class="nc" id="L968">      byte[] b = new byte[len];</span>
+<span class="nc" id="L969">      conn.input.readFully(b, 0, len);</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;      &quot; + len + &quot; bytes&quot;);
+         System.out.println(&quot;      Send: &quot; + Convert.toHexString(b));
+      }
+
+      // do the block
+<span class="nc" id="L978">      adapter.dataBlock(b, 0, len);</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;      Recv: &quot; + Convert.toHexString(b));
+      }
+
+<span class="nc" id="L985">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L986">      conn.output.write(b, 0, len);</span>
+<span class="nc" id="L987">      conn.output.flush();</span>
+<span class="nc" id="L988">   }</span>
+
+   //--------
+   //-------- 1-Wire Network power methods
+   //--------
+
+   private void adapterSetPowerDuration(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the time factor value
+<span class="nc" id="L998">      int timeFactor = conn.input.readInt();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   setPowerDuration called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      timeFactor=&quot; + timeFactor);
+      }
+
+      // call setPowerDuration
+<span class="nc" id="L1007">      adapter.setPowerDuration(timeFactor);</span>
+
+<span class="nc" id="L1009">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1010">      conn.output.flush();</span>
+<span class="nc" id="L1011">   }</span>
+
+   private void adapterStartPowerDelivery(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the change condition value
+<span class="nc" id="L1017">      int changeCondition = conn.input.readInt();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   startPowerDelivery called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      changeCondition=&quot; + changeCondition);
+      }
+
+      // call startPowerDelivery
+<span class="nc" id="L1026">      boolean success = adapter.startPowerDelivery(changeCondition);</span>
+
+<span class="nc" id="L1028">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1029">      conn.output.writeBoolean(success);</span>
+<span class="nc" id="L1030">      conn.output.flush();</span>
+<span class="nc" id="L1031">   }</span>
+
+   private void adapterSetProgramPulseDuration(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the time factor value
+<span class="nc" id="L1037">      int timeFactor = conn.input.readInt();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   setProgramPulseDuration called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      timeFactor=&quot; + timeFactor);
+      }
+
+      // call setProgramPulseDuration
+<span class="nc" id="L1046">      adapter.setProgramPulseDuration(timeFactor);</span>
+
+<span class="nc" id="L1048">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1049">      conn.output.flush();</span>
+<span class="nc" id="L1050">   }</span>
+
+   private void adapterStartProgramPulse(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the change condition value
+<span class="nc" id="L1056">      int changeCondition = conn.input.readInt();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   startProgramPulse called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      changeCondition=&quot; + changeCondition);
+      }
+
+      // call startProgramPulse();
+<span class="nc" id="L1065">      boolean success = adapter.startProgramPulse(changeCondition);</span>
+
+<span class="nc" id="L1067">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1068">      conn.output.writeBoolean(success);</span>
+<span class="nc" id="L1069">      conn.output.flush();</span>
+<span class="nc" id="L1070">   }</span>
+
+   private void adapterStartBreak(Connection conn)
+      throws IOException, OneWireException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   startBreak called, speed=&quot; + adapter.getSpeed());
+      }
+
+      // call startBreak();
+<span class="nc" id="L1081">      adapter.startBreak();</span>
+
+<span class="nc" id="L1083">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1084">      conn.output.flush();</span>
+<span class="nc" id="L1085">   }</span>
+
+   private void adapterSetPowerNormal(Connection conn)
+      throws IOException, OneWireException
+   {
+      if(DEBUG)
+      {
+         System.out.println(&quot;   setPowerNormal called, speed=&quot; + adapter.getSpeed());
+      }
+
+      // call setPowerNormal
+<span class="nc" id="L1096">      adapter.setPowerNormal();</span>
+
+<span class="nc" id="L1098">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1099">      conn.output.flush();</span>
+<span class="nc" id="L1100">   }</span>
+
+   //--------
+   //-------- 1-Wire Network speed methods
+   //--------
+
+   private void adapterSetSpeed(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the value of the new speed
+<span class="nc" id="L1110">      int speed = conn.input.readInt();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   setSpeed called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      speed=&quot; + speed);
+      }
+
+      // do the setSpeed
+<span class="nc" id="L1119">      adapter.setSpeed(speed);</span>
+
+<span class="nc" id="L1121">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1122">      conn.output.flush();</span>
+<span class="nc" id="L1123">   }</span>
+
+   private void adapterGetSpeed(Connection conn)
+      throws IOException, OneWireException
+   {
+      // get the adapter speed
+<span class="nc" id="L1129">      int speed = adapter.getSpeed();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   getSpeed called, speed=&quot; + adapter.getSpeed());
+         System.out.println(&quot;      speed=&quot; + speed);
+      }
+
+<span class="nc" id="L1137">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1138">      conn.output.writeInt(speed);</span>
+<span class="nc" id="L1139">      conn.output.flush();</span>
+<span class="nc" id="L1140">   }</span>
+
+
+   //--------
+   //-------- Adapter feature methods
+   //--------
+
+   private void adapterCanOverdrive (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L1150">      boolean b = adapter.canOverdrive();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   canOverdrive returned &quot; + b);
+      }
+
+<span class="nc" id="L1157">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1158">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L1159">      conn.output.flush();</span>
+<span class="nc" id="L1160">   }</span>
+
+   private void adapterCanHyperdrive (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L1165">      boolean b = adapter.canHyperdrive();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   canHyperDrive returned &quot; + b);
+      }
+
+<span class="nc" id="L1172">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1173">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L1174">      conn.output.flush();</span>
+<span class="nc" id="L1175">   }</span>
+
+   private void adapterCanFlex (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L1180">      boolean b = adapter.canFlex();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   canFlex returned &quot; + b);
+      }
+
+<span class="nc" id="L1187">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1188">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L1189">      conn.output.flush();</span>
+<span class="nc" id="L1190">   }</span>
+
+   private void adapterCanProgram (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L1195">      boolean b = adapter.canProgram();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   canProgram returned &quot; + b);
+      }
+
+<span class="nc" id="L1202">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1203">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L1204">      conn.output.flush();</span>
+<span class="nc" id="L1205">   }</span>
+
+   private void adapterCanDeliverPower (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L1210">      boolean b = adapter.canDeliverPower();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   canDeliverPower returned &quot; + b);
+      }
+
+<span class="nc" id="L1217">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1218">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L1219">      conn.output.flush();</span>
+<span class="nc" id="L1220">   }</span>
+
+   private void adapterCanDeliverSmartPower (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L1225">      boolean b = adapter.canDeliverSmartPower();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   canDeliverSmartPower returned &quot; + b);
+      }
+
+<span class="nc" id="L1232">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1233">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L1234">      conn.output.flush();</span>
+<span class="nc" id="L1235">   }</span>
+
+   private void adapterCanBreak (Connection conn)
+      throws IOException, OneWireException
+   {
+<span class="nc" id="L1240">      boolean b = adapter.canBreak();</span>
+
+      if(DEBUG)
+      {
+         System.out.println(&quot;   canBreak returned &quot; + b);
+      }
+
+<span class="nc" id="L1247">      conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1248">      conn.output.writeBoolean(b);</span>
+<span class="nc" id="L1249">      conn.output.flush();</span>
+<span class="nc" id="L1250">   }</span>
+
+   //--------
+   //-------- Inner classes
+   //--------
+
+   /**
+    * Private inner class for servicing new connections.
+    * Can be run in it's own thread or in the same thread.
+    */
+   private class SocketHandler implements Runnable
+   {
+      /**
+       * The connection that is being serviced.
+       */
+      private Connection conn;
+
+      /**
+       * indicates whether or not the handler is currently running
+       */
+<span class="nc" id="L1270">      private volatile boolean handlerRunning = false;</span>
+
+      /**
+       * Constructor for socket servicer.  Creates the input and output
+       * streams and send's the version of this host to the client
+       * connection.
+       */
+      public SocketHandler(Socket sock)
+         throws IOException
+<span class="nc" id="L1279">      {</span>
+         // set socket timeout to 10 seconds
+<span class="nc" id="L1281">         sock.setSoTimeout(timeoutInSeconds*1000);</span>
+
+         // create the connection object
+<span class="nc" id="L1284">         conn = new Connection();</span>
+<span class="nc" id="L1285">         conn.sock = sock;</span>
+<span class="nc" id="L1286">         conn.input = new DataInputStream(conn.sock.getInputStream());</span>
+         if(BUFFERED_OUTPUT)
+         {
+<span class="nc" id="L1289">            conn.output = new DataOutputStream(new BufferedOutputStream(</span>
+<span class="nc" id="L1290">                                                 conn.sock.getOutputStream()));</span>
+         }
+         else
+         {
+            conn.output = new DataOutputStream(conn.sock.getOutputStream());
+         }
+
+         // first thing transmitted should be version info
+<span class="nc bnc" id="L1298" title="All 2 branches missed.">         if(!sendVersionUID(conn))</span>
+         {
+<span class="nc" id="L1300">            throw new IOException(&quot;send version failed&quot;);</span>
+         }
+
+         // authenticate the client
+<span class="nc" id="L1304">         byte[] chlg = new byte[8];</span>
+<span class="nc" id="L1305">         rand.nextBytes(chlg);</span>
+<span class="nc" id="L1306">         conn.output.write(chlg);</span>
+<span class="nc" id="L1307">         conn.output.flush();</span>
+
+         // compute the crc of the secret and the challenge
+<span class="nc" id="L1310">         int crc = CRC16.compute(netAdapterSecret, 0);</span>
+<span class="nc" id="L1311">         crc = CRC16.compute(chlg, crc);</span>
+<span class="nc" id="L1312">         int answer = conn.input.readInt();</span>
+<span class="nc bnc" id="L1313" title="All 2 branches missed.">         if(answer!=crc)</span>
+         {
+<span class="nc" id="L1315">            conn.output.writeByte(RET_FAILURE);</span>
+<span class="nc" id="L1316">            conn.output.writeUTF(&quot;Client Authentication Failed&quot;);</span>
+<span class="nc" id="L1317">            conn.output.flush();</span>
+<span class="nc" id="L1318">            throw new IOException(&quot;authentication failed&quot;);</span>
+         }
+         else
+         {
+<span class="nc" id="L1322">            conn.output.writeByte(RET_SUCCESS);</span>
+<span class="nc" id="L1323">            conn.output.flush();</span>
+         }
+<span class="nc" id="L1325">      }</span>
+
+      /**
+       * Run method for socket Servicer.
+       */
+      public void run()
+      {
+<span class="nc" id="L1332">         handlerRunning = true;</span>
+         try
+         {
+<span class="nc bnc" id="L1335" title="All 4 branches missed.">            while(!hostStopped &amp;&amp; conn.sock!=null)</span>
+            {
+<span class="nc" id="L1337">               processRequests(conn);</span>
+            }
+         }
+<span class="nc" id="L1340">         catch(Throwable t)</span>
+         {
+            if(DEBUG)
+               t.printStackTrace();
+<span class="nc" id="L1344">            close(conn);</span>
+<span class="nc" id="L1345">         }</span>
+<span class="nc" id="L1346">         handlerRunning = false;</span>
+
+<span class="nc bnc" id="L1348" title="All 4 branches missed.">         if(!hostStopped &amp;&amp; !singleThreaded)</span>
+         {
+<span class="nc" id="L1350">            synchronized(hashHandlers)</span>
+            {
+               // thread finished running without being stopped.
+               // politely remove it from the hashtable.
+<span class="nc" id="L1354">               hashHandlers.remove(Thread.currentThread());</span>
+<span class="nc" id="L1355">            }</span>
+         }
+<span class="nc" id="L1357">      }</span>
+
+      /**
+       * Waits for handler to finish, with a timeout.
+       */
+        public void stopHandler() {
+<span class="nc" id="L1363">            int i = 0;</span>
+<span class="nc" id="L1364">            int timeout = 3000;</span>
+<span class="nc bnc" id="L1365" title="All 4 branches missed.">            while (handlerRunning &amp;&amp; i++ &lt; timeout)</span>
+                try {
+<span class="nc" id="L1367">                    Thread.sleep(10);</span>
+<span class="nc" id="L1368">                } catch (Exception ex) {</span>
+<span class="nc" id="L1369">                    LogManager.getLogger(getClass()).warn(&quot;Oops&quot;, ex);</span>
+<span class="nc" id="L1370">                }</span>
+<span class="nc" id="L1371">        }</span>
+   }
+
+   //--------
+   //-------- Default Main Method, for launching server with defaults
+   //--------
+   /**
+    * A Default Main Method, for launching NetAdapterHost getting the
+    * default adapter with the OneWireAccessProvider and listening on
+    * the default port specified by DEFAULT_PORT.
+    */
+   public static void main(String[] args)
+      throws Exception
+   {
+      DSPortAdapter adapter
+<span class="nc" id="L1386">         = com.dalsemi.onewire.OneWireAccessProvider.getDefaultAdapter();</span>
+
+<span class="nc" id="L1388">      NetAdapterHost host = new NetAdapterHost(adapter, true);</span>
+
+<span class="nc" id="L1390">      System.out.println(&quot;Starting Multicast Listener&quot;);</span>
+<span class="nc" id="L1391">      host.createMulticastListener();</span>
+
+<span class="nc" id="L1393">      System.out.println(&quot;Starting NetAdapter Host&quot;);</span>
+<span class="nc" id="L1394">      (new Thread(host)).start();</span>
+
+      //if(System.in!=null)
+      //{
+      //   System.out.println(&quot;\nPress Enter to Shutdown&quot;);
+      //   (new BufferedReader(new InputStreamReader(System.in))).readLine();
+      //   host.stopHost();
+      //   System.exit(1);
+      //}
+<span class="nc" id="L1403">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

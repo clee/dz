@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+<meta http-equiv="x-ua-compatible" content="IE=edge"/>
+<title>Test results - Class net.sf.dz3.device.actuator.impl.FanPanelMapTest</title>
+<link href="../css/base-style.css" rel="stylesheet" type="text/css"/>
+<link href="../css/style.css" rel="stylesheet" type="text/css"/>
+<script src="../js/report.js" type="text/javascript"></script>
+</head>
+<body>
+<div id="content">
+<h1>Class net.sf.dz3.device.actuator.impl.FanPanelMapTest</h1>
+<div class="breadcrumbs">
+<a href="../index.html">all</a> &gt; 
+<a href="../packages/net.sf.dz3.device.actuator.impl.html">net.sf.dz3.device.actuator.impl</a> &gt; FanPanelMapTest</div>
+<div id="summary">
+<table>
+<tr>
+<td>
+<div class="summaryGroup">
+<table>
+<tr>
+<td>
+<div class="infoBox" id="tests">
+<div class="counter">10</div>
+<p>tests</p>
+</div>
+</td>
+<td>
+<div class="infoBox" id="failures">
+<div class="counter">0</div>
+<p>failures</p>
+</div>
+</td>
+<td>
+<div class="infoBox" id="ignored">
+<div class="counter">0</div>
+<p>ignored</p>
+</div>
+</td>
+<td>
+<div class="infoBox" id="duration">
+<div class="counter">0.029s</div>
+<p>duration</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</td>
+<td>
+<div class="infoBox success" id="successRate">
+<div class="percent">100%</div>
+<p>successful</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div id="tabs">
+<ul class="tabLinks">
+<li>
+<a href="#tab0">Tests</a>
+</li>
+<li>
+<a href="#tab1">Standard output</a>
+</li>
+</ul>
+<div id="tab0" class="tab">
+<h2>Tests</h2>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Duration</th>
+<th>Result</th>
+</tr>
+</thead>
+<tr>
+<td class="success">demandMap1</td>
+<td class="success">0.001s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMap3</td>
+<td class="success">0.003s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMapDoubleNegative</td>
+<td class="success">0.002s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMapNarrow</td>
+<td class="success">0.004s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMapNegative</td>
+<td class="success">0.002s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMapSingle</td>
+<td class="success">0.001s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMapSwitch1</td>
+<td class="success">0.002s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMapSwitch2</td>
+<td class="success">0.012s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">demandMapWide</td>
+<td class="success">0.002s</td>
+<td class="success">passed</td>
+</tr>
+<tr>
+<td class="success">emptyDemandMap</td>
+<td class="success">0s</td>
+<td class="success">passed</td>
+</tr>
+</table>
+</div>
+<div id="tab1" class="tab">
+<h2>Standard output</h2>
+<span class="code">
+<pre>?[32m23:53:14,425 INFO DataBroadcaster Test worker [demandMapSwitch1] Async: 'null'
+?[m?[32m23:53:14,426 INFO DataBroadcaster Test worker [demandMapSwitch1] Async: 'null'
+?[m?[36m23:53:14,426 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch1, execute/0.0] 0: 0.0 &gt; 0.0 = false
+?[m?[36m23:53:14,426 DEBUG AbstractSwitch Test worker [demandMapSwitch1, execute/0.0, setState/delay, setState] 0: false
+?[m?[36m23:53:14,427 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch1, execute/1.0] 0: 1.0 &gt; 0.0 = true
+?[m?[36m23:53:14,427 DEBUG AbstractSwitch Test worker [demandMapSwitch1, execute/1.0, setState/delay, setState] 0: true
+?[m?[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+?[m?[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+?[m?[32m23:53:14,428 INFO FanPanelMapTest Test worker [demandMapSwitch2] map: {0.0={net.sf.dz3.device.sensor.impl.NullSwitch, address=0, state=false}, 1.0={net.sf.dz3.device.sensor.impl.NullSwitch, address=1, state=false}}
+?[m?[32m23:53:14,428 INFO DataBroadcaster Test worker [demandMapSwitch2] Async: 'null'
+?[m?[36m23:53:14,429 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.0] 0: 0.0 &gt; 0.0 = false
+?[m?[36m23:53:14,429 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.0, setState/delay, setState] 0: false
+?[m?[36m23:53:14,429 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.0] 1: 0.0 &gt; 1.0 = false
+?[m?[36m23:53:14,430 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.0, setState/delay, setState] 1: false
+?[m?[36m23:53:14,430 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.5] 0: 0.5 &gt; 0.0 = true
+?[m?[36m23:53:14,430 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.5, setState/delay, setState] 0: true
+?[m?[36m23:53:14,431 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/0.5] 1: 0.5 &gt; 1.0 = false
+?[m?[36m23:53:14,431 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/0.5, setState/delay, setState] 1: false
+?[m?[36m23:53:14,432 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/1.0] 0: 1.0 &gt; 0.0 = true
+?[m?[36m23:53:14,432 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/1.0, setState/delay, setState] 0: true
+?[m?[36m23:53:14,433 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/1.0] 1: 1.0 &gt; 1.0 = true
+?[m?[36m23:53:14,433 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/1.0, setState/delay, setState] 1: true
+?[m?[36m23:53:14,439 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/2.0] 0: 2.0 &gt; 0.0 = true
+?[m?[36m23:53:14,439 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/2.0, setState/delay, setState] 0: true
+?[m?[36m23:53:14,439 DEBUG AbstractHvacUnit2020 Test worker [demandMapSwitch2, execute/2.0] 1: 2.0 &gt; 1.0 = true
+?[m?[36m23:53:14,440 DEBUG AbstractSwitch Test worker [demandMapSwitch2, execute/2.0, setState/delay, setState] 1: true
+?[m?[32m23:53:14,440 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,440 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,445 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,447 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,448 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,448 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,449 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,451 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,452 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,453 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,454 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,455 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m?[32m23:53:14,456 INFO DataBroadcaster Test worker [] Async: 'null'
+?[m</pre>
+</span>
+</div>
+</div>
+<div id="footer">
+<p>
+<div>
+<label class="hidden" id="label-for-line-wrapping-toggle" for="line-wrapping-toggle">Wrap lines
+<input id="line-wrapping-toggle" type="checkbox" autocomplete="off"/>
+</label>
+</div>Generated by 
+<a href="http://www.gradle.org">Gradle 6.3</a> at May 22, 2020, 11:53:14 PM</p>
+</div>
+</div>
+</body>
+</html>

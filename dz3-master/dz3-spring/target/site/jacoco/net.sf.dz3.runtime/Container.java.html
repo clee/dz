@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Container.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Runtime container using Spring Framework</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.runtime</a> &gt; <span class="el_source">Container.java</span></div><h1>Container.java</h1><pre class="source lang-java linenums">package net.sf.dz3.runtime;
+
+import net.sf.dz3.device.model.DamperController;
+import net.sf.dz3.instrumentation.Marker;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+import org.springframework.beans.factory.BeanDefinitionStoreException;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.support.AbstractApplicationContext;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+/**
+ * Entry point into DZ Core.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2009-2018
+ */
+<span class="nc" id="L20">public class Container {</span>
+
+    /**
+     * Logger to use.
+     */
+<span class="nc" id="L25">    private static Logger logger = LogManager.getLogger(Container.class);</span>
+
+    /**
+     * Name of the configuration file embedded into the jar file.
+     */
+    public static final String CF_EMBEDDED = &quot;spring-config.xml&quot;;
+    
+    /**
+     * Name of the file this class expects to find the configuration in.
+     * 
+     * Must be on the root of the classpath.
+     */
+    public static final String CF_LOCAL = &quot;spring-config-local.xml&quot;;
+    
+    private ApplicationContext applicationContext;
+
+    /**
+     * @param args None expected.
+     */
+    public static void main(String[] args) {
+        
+<span class="nc" id="L46">        new Container().run(args);</span>
+<span class="nc" id="L47">    }</span>
+
+    /**
+     * Run the system.
+     */
+    public void run(String[] args) {
+
+<span class="nc" id="L54">        ThreadContext.push(&quot;run&quot;);</span>
+
+        try {
+
+<span class="nc" id="L58">            loadSampleConfiguration();</span>
+            
+<span class="nc bnc" id="L60" title="All 2 branches missed.">            if (args.length == 0) {</span>
+<span class="nc" id="L61">                loadConfiguration(CF_LOCAL);</span>
+            } else {
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                for (int offset = 0; offset &lt; args.length; offset++) {</span>
+<span class="nc" id="L64">                    loadConfiguration(args[offset]);</span>
+                }
+            }
+            
+<span class="nc" id="L68">            logger.info(&quot;Sleeping until killed&quot;);</span>
+            
+            while (true) {
+<span class="nc" id="L71">                Thread.sleep(10000);</span>
+            }
+
+<span class="nc" id="L74">        } catch (Throwable t) {</span>
+<span class="nc" id="L75">            logger.fatal(&quot;Unexpected exception: &quot;, t);</span>
+        } finally {
+            
+<span class="nc" id="L78">            logger.fatal(&quot;Shutting down&quot;);</span>
+<span class="nc" id="L79">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L81">    }</span>
+
+    /**
+     * Load the configuration already present in the jar file.
+     * 
+     * With some luck, all objects instantiated here will be garbage collected
+     * pretty soon and won't matter.
+     * 
+     * If this bothers you, remove the method invocation and recompile.
+     * 
+     * @see #CF_EMBEDDED
+     */
+    private void loadSampleConfiguration() {
+
+<span class="nc" id="L95">        ThreadContext.push(&quot;loadSampleConfiguration&quot;);</span>
+        
+        try {
+            
+            // We don't need it for anything other than loading a sample,
+            // hence local scope.
+<span class="nc" id="L101">            ApplicationContext applicationContext = new ClassPathXmlApplicationContext(new String[] { CF_EMBEDDED });</span>
+
+            // This class is the root of the instantiation hierarchy -
+            // if it can be instantiated, then everything else is fine
+            @SuppressWarnings(&quot;unused&quot;)
+<span class="nc" id="L106">            DamperController dc = (DamperController) applicationContext.getBean(&quot;damper_controller-sample1&quot;);</span>
+
+<span class="nc" id="L108">        } catch (NoSuchBeanDefinitionException ex) {</span>
+
+<span class="nc" id="L110">            logger.debug(&quot;Oh, they found and deleted the sample configuration! Good.&quot;);</span>
+            
+        } finally {
+<span class="nc" id="L113">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L115">    }</span>
+
+    /**
+     * Load the user supplied configuration.
+     * 
+     * This will be the configuration actually used to run the system.
+     * 
+     * @see #CF_LOCAL
+     */
+    private void loadConfiguration(String file) {
+
+<span class="nc" id="L126">        ThreadContext.push(&quot;loadConfiguration(&quot; + file + &quot;)&quot;);</span>
+<span class="nc" id="L127">        Marker m = new Marker(&quot;loadConfiguration(&quot; + file + &quot;)&quot;);</span>
+
+        try {
+            
+<span class="nc" id="L131">            applicationContext = new ClassPathXmlApplicationContext(new String[] { file });</span>
+
+<span class="nc" id="L133">            ((AbstractApplicationContext) applicationContext).registerShutdownHook();</span>
+            
+<span class="nc" id="L135">        } catch (BeanDefinitionStoreException ex) {</span>
+            
+<span class="nc" id="L137">            logger.error(&quot;Failed to load &quot; + file, ex);</span>
+            
+        } finally {
+            
+<span class="nc" id="L141">            m.close();</span>
+<span class="nc" id="L142">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L144">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

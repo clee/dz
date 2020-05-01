@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireState.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">OneWireState.java</span></div><h1>OneWireState.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+/**
+ * 1-Wire Network State contains the current 1-Wire Network state information
+ *
+ * @version    0.00, 28 Aug 2000
+ * @author     DS
+ */
+class OneWireState
+{
+
+   //--------
+   //-------- Variables
+   //--------
+
+   /**
+    * This is the current logical speed that the 1-Wire Network is operating at. &lt;p&gt;
+    * The valid values for this are:
+    * &lt;ul&gt;
+    * &lt;li&gt; SPEED_REGULAR
+    * &lt;li&gt; SPEED_FLEX
+    * &lt;li&gt; SPEED_OVERDRIVE
+    * &lt;li&gt; SPEED_HYPERDRIVE
+    * &lt;/ul&gt;
+    */
+   public char oneWireSpeed;
+
+   /**
+    * This is the current logical 1-Wire Network pullup level.&lt;p&gt;
+    * The valid values are:
+    * &lt;ul&gt;
+    * &lt;li&gt; LEVEL_NORMAL
+    * &lt;li&gt; LEVEL_POWER_DELIVERY
+    * &lt;li&gt; LEVEL_BREAK
+    * &lt;li&gt; LEVEL_PROGRAM
+    * &lt;/ul&gt;
+    */
+   public char oneWireLevel;
+
+   /**
+    * True if programming voltage is available
+    */
+   public boolean canProgram;
+
+   /**
+    * True if a level change is primed to occur on the next bit
+    * of communication.
+    */
+   public boolean levelChangeOnNextBit;
+
+   /**
+    * True if a level change is primed to occur on the next byte
+    * of communication.
+    */
+   public boolean levelChangeOnNextByte;
+
+   /**
+    * The new level value that is primed to change on the next bit
+    * or byte depending on the flags, levelChangeOnNextBit and
+    * levelChangeOnNextByte. &lt;p&gt;
+    * The valid values are:
+    * &lt;ul&gt;
+    * &lt;li&gt; LEVEL_NORMAL
+    * &lt;li&gt; LEVEL_STRONGPULLUP
+    * &lt;li&gt; LEVEL_BREAK
+    * &lt;li&gt; LEVEL_PROGRAM
+    * &lt;/ul&gt;
+    */
+   public char primedLevelValue;
+
+   /**
+    * The amount of time that the 'level' value will be on for. &lt;p&gt;
+    * The valid values are:
+    * &lt;ul&gt;
+    * &lt;li&gt;   0 (DELIVERY_HALF_SECOND) provide power for 1/2 second.
+    * &lt;li&gt;   1 (DELIVERY_ONE_SECOND) provide power for 1 second.
+    * &lt;li&gt;   2 (DELIVERY_TWO_SECONDS) provide power for 2 seconds.
+    * &lt;li&gt;   3 (DELIVERY_FOUR_SECONDS) provide power for 4 seconds.
+    * &lt;li&gt;   4 (DELIVERY_SMART_DONE) provide power until the
+    *          the device is no longer drawing significant power.
+    * &lt;li&gt;   5 (DELIVERY_INFINITE) provide power until the
+    *          setBusNormal() method is called.
+    * &lt;/ul&gt;
+    */
+   public int levelTimeFactor;
+
+   /**
+    * Value of the last discrepancy during the last search for an iButton.
+    */
+   public int searchLastDiscrepancy;
+
+   /**
+    * Value of the last discrepancy in the family code during the last
+    * search for an iButton.
+    */
+   public int searchFamilyLastDiscrepancy;
+
+   /**
+    * Flag to indicate that the last device found is the last device in a
+    * search sequence on the 1-Wire Network.
+    */
+   public boolean searchLastDevice;
+
+   /**
+    * ID number of the current iButton found.
+    */
+   public final byte[] ID;
+
+   /**
+    * Array of iButton families to include in any search.
+    */
+   public byte[] searchIncludeFamilies;
+
+   /**
+    * Array of iButton families to exclude in any search.
+    */
+   public byte[] searchExcludeFamilies;
+
+   /**
+    * Flag to indicate the conditional search is to be performed so that
+    * only iButtons in an alarm state will be found.
+    */
+   public boolean searchOnlyAlarmingButtons;
+
+   /**
+    * Flag to indicate next search will not be preceeded by a 1-Wire reset
+    */
+   public boolean skipResetOnSearch;
+
+   //--------
+   //-------- Constructors
+   //--------
+
+   /**
+    * Construct the initial state of the 1-Wire Network.
+    */
+   public OneWireState ()
+<span class="nc" id="L166">   {</span>
+
+      // speed, level
+<span class="nc" id="L169">      oneWireSpeed = DSPortAdapter.SPEED_REGULAR;</span>
+<span class="nc" id="L170">      oneWireLevel = DSPortAdapter.LEVEL_NORMAL;</span>
+
+      // level primed
+<span class="nc" id="L173">      levelChangeOnNextBit  = false;</span>
+<span class="nc" id="L174">      levelChangeOnNextByte = false;</span>
+<span class="nc" id="L175">      primedLevelValue      = DSPortAdapter.LEVEL_NORMAL;</span>
+<span class="nc" id="L176">      levelTimeFactor       = DSPortAdapter.DELIVERY_INFINITE;</span>
+
+      // adapter abilities
+<span class="nc" id="L179">      canProgram = false;</span>
+
+      // search options 
+<span class="nc" id="L182">      searchIncludeFamilies     = new byte [0];</span>
+<span class="nc" id="L183">      searchExcludeFamilies     = new byte [0];</span>
+<span class="nc" id="L184">      searchOnlyAlarmingButtons = false;</span>
+<span class="nc" id="L185">      skipResetOnSearch         = false;</span>
+
+      // new iButton object
+<span class="nc" id="L188">      ID = new byte [8];</span>
+
+      // search state
+<span class="nc" id="L191">      searchLastDiscrepancy       = 0;</span>
+<span class="nc" id="L192">      searchFamilyLastDiscrepancy = 0;</span>
+<span class="nc" id="L193">      searchLastDevice            = false;</span>
+<span class="nc" id="L194">   }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

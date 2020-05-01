@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ThermostatFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing.thermostat</a> &gt; <span class="el_source">ThermostatFactory.java</span></div><h1>ThermostatFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing.thermostat;
+
+import java.util.Map;
+
+import javax.swing.JComponent;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.impl.ThermostatModel;
+import net.sf.dz3.scheduler.Scheduler;
+import net.sf.dz3.view.swing.ComponentFactory;
+import net.sf.dz3.view.swing.ScreenDescriptor;
+import net.sf.dz3.view.swing.TemperatureUnit;
+
+/**
+ * Factory to create a panel to represent a {@link ThermostatModel}.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class ThermostatFactory extends ComponentFactory {
+
+    private final TemperatureUnit defaultUnit;
+
+<span class="nc" id="L24">    public ThermostatFactory(TemperatureUnit defaultUnit) {</span>
+<span class="nc" id="L25">        this.defaultUnit = defaultUnit;</span>
+<span class="nc" id="L26">    }</span>
+    @Override
+    public Class&lt;?&gt; getSourceClass() {
+
+<span class="nc" id="L30">        return ThermostatModel.class;</span>
+    }
+
+    /**
+     * Create a panel representing a thermostat.
+     */
+    @Override
+    public JComponent createComponent(Object source, Map&lt;String, Object&gt; context) {
+
+<span class="nc" id="L39">        ThreadContext.push(&quot;createComponent&quot;);</span>
+
+        try {
+
+<span class="nc" id="L43">            return new ThermostatPanel(</span>
+                    (ThermostatModel) source,
+<span class="nc" id="L45">                    (ScreenDescriptor) context.get(&quot;screen descriptor&quot;),</span>
+<span class="nc" id="L46">                    (Scheduler) context.get(&quot;scheduler&quot;),</span>
+                    defaultUnit);
+
+        } finally {
+<span class="nc" id="L50">            ThreadContext.pop();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

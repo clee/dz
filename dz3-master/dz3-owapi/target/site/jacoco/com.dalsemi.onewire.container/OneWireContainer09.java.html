@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireContainer09.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.container</a> &gt; <span class="el_source">OneWireContainer09.java</span></div><h1>OneWireContainer09.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.container;
+
+// imports
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import java.util.Vector;
+import java.util.Enumeration;
+
+
+/**
+ * &lt;P&gt; 1-Wire container for 128 byte Add-Only memory (EPROM) iButton, DS1982 and 1-Wire Chip, DS2502. 
+ * This container encapsulates the functionality of the 1-Wire family 
+ * type &lt;B&gt;09&lt;/B&gt; (hex)&lt;/P&gt;
+ *
+ * &lt;P&gt; The iButton package for this device is primarily used as a read/write portable memory device.  
+ * The 1-Wire Chip version is used for small non-volatile storage. &lt;/P&gt;
+ * 
+ * &lt;H3&gt; Features &lt;/H3&gt; 
+ * &lt;UL&gt;
+ *   &lt;LI&gt; 1024 bits (128 bytes) Electrically Programmable Read-Only
+ *        Memory (EPROM) communicates with
+ *        the economy of one signal plus ground
+ *   &lt;LI&gt; EPROM partitioned into four 256-bit (32-byte) pages
+ *        for randomly accessing packetized data
+ *   &lt;LI&gt; Each memory page can be permanently
+ *        write-protected to prevent tampering
+ *   &lt;LI&gt; Device is an &quot;add only&quot; memory where
+ *        additional data can be programmed into
+ *        EPROM without disturbing existing data
+ *   &lt;LI&gt; Architecture allows software to patch data by
+ *        superseding an old page in favor of a newly
+ *        programmed page
+ *   &lt;LI&gt; Overdrive mode boosts communication to
+ *        142 kbits per second
+ *   &lt;LI&gt; Reads over a wide voltage range of 2.8V to
+ *        6.0V from -40&amp;#176C to +85&amp;#176C; programs at
+ *        11.5V to 12.0V from -40&amp;#176C to +50&amp;#176C
+ * &lt;/UL&gt;
+ * 
+ * &lt;H3&gt; Alternate Names &lt;/H3&gt;
+ * &lt;UL&gt;
+ *   &lt;LI&gt; D2502
+ * &lt;/UL&gt;
+ *
+ * &lt;H3&gt; Memory &lt;/H3&gt; 
+ *  
+ * &lt;P&gt; The memory can be accessed through the objects that are returned
+ * from the {@link #getMemoryBanks() getMemoryBanks} method. &lt;/P&gt;
+ * 
+ * The following is a list of the MemoryBank instances that are returned: 
+ *
+ * &lt;UL&gt;
+ *   &lt;LI&gt; &lt;B&gt; Main Memory &lt;/B&gt;
+ *      &lt;UL&gt; 
+ *         &lt;LI&gt; &lt;I&gt; Implements &lt;/I&gt; {@link com.dalsemi.onewire.container.MemoryBank MemoryBank}, 
+ *                  {@link com.dalsemi.onewire.container.PagedMemoryBank PagedMemoryBank}, 
+ *                  {@link com.dalsemi.onewire.container.OTPMemoryBank OTPMemoryBank} 
+ *         &lt;LI&gt; &lt;I&gt; Size &lt;/I&gt; 128 starting at physical address 0
+ *         &lt;LI&gt; &lt;I&gt; Features&lt;/I&gt; Write-once general-purpose non-volatile needs-program-pulse
+ *         &lt;LI&gt; &lt;I&gt; Pages&lt;/I&gt; 4 pages of length 32 bytes giving 29 bytes Packet data payload
+ *         &lt;LI&gt; &lt;I&gt; Page Features &lt;/I&gt; page-device-CRC pages-redirectable pages-lockable
+ *      &lt;/UL&gt; 
+ *   &lt;LI&gt; &lt;B&gt; Write protect pages and Page redirection &lt;/B&gt;
+ *      &lt;UL&gt; 
+ *         &lt;LI&gt; &lt;I&gt; Implements &lt;/I&gt; {@link com.dalsemi.onewire.container.MemoryBank MemoryBank}, 
+ *                  {@link com.dalsemi.onewire.container.PagedMemoryBank PagedMemoryBank}, 
+ *                  {@link com.dalsemi.onewire.container.OTPMemoryBank OTPMemoryBank} 
+ *         &lt;LI&gt; &lt;I&gt; Size &lt;/I&gt; 8 starting at physical address 0 (in STATUS memory area)
+ *         &lt;LI&gt; &lt;I&gt; Features&lt;/I&gt; Write-once not-general-purpose non-volatile needs-program-pulse
+ *         &lt;LI&gt; &lt;I&gt; Pages&lt;/I&gt; 1 pages of length 8 bytes
+ *         &lt;LI&gt; &lt;I&gt; Page Features &lt;/I&gt; page-device-CRC 
+ *      &lt;/UL&gt; 
+ * &lt;/UL&gt;
+ * 
+ * &lt;H3&gt; Usage &lt;/H3&gt; 
+ * 
+ * &lt;DL&gt; 
+ * &lt;DD&gt; See the usage example in 
+ * {@link com.dalsemi.onewire.container.OneWireContainer OneWireContainer}
+ * to enumerate the MemoryBanks.
+ * &lt;DD&gt; See the usage examples in 
+ * {@link com.dalsemi.onewire.container.MemoryBank MemoryBank}, 
+ * {@link com.dalsemi.onewire.container.PagedMemoryBank PagedMemoryBank}, and
+ * {@link com.dalsemi.onewire.container.OTPMemoryBank OTPMemoryBank}
+ * for bank specific operations.
+ * &lt;/DL&gt;
+ *
+ * &lt;H3&gt; DataSheets &lt;/H3&gt; 
+ * &lt;DL&gt;
+ * &lt;DD&gt;&lt;A HREF=&quot;http://pdfserv.maxim-ic.com/arpdf/DS2502.pdf&quot;&gt; http://pdfserv.maxim-ic.com/arpdf/DS2502.pdf&lt;/A&gt;
+ * &lt;DD&gt;&lt;A HREF=&quot;http://pdfserv.maxim-ic.com/arpdf/DS1982.pdf&quot;&gt; http://pdfserv.maxim-ic.com/arpdf/DS1982.pdf&lt;/A&gt;
+ * &lt;/DL&gt;
+ * 
+ * @see com.dalsemi.onewire.container.MemoryBank
+ * @see com.dalsemi.onewire.container.PagedMemoryBank
+ * @see com.dalsemi.onewire.container.OTPMemoryBank
+ * @see com.dalsemi.onewire.container.OneWireContainer0B
+ * @see com.dalsemi.onewire.container.OneWireContainer0F
+ * 
+ * @version    0.00, 28 Aug 2000
+ * @author     DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class OneWireContainer09 extends OneWireContainer {
+
+   //--------
+   //-------- Constructors
+   //--------
+
+   /**
+    * Create an empty container that is not complete until after a call 
+    * to &lt;code&gt;setupContainer&lt;/code&gt;. &lt;p&gt;
+    *
+    * This is one of the methods to construct a container.  The others are
+    * through creating a OneWireContainer with parameters.
+    *
+    * @see #setupContainer(com.dalsemi.onewire.adapter.DSPortAdapter,byte[]) super.setupContainer()
+    */
+<span class="nc" id="L146">    public OneWireContainer09() {</span>
+<span class="nc" id="L147">    }</span>
+
+   /**
+    * Create a container with the provided adapter instance
+    * and the address of the iButton or 1-Wire device.&lt;p&gt;
+    *
+    * This is one of the methods to construct a container.  The other is
+    * through creating a OneWireContainer with NO parameters.
+    *
+    * @param  sourceAdapter     adapter instance used to communicate with
+    * this iButton
+    * @param  newAddress        {@link com.dalsemi.onewire.utils.Address Address}  
+    *                           of this 1-Wire device
+    *
+    * @see #OneWireContainer09() OneWireContainer09 
+    * @see com.dalsemi.onewire.utils.Address utils.Address
+    */
+    public OneWireContainer09(DSPortAdapter sourceAdapter, byte[] newAddress) {
+<span class="nc" id="L165">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L166">    }</span>
+
+   /**
+    * Create a container with the provided adapter instance
+    * and the address of the iButton or 1-Wire device.&lt;p&gt;
+    *
+    * This is one of the methods to construct a container.  The other is
+    * through creating a OneWireContainer with NO parameters.
+    *
+    * @param  sourceAdapter     adapter instance used to communicate with
+    * this 1-Wire device
+    * @param  newAddress        {@link com.dalsemi.onewire.utils.Address Address}
+    *                            of this 1-Wire device
+    *
+    * @see #OneWireContainer09() OneWireContainer09 
+    * @see com.dalsemi.onewire.utils.Address utils.Address
+    */
+    public OneWireContainer09(DSPortAdapter sourceAdapter, long newAddress) {
+<span class="nc" id="L184">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L185">    }</span>
+
+   /**
+    * Create a container with the provided adapter instance
+    * and the address of the iButton or 1-Wire device.&lt;p&gt;
+    *
+    * This is one of the methods to construct a container.  The other is
+    * through creating a OneWireContainer with NO parameters.
+    *
+    * @param  sourceAdapter     adapter instance used to communicate with
+    * this 1-Wire device
+    * @param  newAddress        {@link com.dalsemi.onewire.utils.Address Address}
+    *                            of this 1-Wire device
+    *
+    * @see #OneWireContainer09() OneWireContainer09 
+    * @see com.dalsemi.onewire.utils.Address utils.Address
+    */
+    public OneWireContainer09(DSPortAdapter sourceAdapter, String newAddress) {
+<span class="nc" id="L203">        super(sourceAdapter, newAddress);</span>
+<span class="nc" id="L204">    }</span>
+
+   //--------
+   //-------- Methods
+   //--------
+
+   /**
+    * Get the Dallas Semiconductor part number of the iButton
+    * or 1-Wire Device as a string.  For example 'DS1992'.
+    *
+    * @return iButton or 1-Wire device name
+    */
+    @Override
+    public String getName() {
+<span class="nc" id="L218">        return &quot;DS1982&quot;;</span>
+    }
+
+   /**
+    * Get the alternate Dallas Semiconductor part numbers or names.
+    * A 'family' of 1-Wire Network devices may have more than one part number
+    * depending on packaging.  There can also be nicknames such as
+    * 'Crypto iButton'.
+    *
+    * @return 1-Wire device alternate names
+    */
+    @Override
+    public String getAlternateNames() {
+<span class="nc" id="L231">        return &quot;DS2502&quot;;</span>
+    }
+
+   /**
+    * Get a short description of the function of this iButton 
+    * or 1-Wire Device type.
+    *
+    * @return device description
+    */
+    @Override
+    public String getDescription() {
+<span class="nc" id="L242">      return &quot;1024 bit Electrically Programmable Read Only Memory &quot;</span>
+             + &quot;(EPROM) partitioned into four 256 bit pages.&quot;
+             + &quot;Each memory page can be permanently write-protected &quot;
+             + &quot;to prevent tampering.  Architecture allows software &quot;
+             + &quot;to patch data by supersending a used page in favor of &quot;
+             + &quot;a newly programmed page.&quot;;
+   }
+
+   /**
+    * Get the maximum speed this iButton or 1-Wire device can
+    * communicate at.
+    * Override this method if derived iButton type can go faster then
+    * SPEED_REGULAR(0).
+    *
+    * @return maximum speed
+    * @see com.dalsemi.onewire.container.OneWireContainer#setSpeed super.setSpeed
+    * @see com.dalsemi.onewire.adapter.DSPortAdapter#SPEED_REGULAR DSPortAdapter.SPEED_REGULAR
+    * @see com.dalsemi.onewire.adapter.DSPortAdapter#SPEED_OVERDRIVE DSPortAdapter.SPEED_OVERDRIVE
+    * @see com.dalsemi.onewire.adapter.DSPortAdapter#SPEED_FLEX DSPortAdapter.SPEED_FLEX
+    */
+    @Override
+    public int getMaxSpeed() {
+<span class="nc" id="L264">        return DSPortAdapter.SPEED_OVERDRIVE;</span>
+    }
+
+   /**
+    * Get an enumeration of memory bank instances that implement one or more
+    * of the following interfaces:
+    * {@link com.dalsemi.onewire.container.MemoryBank MemoryBank}, 
+    * {@link com.dalsemi.onewire.container.PagedMemoryBank PagedMemoryBank}, 
+    * and {@link com.dalsemi.onewire.container.OTPMemoryBank OTPMemoryBank}. 
+    * @return &lt;CODE&gt;Enumeration&lt;/CODE&gt; of memory banks 
+    */
+    @Override
+    public Enumeration&lt;MemoryBank&gt; getMemoryBanks() {
+<span class="nc" id="L277">        Vector&lt;MemoryBank&gt; bank_vector = new Vector&lt;MemoryBank&gt;(2);</span>
+
+      // EPROM main bank
+<span class="nc" id="L280">      MemoryBankEPROM mn = new MemoryBankEPROM(this);</span>
+
+<span class="nc" id="L282">      mn.numberPages          = 4;</span>
+<span class="nc" id="L283">      mn.size                 = 128;</span>
+<span class="nc" id="L284">      mn.pageLength           = 32;</span>
+<span class="nc" id="L285">      mn.extraInfo            = false;</span>
+<span class="nc" id="L286">      mn.extraInfoLength      = 0;</span>
+<span class="nc" id="L287">      mn.extraInfoDescription = null;</span>
+<span class="nc" id="L288">      mn.numCRCBytes          = 1;</span>
+<span class="nc" id="L289">      mn.normalReadCRC        = true;</span>
+<span class="nc" id="L290">      mn.READ_PAGE_WITH_CRC   = ( byte ) 0xC3;</span>
+
+<span class="nc" id="L292">      bank_vector.addElement(mn);</span>
+
+      // EPROM status write protect pages bank
+<span class="nc" id="L295">      MemoryBankEPROM st = new MemoryBankEPROM(this);</span>
+
+<span class="nc" id="L297">      st.bankDescription      = &quot;Write protect pages and Page redirection&quot;;</span>
+<span class="nc" id="L298">      st.numberPages          = 1;</span>
+<span class="nc" id="L299">      st.size                 = 8;</span>
+<span class="nc" id="L300">      st.pageLength           = 8;</span>
+<span class="nc" id="L301">      st.generalPurposeMemory = false;</span>
+<span class="nc" id="L302">      st.extraInfo            = false;</span>
+<span class="nc" id="L303">      st.extraInfoLength      = 0;</span>
+<span class="nc" id="L304">      st.extraInfoDescription = null;</span>
+<span class="nc" id="L305">      st.numCRCBytes          = 1;</span>
+<span class="nc" id="L306">      st.normalReadCRC        = true;</span>
+<span class="nc" id="L307">      st.READ_PAGE_WITH_CRC   = MemoryBankEPROM.STATUS_READ_PAGE_COMMAND;</span>
+<span class="nc" id="L308">      st.WRITE_MEMORY_COMMAND = MemoryBankEPROM.STATUS_WRITE_COMMAND;</span>
+
+<span class="nc" id="L310">      bank_vector.addElement(st);</span>
+
+      // setup OTP features in main memory
+<span class="nc" id="L313">      mn.mbLock         = st;</span>
+<span class="nc" id="L314">      mn.lockPage       = true;</span>
+<span class="nc" id="L315">      mn.mbRedirect     = st;</span>
+<span class="nc" id="L316">      mn.redirectOffset = 1;</span>
+<span class="nc" id="L317">      mn.redirectPage   = true;</span>
+
+<span class="nc" id="L319">      return bank_vector.elements();</span>
+   }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,1792 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DSPortAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">DSPortAdapter.java</span></div><h1>DSPortAdapter.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+import java.util.Enumeration;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.Vector;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.utils.Address;
+
+/**
+ * The abstract base class for all 1-Wire port adapter objects. An
+ * implementation class of this type is therefore independent of the adapter
+ * type. Instances of valid DSPortAdapter's are retrieved from methods in
+ * {@link com.dalsemi.onewire.OneWireAccessProvider OneWireAccessProvider}.
+ * &lt;P&gt;
+ * The DSPortAdapter methods can be organized into the following categories:
+ * &lt;/P&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Information &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getAdapterName() getAdapterName}
+ * &lt;LI&gt; {@link #getPortTypeDescription() getPortTypeDescription}
+ * &lt;LI&gt; {@link #getClassVersion() getClassVersion}
+ * &lt;LI&gt; {@link #adapterDetected() adapterDetected}
+ * &lt;LI&gt; {@link #getAdapterVersion() getAdapterVersion}
+ * &lt;LI&gt; {@link #getAdapterAddress() getAdapterAddress}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Port Selection &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getPortNames() getPortNames}
+ * &lt;LI&gt; {@link #selectPort(String) selectPort}
+ * &lt;LI&gt; {@link #getPortName() getPortName}
+ * &lt;LI&gt; {@link #freePort() freePort}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Adapter Capabilities &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #canOverdrive() canOverdrive}
+ * &lt;LI&gt; {@link #canHyperdrive() canHyperdrive}
+ * &lt;LI&gt; {@link #canFlex() canFlex}
+ * &lt;LI&gt; {@link #canProgram() canProgram}
+ * &lt;LI&gt; {@link #canDeliverPower() canDeliverPower}
+ * &lt;LI&gt; {@link #canDeliverSmartPower() canDeliverSmartPower}
+ * &lt;LI&gt; {@link #canBreak() canBreak}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Network Semaphore &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #beginExclusive(boolean) beginExclusive}
+ * &lt;LI&gt; {@link #endExclusive() endExclusive}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Device Discovery &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; Selective Search Options
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #targetAllFamilies() targetAllFamilies}
+ * &lt;LI&gt; {@link #targetFamily(int) targetFamily(int)}
+ * &lt;LI&gt; {@link #targetFamily(byte[]) targetFamily(byte[])}
+ * &lt;LI&gt; {@link #excludeFamily(int) excludeFamily(int)}
+ * &lt;LI&gt; {@link #excludeFamily(byte[]) excludeFamily(byte[])}
+ * &lt;LI&gt; {@link #setSearchOnlyAlarmingDevices() setSearchOnlyAlarmingDevices}
+ * &lt;LI&gt; {@link #setNoResetSearch() setNoResetSearch}
+ * &lt;LI&gt; {@link #setSearchAllDevices() setSearchAllDevices}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Search With Automatic 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getAllDeviceContainers() getAllDeviceContainers}
+ * &lt;LI&gt; {@link #getFirstDeviceContainer() getFirstDeviceContainer}
+ * &lt;LI&gt; {@link #getNextDeviceContainer() getNextDeviceContainer}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Search With NO 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #findFirstDevice() findFirstDevice}
+ * &lt;LI&gt; {@link #findNextDevice() findNextDevice}
+ * &lt;LI&gt; {@link #getAddress(byte[]) getAddress(byte[])}
+ * &lt;LI&gt; {@link #getAddressAsLong() getAddressAsLong}
+ * &lt;LI&gt; {@link #getAddressAsString() getAddressAsString}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Manual 1-Wire Container creation
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #getDeviceContainer(byte[]) getDeviceContainer(byte[])}
+ * &lt;LI&gt; {@link #getDeviceContainer(long) getDeviceContainer(long)}
+ * &lt;LI&gt; {@link #getDeviceContainer(String) getDeviceContainer(String)}
+ * &lt;LI&gt; {@link #getDeviceContainer() getDeviceContainer()}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; 1-Wire Network low level access (usually not called directly) &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt; Device Selection and Presence Detect
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #isPresent(byte[]) isPresent(byte[])}
+ * &lt;LI&gt; {@link #isPresent(long) isPresent(long)}
+ * &lt;LI&gt; {@link #isPresent(String) isPresent(String)}
+ * &lt;LI&gt; {@link #isAlarming(byte[]) isAlarming(byte[])}
+ * &lt;LI&gt; {@link #isAlarming(long) isAlarming(long)}
+ * &lt;LI&gt; {@link #isAlarming(String) isAlarming(String)}
+ * &lt;LI&gt; {@link #select(byte[]) select(byte[])}
+ * &lt;LI&gt; {@link #select(long) select(long)}
+ * &lt;LI&gt; {@link #select(String) select(String)}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; Raw 1-Wire IO
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #reset() reset}
+ * &lt;LI&gt; {@link #putBit(boolean) putBit}
+ * &lt;LI&gt; {@link #getBit() getBit}
+ * &lt;LI&gt; {@link #putByte(int) putByte}
+ * &lt;LI&gt; {@link #getByte() getByte}
+ * &lt;LI&gt; {@link #getBlock(int) getBlock(int)}
+ * &lt;LI&gt; {@link #getBlock(byte[], int) getBlock(byte[], int)}
+ * &lt;LI&gt; {@link #getBlock(byte[], int, int) getBlock(byte[], int, int)}
+ * &lt;LI&gt; {@link #dataBlock(byte[], int, int) dataBlock(byte[], int, int)}
+ * &lt;/UL&gt;
+ * &lt;LI&gt; 1-Wire Speed and Power Selection
+ * &lt;UL&gt;
+ * &lt;LI&gt; {@link #setPowerDuration(int) setPowerDuration}
+ * &lt;LI&gt; {@link #startPowerDelivery(int) startPowerDelivery}
+ * &lt;LI&gt; {@link #setProgramPulseDuration(int) setProgramPulseDuration}
+ * &lt;LI&gt; {@link #startProgramPulse(int) startProgramPulse}
+ * &lt;LI&gt; {@link #startBreak() startBreak}
+ * &lt;LI&gt; {@link #setPowerNormal() setPowerNormal}
+ * &lt;LI&gt; {@link #setSpeed(int) setSpeed}
+ * &lt;LI&gt; {@link #getSpeed() getSpeed}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ * &lt;LI&gt; &lt;B&gt; Advanced &lt;/B&gt;
+ * &lt;UL&gt;
+ * &lt;LI&gt;
+ * {@link #registerOneWireContainerClass(int, Class) registerOneWireContainerClass}
+ * &lt;/UL&gt;
+ * &lt;/UL&gt;
+ *
+ * @see com.dalsemi.onewire.OneWireAccessProvider
+ * @see com.dalsemi.onewire.container.OneWireContainer
+ * @version 0.00, 28 Aug 2000
+ * @author DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+<span class="nc" id="L169">public abstract class DSPortAdapter {</span>
+
+<span class="nc" id="L171">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    // --------
+    // -------- Finals
+    // --------
+
+    public static final String CLASS_NAME_ONEWIRECONTAINER = &quot;com.dalsemi.onewire.container.OneWireContainer&quot;;
+
+    /** Speed modes for 1-Wire Network, regular */
+    public static final int SPEED_REGULAR = 0;
+
+    /** Speed modes for 1-Wire Network, flexible for long lines */
+    public static final int SPEED_FLEX = 1;
+
+    /** Speed modes for 1-Wire Network, overdrive */
+    public static final int SPEED_OVERDRIVE = 2;
+
+    /** Speed modes for 1-Wire Network, hyperdrive */
+    public static final int SPEED_HYPERDRIVE = 3;
+
+    /** 1-Wire Network level, normal (weak 5Volt pullup) */
+    public static final char LEVEL_NORMAL = 0;
+
+    /** 1-Wire Network level, (strong 5Volt pullup, used for power delivery) */
+    public static final char LEVEL_POWER_DELIVERY = 1;
+
+    /** 1-Wire Network level, (strong pulldown to 0Volts, reset 1-Wire) */
+    public static final char LEVEL_BREAK = 2;
+
+    /** 1-Wire Network level, (strong 12Volt pullup, used to program eprom ) */
+    public static final char LEVEL_PROGRAM = 3;
+
+    /** 1-Wire Network reset result = no presence */
+    public static final int RESET_NOPRESENCE = 0x00;
+
+    /** 1-Wire Network reset result = presence */
+    public static final int RESET_PRESENCE = 0x01;
+
+    /** 1-Wire Network reset result = alarm */
+    public static final int RESET_ALARM = 0x02;
+
+    /** 1-Wire Network reset result = shorted */
+    public static final int RESET_SHORT = 0x03;
+
+    /** Condition for power state change, immediate */
+    public static final int CONDITION_NOW = 0;
+
+    /** Condition for power state change, after next bit communication */
+    public static final int CONDITION_AFTER_BIT = 1;
+
+    /** Condition for power state change, after next byte communication */
+    public static final int CONDITION_AFTER_BYTE = 2;
+
+    /** Duration used in delivering power to the 1-Wire, 1/2 second */
+    public static final int DELIVERY_HALF_SECOND = 0;
+
+    /** Duration used in delivering power to the 1-Wire, 1 second */
+    public static final int DELIVERY_ONE_SECOND = 1;
+
+    /** Duration used in delivering power to the 1-Wire, 2 seconds */
+    public static final int DELIVERY_TWO_SECONDS = 2;
+
+    /** Duration used in delivering power to the 1-Wire, 4 second */
+    public static final int DELIVERY_FOUR_SECONDS = 3;
+
+    /** Duration used in delivering power to the 1-Wire, smart complete */
+    public static final int DELIVERY_SMART_DONE = 4;
+
+    /** Duration used in delivering power to the 1-Wire, infinite */
+    public static final int DELIVERY_INFINITE = 5;
+
+    /** Duration used in delivering power to the 1-Wire, current detect */
+    public static final int DELIVERY_CURRENT_DETECT = 6;
+
+    /** Duration used in delivering power to the 1-Wire, 480 us */
+    public static final int DELIVERY_EPROM = 7;
+
+    // --------
+    // -------- Variables
+    // --------
+
+    /**
+     * Hashtable to contain the user replaced OneWireContainers. The key is the
+     * family, the value is the container class.
+     */
+<span class="nc" id="L256">    private final Map&lt;Integer, Class&lt;?&gt;&gt; registeredOneWireContainerClasses = new TreeMap&lt;Integer, Class&lt;?&gt;&gt;();</span>
+
+    /**
+     * Byte array of families to include in search
+     */
+    private byte[] include;
+
+    /**
+     * Byte array of families to exclude from search
+     */
+    private byte[] exclude;
+
+    // --------
+    // -------- Methods
+    // --------
+
+    /**
+     * Retrieves the name of the port adapter as a string. The 'Adapter' is a
+     * device that connects to a 'port' that allows one to communicate with an
+     * iButton or other 1-Wire device. As example of this is 'DS9097U'.
+     *
+     * @return {@code String} representation of the port adapter.
+     */
+    public abstract String getAdapterName();
+
+    /**
+     * Retrieves a description of the port required by this port adapter. An
+     * example of a 'Port' would 'serial communication port'.
+     *
+     * @return {@code String} description of the port type required.
+     */
+    public abstract String getPortTypeDescription();
+
+    /**
+     * Retrieves a version string for this class.
+     *
+     * @return version string
+     */
+    public abstract String getClassVersion();
+
+    // --------
+    // -------- Port Selection
+    // --------
+
+    /**
+     * Retrieves a list of the platform appropriate port names for this adapter.
+     * A port must be selected with the method 'selectPort' before any other
+     * communication methods can be used. Using a communication method before
+     * 'selectPort' will result in a {@code OneWireException} exception.
+     *
+     * @return {@code Enumeration} of type {@code String} that contains the port
+     * names
+     */
+    public abstract Enumeration&lt;String&gt; getPortNames();
+
+    /**
+     * Address to device container map.
+     *
+     * VT: NOTE: This was introduced during a memory leak hunt to avoid wanton creation
+     * of device containers on EVERY network browse. Obviously, there may be zillion side
+     * effects, and departing devices have to be handled somehow, but no matter what this
+     * will have to stay because creating new device containers along with the whole
+     * Louisiana purchase on EVERY browse is... I leave the word choice to you.
+     */
+<span class="nc" id="L320">    private Map&lt;String, OneWireContainer&gt; address2container = new TreeMap&lt;String, OneWireContainer&gt;();</span>
+
+    /**
+     * Registers a user provided {@code OneWireContainer} class. Using this
+     * method will override the Dallas Semiconductor provided container class
+     * when using the getDeviceContainer() method. The registered container
+     * state is only stored for the current instance of {@code DSPortAdapter},
+     * and is not statically shared. The {@code OneWireContainerClass} must
+     * extend {@code com.dalsemi.onewire.container.OneWireContainer} otherwise a
+     * {@code ClassCastException} will be thrown. The older duplicate family
+     * will be removed from registration when a collision occurs. Passing null
+     * as a parameter for the {@code OneWireContainerClass} will result in the
+     * removal of any entry associated with the family.
+     *
+     * @param family the code of the family type to associate with this class.
+     * @param OneWireContainerClass User provided class
+     * @throws OneWireException If {@code OneWireContainerClass} is not found.
+     * @throws ClassCastException If user supplied {@code OneWireContainer} does
+     * not extend {@code com.dalsemi.onewire.container.OneWireContainer}.
+     */
+    public synchronized void registerOneWireContainerClass(int family, Class&lt;?&gt; OneWireContainerClass) throws OneWireException {
+
+<span class="nc" id="L342">        Integer familyInt = new Integer(family);</span>
+
+<span class="nc bnc" id="L344" title="All 2 branches missed.">        if (OneWireContainerClass == null) {</span>
+
+            // If a null is passed, remove the old container class.
+<span class="nc" id="L347">            registeredOneWireContainerClasses.remove(familyInt);</span>
+<span class="nc" id="L348">            return;</span>
+        }
+
+        try {
+
+<span class="nc" id="L353">            Class&lt;?&gt; defaultibc = Class.forName(CLASS_NAME_ONEWIRECONTAINER);</span>
+
+<span class="nc bnc" id="L355" title="All 2 branches missed.">            if (defaultibc.isAssignableFrom(OneWireContainerClass)) {</span>
+
+                // Put the new container class in the hashtable, replacing any
+                // old one.
+<span class="nc" id="L359">                registeredOneWireContainerClasses.put(familyInt, OneWireContainerClass);</span>
+
+            } else {
+<span class="nc" id="L362">                throw new ClassCastException(OneWireContainerClass.getName() + &quot;does not extend &quot; + CLASS_NAME_ONEWIRECONTAINER);</span>
+            }
+
+<span class="nc" id="L365">        } catch (ClassNotFoundException e) {</span>
+<span class="nc" id="L366">            throw new OneWireException(&quot;Could not find OneWireContainer class &quot; + CLASS_NAME_ONEWIRECONTAINER);</span>
+<span class="nc" id="L367">        }</span>
+<span class="nc" id="L368">    }</span>
+
+    /**
+     * Specifies a platform appropriate port name for this adapter. Note that
+     * even though the port has been selected, it's ownership may be
+     * relinquished if it is not currently held in a 'exclusive' block. This
+     * class will then try to re-aquire the port when needed. If the port cannot
+     * be re-aquired ehen the exception {@code PortInUseException} will be
+     * thrown.
+     *
+     * @param portName name of the target port, retrieved from getPortNames()
+     * @return {@code true} if the port was aquired, {@code false} if the port
+     * is not available.
+     * @throws OneWireIOException If port does not exist, or unable to
+     * communicate with port.
+     * @throws OneWireException If port does not exist
+     */
+    public abstract boolean selectPort(String portName) throws OneWireIOException, OneWireException;
+
+    /**
+     * Frees ownership of the selected port, if it is currently owned, back to
+     * the system. This should only be called if the recently selected port does
+     * not have an adapter, or at the end of your application's use of the port.
+     *
+     * @throws OneWireException If port does not exist
+     */
+    public abstract void freePort() throws OneWireException;
+
+    /**
+     * Retrieves the name of the selected port as a {@code String}.
+     *
+     * @return {@code String} of selected port
+     * @throws OneWireException if valid port not yet selected
+     */
+    public abstract String getPortName() throws OneWireException;
+
+    // --------
+    // -------- Adapter detection
+    // --------
+
+    /**
+     * Detects adapter presence on the selected port.
+     *
+     * @return {@code true} if the adapter is confirmed to be connected to the
+     * selected port, {@code false} if the adapter is not connected.
+     * @throws OneWireIOException
+     * @throws OneWireException
+     */
+    public abstract boolean adapterDetected() throws OneWireIOException, OneWireException;
+
+    /**
+     * Retrieves the version of the adapter.
+     *
+     * @return {@code String} of the adapter version. It will return &quot;&lt;na&gt;&quot; if
+     * the adapter version is not or cannot be known.
+     * @throws OneWireIOException on a 1-Wire communication error such as no
+     * device present. This could be caused by a physical interruption in the
+     * 1-Wire Network due to shorts or a newly arriving 1-Wire device issuing a
+     * 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the
+     * 1-Wire adapter
+     */
+    public String getAdapterVersion() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L432">        return &quot;&lt;na&gt;&quot;;</span>
+    }
+
+    /**
+     * Retrieves the address of the adapter, if it has one.
+     *
+     * @return {@code String} of the adapter address. It will return &quot;&lt;na&gt;&quot; if
+     * the adapter does not have an address. The address is a string
+     * representation of an 1-Wire address.
+     * @throws OneWireIOException on a 1-Wire communication error such as no
+     * device present. This could be caused by a physical interruption in the
+     * 1-Wire Network due to shorts or a newly arriving 1-Wire device issuing a
+     * 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the
+     * 1-Wire adapter
+     * @see Address
+     */
+    public String getAdapterAddress() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L451">        return &quot;&lt;na&gt;&quot;;</span>
+    }
+
+    // --------
+    // -------- Adapter features
+    // --------
+
+    /*
+     * The following interogative methods are provided so that client code can
+     * react selectively to underlying states without generating an exception.
+     */
+
+    /**
+     * Returns whether adapter can physically support overdrive mode.
+     *
+     * @return {@code true} if this port adapter can do OverDrive, {@code false}
+     * otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canOverdrive() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L474">        return false;</span>
+    }
+
+    /**
+     * Returns whether the adapter can physically support hyperdrive mode.
+     *
+     * @return {@code true} if this port adapter can do HyperDrive,
+     * {@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canHyperdrive() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L488">        return false;</span>
+    }
+
+    /**
+     * Returns whether the adapter can physically support flex speed mode.
+     *
+     * @return {@code true} if this port adapter can do flex speed,
+     * {@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canFlex() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L502">        return false;</span>
+    }
+
+    /**
+     * Returns whether adapter can physically support 12 volt power mode.
+     *
+     * @return {@code true} if this port adapter can do Program voltage,
+     * {@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canProgram() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L516">        return false;</span>
+    }
+
+    /**
+     * Returns whether the adapter can physically support strong 5 volt power
+     * mode.
+     *
+     * @return {@code true} if this port adapter can do strong 5 volt mode,
+     * {@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canDeliverPower() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L531">        return false;</span>
+    }
+
+    /**
+     * Returns whether the adapter can physically support &quot;smart&quot; strong 5 volt
+     * power mode. &quot;smart&quot; power delivery is the ability to deliver power until
+     * it is no longer needed. The current drop it detected and power delivery
+     * is stopped.
+     *
+     * @return {@code true} if this port adapter can do &quot;smart&quot; strong 5 volt
+     * mode, {@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canDeliverSmartPower() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L548">        return false;</span>
+    }
+
+    /**
+     * Returns whether adapter can physically support 0 volt 'break' mode.
+     *
+     * @return {@code true} if this port adapter can do break, {@code false}
+     * otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error with the
+     * adapter
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean canBreak() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L562">        return false;</span>
+    }
+
+    // --------
+    // -------- Finding iButtons and 1-Wire devices
+    // --------
+
+    /**
+     * Returns an enumeration of {@code OneWireContainer} objects corresponding
+     * to all of the iButtons or 1-Wire devices found on the 1-Wire Network. If
+     * no devices are found, then an empty enumeration will be returned. In most
+     * cases, all further communication with the device is done through the
+     * OneWireContainer.
+     *
+     * @return {@code Enumeration} of {@code OneWireContainer} objects found on
+     * the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public Enumeration&lt;OneWireContainer&gt; getAllDeviceContainers() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L583">        Vector&lt;OneWireContainer&gt; ibutton_vector = new Vector&lt;OneWireContainer&gt;();</span>
+        OneWireContainer temp_ibutton;
+
+<span class="nc" id="L586">        temp_ibutton = getFirstDeviceContainer();</span>
+
+<span class="nc bnc" id="L588" title="All 2 branches missed.">        if (temp_ibutton != null) {</span>
+<span class="nc" id="L589">            ibutton_vector.addElement(temp_ibutton);</span>
+
+            // loop to get all of the ibuttons
+            do {
+<span class="nc" id="L593">                temp_ibutton = getNextDeviceContainer();</span>
+
+<span class="nc bnc" id="L595" title="All 2 branches missed.">                if (temp_ibutton != null)</span>
+<span class="nc" id="L596">                    ibutton_vector.addElement(temp_ibutton);</span>
+<span class="nc bnc" id="L597" title="All 2 branches missed.">            } while (temp_ibutton != null);</span>
+        }
+
+<span class="nc" id="L600">        return ibutton_vector.elements();</span>
+    }
+
+    /**
+     * Returns a {@code OneWireContainer} object corresponding to the first
+     * iButton or 1-Wire device found on the 1-Wire Network. If no devices are
+     * found, then a {@code null} reference will be returned. In most cases, all
+     * further communication with the device is done through the
+     * {@code OneWireContainer}.
+     *
+     * @return The first {@code OneWireContainer} object found on the 1-Wire
+     * Network, or {@code null} if no devices found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public OneWireContainer getFirstDeviceContainer() throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L617" title="All 2 branches missed.">        if (findFirstDevice() == true) {</span>
+<span class="nc" id="L618">            return getDeviceContainer();</span>
+        }
+
+<span class="nc" id="L621">        return null;</span>
+    }
+
+    /**
+     * Returns a {@code OneWireContainer} object corresponding to the next
+     * iButton or 1-Wire device found. The previous 1-Wire device found is used
+     * as a starting point in the search. If no devices are found, then a
+     * {@code null} reference will be returned. In most cases, all further
+     * communication with the device is done through the
+     * {@code OneWireContainer}.
+     *
+     * @return The next {@code OneWireContainer} object found on the 1-Wire
+     * Network, or {@code null} if no iButtons found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public OneWireContainer getNextDeviceContainer() throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L639" title="All 2 branches missed.">        if (findNextDevice() == true) {</span>
+<span class="nc" id="L640">            return getDeviceContainer();</span>
+        }
+
+<span class="nc" id="L643">        return null;</span>
+    }
+
+    /**
+     * Returns {@code true} if the first iButton or 1-Wire device is found on
+     * the 1-Wire Network. If no devices are found, then {@code false} will be
+     * returned.
+     *
+     * @return {@code true} if an iButton or 1-Wire device is found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract boolean findFirstDevice() throws OneWireIOException, OneWireException;
+
+    /**
+     * Returns {@code true} if the next iButton or 1-Wire device is found. The
+     * previous 1-Wire device found is used as a starting point in the search.
+     * If no more devices are found then {@code false} will be returned.
+     *
+     * @return {@code true} if an iButton or 1-Wire device is found.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract boolean findNextDevice() throws OneWireIOException, OneWireException;
+
+    /**
+     * Copies the 'current' 1-Wire device address being used by the adapter into
+     * the array. This address is the last iButton or 1-Wire device found in a
+     * search (findNextDevice()...). This method copies into a user generated
+     * array to allow the reuse of the buffer. When searching many iButtons on
+     * the one wire network, this will reduce the memory burn rate.
+     *
+     * @param address An array to be filled with the current iButton address.
+     * @see Address
+     */
+    public abstract void getAddress(byte[] address);
+
+    /**
+     * Gets the 'current' 1-Wire device address being used by the adapter as a
+     * long. This address is the last iButton or 1-Wire device found in a search
+     * (findNextDevice()...).
+     *
+     * @return {@code long} representation of the iButton address
+     * @see Address
+     */
+    public final long getAddressAsLong() {
+
+        // 8 bytes
+<span class="nc" id="L691">        byte[] address = { (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, };</span>
+
+<span class="nc" id="L693">        getAddress(address);</span>
+
+<span class="nc" id="L695">        return Address.toLong(address);</span>
+    }
+
+    /**
+     * Gets the 'current' 1-Wire device address being used by the adapter as a
+     * String. This address is the last iButton or 1-Wire device found in a
+     * search (findNextDevice()...).
+     *
+     * @return {@code String} representation of the iButton address
+     * @see Address
+     */
+    public final String getAddressAsString() {
+
+        // 8 bytes
+<span class="nc" id="L709">        byte[] address = { (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, };</span>
+
+<span class="nc" id="L711">        getAddress(address);</span>
+
+<span class="nc" id="L713">        return Address.toString(address);</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network. This does not affect the 'current' device state
+     * information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present
+     * @return {@code true} if device is present, else {@code false}.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public boolean isPresent(byte[] address) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L729">        reset();</span>
+<span class="nc" id="L730">        putByte(0xF0); // Search ROM command</span>
+
+<span class="nc" id="L732">        return strongAccess(address);</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network. This does not affect the 'current' device state
+     * information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present
+     * @return {@code true} if device is present, else {@code false}.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public final boolean isPresent(long address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L749">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L754">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L755">        return isPresent(buffer);</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network. This does not affect the 'current' device state
+     * information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present
+     * @return {@code true} if device is present, else {@code false}.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public final boolean isPresent(String address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L772">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L777">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L778">        return isPresent(buffer);</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network and in an alarm state. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present and alarming
+     * @return {@code true} if device is present and alarming, else
+     * {@code false}.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public boolean isAlarming(byte[] address) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L795">        reset();</span>
+<span class="nc" id="L796">        putByte(0xEC); // Conditional search commands</span>
+
+<span class="nc" id="L798">        return strongAccess(address);</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network and in an alarm state. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present and alarming
+     * @return {@code true} if device is present and alarming, else
+     * {@code false}.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public final boolean isAlarming(long address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L816">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L821">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L822">        return isAlarming(buffer);</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network and in an alarm state. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...).
+     *
+     * @param address device address to verify is present and alarming
+     * @return {@code true} if device is present and alarming, else
+     * {@code false}.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see Address
+     */
+    public final boolean isAlarming(String address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L840">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L845">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L846">        return isAlarming(buffer);</span>
+    }
+
+    /**
+     * Selects the specified iButton or 1-Wire device by broadcasting its
+     * address. This operation is refered to a 'MATCH ROM' operation in the
+     * iButton and 1-Wire device data sheets. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...). Warning,
+     * this does not verify that the device is currently present on the 1-Wire
+     * Network (See isPresent).
+     *
+     * @param address address of iButton or 1-Wire device to select
+     * @return {@code true} if device address was sent, {@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see com.dalsemi.onewire.adapter.DSPortAdapter#isPresent(byte[])
+     * @see Address
+     */
+    public boolean select(byte[] address) throws OneWireIOException, OneWireException {
+
+        // send 1-Wire Reset
+<span class="nc" id="L867">        int rslt = reset();</span>
+
+        // broadcast the MATCH ROM command and address
+
+        // 9 bytes
+<span class="nc" id="L872">        byte[] buffer = { (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00 };</span>
+
+<span class="nc" id="L874">        buffer[0] = 0x55; // MATCH ROM command</span>
+
+<span class="nc" id="L876">        System.arraycopy(address, 0, buffer, 1, 8);</span>
+<span class="nc" id="L877">        dataBlock(buffer, 0, 9);</span>
+
+        // success if any device present on 1-Wire Network
+<span class="nc bnc" id="L880" title="All 4 branches missed.">        return ((rslt == RESET_PRESENCE) || (rslt == RESET_ALARM));</span>
+    }
+
+    /**
+     * Selects the specified iButton or 1-Wire device by broadcasting its
+     * address. This operation is refered to a 'MATCH ROM' operation in the
+     * iButton and 1-Wire device data sheets. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...). Warning,
+     * this does not verify that the device is currently present on the 1-Wire
+     * Network (See isPresent).
+     *
+     * @param address address of iButton or 1-Wire device to select
+     * @return {@code true} if device address was sent,{@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see com.dalsemi.onewire.adapter.DSPortAdapter#isPresent(byte[])
+     * @see Address
+     */
+    public final boolean select(long address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L901">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L906">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L907">        return select(buffer);</span>
+    }
+
+    /**
+     * Selects the specified iButton or 1-Wire device by broadcasting its
+     * address. This operation is refered to a 'MATCH ROM' operation in the
+     * iButton and 1-Wire device data sheets. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...). Warning,
+     * this does not verify that the device is currently present on the 1-Wire
+     * Network (See isPresent).
+     *
+     * @param address address of iButton or 1-Wire device to select
+     * @return {@code true} if device address was sent,{@code false} otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see com.dalsemi.onewire.adapter.DSPortAdapter#isPresent(byte[])
+     * @see Address
+     */
+    public final boolean select(String address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L928">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L933">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L934">        return select(buffer);</span>
+    }
+
+    /**
+     * Selects the specified iButton or 1-Wire device by broadcasting its
+     * address. This operation is refered to a 'MATCH ROM' operation in the
+     * iButton and 1-Wire device data sheets. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...). In
+     * addition, this method asserts that the select did find some devices on
+     * the 1-Wire net. If no devices were found, a OneWireException is thrown.
+     * Warning, this does not verify that the device is currently present on the
+     * 1-Wire Network (See isPresent).
+     *
+     * @param address address of iButton or 1-Wire device to select
+     * @throws OneWireIOException on a 1-Wire communication error, or if their
+     * are no devices on the 1-Wire net.
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see com.dalsemi.onewire.adapter.DSPortAdapter#isPresent(byte[])
+     * @see Address
+     */
+    public final void assertSelect(byte[] address) throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L956" title="All 2 branches missed.">        if (!select(address)) {</span>
+<span class="nc" id="L957">            throw new OneWireIOException(address, &quot;Device not present&quot;);</span>
+        }
+<span class="nc" id="L959">    }</span>
+
+    /**
+     * Selects the specified iButton or 1-Wire device by broadcasting its
+     * address. This operation is refered to a 'MATCH ROM' operation in the
+     * iButton and 1-Wire device data sheets. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...). In
+     * addition, this method asserts that the select did find some devices on
+     * the 1-Wire net. If no devices were found, a OneWireException is thrown.
+     * Warning, this does not verify that the device is currently present on the
+     * 1-Wire Network (See isPresent).
+     *
+     * @param address address of iButton or 1-Wire device to select
+     * @throws OneWireIOException on a 1-Wire communication error, or if their
+     * are no devices on the 1-Wire net.
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see com.dalsemi.onewire.adapter.DSPortAdapter#isPresent(byte[])
+     * @see Address
+     */
+    public void assertSelect(long address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L981">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L986">        Address.toByteArray(address, buffer);</span>
+
+<span class="nc bnc" id="L988" title="All 2 branches missed.">        if (!select(buffer)) {</span>
+<span class="nc" id="L989">            throw new OneWireIOException(buffer, &quot;Device not present&quot;);</span>
+        }
+<span class="nc" id="L991">    }</span>
+
+    /**
+     * Selects the specified iButton or 1-Wire device by broadcasting its
+     * address. This operation is refered to a 'MATCH ROM' operation in the
+     * iButton and 1-Wire device data sheets. This does not affect the 'current'
+     * device state information used in searches (findNextDevice...). In
+     * addition, this method asserts that the select did find some devices on
+     * the 1-Wire net. If no devices were found, a OneWireException is thrown.
+     * Warning, this does not verify that the device is currently present on the
+     * 1-Wire Network (See isPresent).
+     *
+     * @param address address of iButton or 1-Wire device to select
+     * @throws OneWireIOException on a 1-Wire communication error, or if their
+     * are no devices on the 1-Wire net.
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     * @see com.dalsemi.onewire.adapter.DSPortAdapter#isPresent(byte[])
+     * @see Address
+     */
+    public void assertSelect(String address) throws OneWireIOException, OneWireException {
+
+        // 8 bytes
+<span class="nc" id="L1013">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L1018">        Address.toByteArray(address, buffer);</span>
+
+<span class="nc bnc" id="L1020" title="All 2 branches missed.">        if (!select(buffer)) {</span>
+<span class="nc" id="L1021">            throw new OneWireIOException(buffer, &quot;Device not present&quot;);</span>
+        }
+<span class="nc" id="L1023">    }</span>
+
+    // --------
+    // -------- Finding iButton/1-Wire device options
+    // --------
+
+    /**
+     * Sets the 1-Wire Network search to find only iButtons and 1-Wire devices
+     * that are in an 'Alarm' state that signals a need for attention. Not all
+     * iButton types have this feature. Some that do: DS1994, DS1920, DS2407.
+     * This selective searching can be canceled with the 'setSearchAllDevices()'
+     * method.
+     *
+     * @see #setNoResetSearch
+     */
+    public abstract void setSearchOnlyAlarmingDevices();
+
+    /**
+     * Sets the 1-Wire Network search to not perform a 1-Wire reset before a
+     * search. This feature is chiefly used with the DS2409 1-Wire coupler. The
+     * normal reset before each search can be restored with the
+     * 'setSearchAllDevices()' method.
+     */
+    public abstract void setNoResetSearch();
+
+    /**
+     * Sets the 1-Wire Network search to find all iButtons and 1-Wire devices
+     * whether they are in an 'Alarm' state or not and restores the default
+     * setting of providing a 1-Wire reset command before each search. (see
+     * setNoResetSearch() method).
+     *
+     * @see #setNoResetSearch
+     */
+    public abstract void setSearchAllDevices();
+
+    /**
+     * Removes any selectivity during a search for iButtons or 1-Wire devices by
+     * family type. The unique address for each iButton and 1-Wire device
+     * contains a family descriptor that indicates the capabilities of the
+     * device.
+     *
+     * @see #targetFamily(int)
+     * @see #targetFamily(byte[])
+     * @see #excludeFamily(int)
+     * @see #excludeFamily(byte[])
+     */
+    public synchronized void targetAllFamilies() {
+
+<span class="nc" id="L1071">        include = null;</span>
+<span class="nc" id="L1072">        exclude = null;</span>
+<span class="nc" id="L1073">    }</span>
+
+    /**
+     * Takes an integer to selectively search for this desired family type. If
+     * this method is used, then no devices of other families will be found by
+     * any of the search methods.
+     *
+     * @param family the code of the family type to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public synchronized void targetFamily(int family) {
+
+<span class="nc bnc" id="L1086" title="All 4 branches missed.">        if ((include == null) || (include.length != 1)) {</span>
+<span class="nc" id="L1087">            include = new byte[1];</span>
+        }
+
+<span class="nc" id="L1090">        include[0] = (byte) family;</span>
+<span class="nc" id="L1091">    }</span>
+
+    /**
+     * Takes an array of bytes to use for selectively searching for acceptable
+     * family codes. If used, only devices with family codes in this array will
+     * be found by any of the search methods.
+     *
+     * @param family array of the family types to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public synchronized void targetFamily(byte family[]) {
+
+<span class="nc bnc" id="L1104" title="All 4 branches missed.">        if ((include == null) || (include.length != family.length)) {</span>
+<span class="nc" id="L1105">            include = new byte[family.length];</span>
+        }
+
+<span class="nc" id="L1108">        System.arraycopy(family, 0, include, 0, family.length);</span>
+<span class="nc" id="L1109">    }</span>
+
+    /**
+     * Takes an integer family code to avoid when searching for iButtons. or
+     * 1-Wire devices. If this method is used, then no devices of this family
+     * will be found by any of the search methods.
+     *
+     * @param family the code of the family type NOT to target in searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public synchronized void excludeFamily(int family) {
+
+<span class="nc bnc" id="L1122" title="All 4 branches missed.">        if ((exclude == null) || (exclude.length != 1)) {</span>
+<span class="nc" id="L1123">            exclude = new byte[1];</span>
+        }
+
+<span class="nc" id="L1126">        exclude[0] = (byte) family;</span>
+<span class="nc" id="L1127">    }</span>
+
+    /**
+     * Takes an array of bytes containing family codes to avoid when finding
+     * iButtons or 1-Wire devices. If used, then no devices with family codes in
+     * this array will be found by any of the search methods.
+     *
+     * @param family array of family cods NOT to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    public synchronized void excludeFamily(byte family[]) {
+
+<span class="nc bnc" id="L1140" title="All 4 branches missed.">        if ((exclude == null) || (exclude.length != family.length)) {</span>
+<span class="nc" id="L1141">            exclude = new byte[family.length];</span>
+        }
+
+<span class="nc" id="L1144">        System.arraycopy(family, 0, exclude, 0, family.length);</span>
+<span class="nc" id="L1145">    }</span>
+
+    // --------
+    // -------- 1-Wire Network Semaphore methods
+    // --------
+
+    /**
+     * Gets exclusive use of the 1-Wire to communicate with an iButton or 1-Wire
+     * Device. This method should be used for critical sections of code where a
+     * sequence of commands must not be interrupted by communication of threads
+     * with other iButtons, and it is permissible to sustain a delay in the
+     * special case that another thread has already been granted exclusive
+     * access and this access has not yet been relinquished.
+     * &lt;p&gt;
+     * It can be called through the OneWireContainer class by the end
+     * application if they want to ensure exclusive use. If it is not called
+     * around several methods then it will be called inside each method.
+     *
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract void beginExclusive() throws OneWireException;
+
+    /**
+     * Relinquishes exclusive control of the 1-Wire Network. This command
+     * dynamically marks the end of a critical section and should be used when
+     * exclusive control is no longer needed.
+     */
+    public abstract void endExclusive();
+
+    // --------
+    // -------- Primitive 1-Wire Network data methods
+    // --------
+
+    /**
+     * Sends a bit to the 1-Wire Network.
+     *
+     * @param bitValue the bit value to send to the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract void putBit(boolean bitValue) throws OneWireIOException, OneWireException;
+
+    /**
+     * Gets a bit from the 1-Wire Network.
+     *
+     * @return the bit value recieved from the the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract boolean getBit() throws OneWireIOException, OneWireException;
+
+    /**
+     * Sends a byte to the 1-Wire Network.
+     *
+     * @param byteValue the byte value to send to the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract void putByte(int byteValue) throws OneWireIOException, OneWireException;
+
+    /**
+     * Gets a byte from the 1-Wire Network.
+     *
+     * @return the byte value received from the the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract int getByte() throws OneWireIOException, OneWireException;
+
+    /**
+     * Gets a block of data from the 1-Wire Network.
+     *
+     * @param len length of data bytes to receive
+     * @return the data received from the 1-Wire Network.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract byte[] getBlock(int len) throws OneWireIOException, OneWireException;
+
+    /**
+     * Gets a block of data from the 1-Wire Network and write it into the
+     * provided array.
+     *
+     * @param arr array in which to write the received bytes
+     * @param len length of data bytes to receive
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract void getBlock(byte[] arr, int len) throws OneWireIOException, OneWireException;
+
+    /**
+     * Gets a block of data from the 1-Wire Network and write it into the
+     * provided array.
+     *
+     * @param arr array in which to write the received bytes
+     * @param off offset into the array to start
+     * @param len length of data bytes to receive
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract void getBlock(byte[] arr, int off, int len) throws OneWireIOException, OneWireException;
+
+    /**
+     * Sends a block of data and returns the data received in the same array.
+     * This method is used when sending a block that contains reads and writes.
+     * The 'read' portions of the data block need to be pre-loaded with 0xFF's.
+     * It starts sending data from the index at offset 'off' for length 'len'.
+     *
+     * @param dataBlock array of data to transfer to and from the 1-Wire
+     * Network.
+     * @param off offset into the array of data to start
+     * @param len length of data to send / receive starting at 'off'
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract void dataBlock(byte dataBlock[], int off, int len) throws OneWireIOException, OneWireException;
+
+    /**
+     * Sends a Reset to the 1-Wire Network.
+     *
+     * @return the result of the reset. Potential results are:
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (RESET_NOPRESENCE) no devices present on the 1-Wire Network.
+     * &lt;li&gt; 1 (RESET_PRESENCE) normal presence pulse detected on the 1-Wire
+     * Network indicating there is a device present.
+     * &lt;li&gt; 2 (RESET_ALARM) alarming presence pulse detected on the 1-Wire
+     * Network indicating there is a device present and it is in the alarm
+     * condition. This is only provided by the DS1994/DS2404 devices.
+     * &lt;li&gt; 3 (RESET_SHORT) inticates 1-Wire appears shorted. This can be
+     * transient conditions in a 1-Wire Network. Not all adapter types can
+     * detect this condition.
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public abstract int reset() throws OneWireIOException, OneWireException;
+
+    // --------
+    // -------- 1-Wire Network power methods
+    // --------
+
+    /**
+     * Sets the duration to supply power to the 1-Wire Network. This method
+     * takes a time parameter that indicates the program pulse length when the
+     * method startPowerDelivery().
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canDeliverPower() and
+     * canDeliverSmartPower() method to check it's availability.
+     * &lt;p&gt;
+     *
+     * @param timeFactor
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (DELIVERY_HALF_SECOND) provide power for 1/2 second.
+     * &lt;li&gt; 1 (DELIVERY_ONE_SECOND) provide power for 1 second.
+     * &lt;li&gt; 2 (DELIVERY_TWO_SECONDS) provide power for 2 seconds.
+     * &lt;li&gt; 3 (DELIVERY_FOUR_SECONDS) provide power for 4 seconds.
+     * &lt;li&gt; 4 (DELIVERY_SMART_DONE) provide power until the the device is no
+     * longer drawing significant power.
+     * &lt;li&gt; 5 (DELIVERY_INFINITE) provide power until the setPowerNormal()
+     * method is called.
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void setPowerDuration(int timeFactor) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1311">        throw new OneWireException(&quot;Power delivery not supported by this adapter type&quot;);</span>
+    }
+
+    /**
+     * Sets the 1-Wire Network voltage to supply power to a 1-Wire device. This
+     * method takes a time parameter that indicates whether the power delivery
+     * should be done immediately, or after certain conditions have been met.
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canDeliverPower() and
+     * canDeliverSmartPower() method to check it's availability.
+     * &lt;p&gt;
+     *
+     * @param changeCondition
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (CONDITION_NOW) operation should occur immediately.
+     * &lt;li&gt; 1 (CONDITION_AFTER_BIT) operation should be pending execution
+     * immediately after the next bit is sent.
+     * &lt;li&gt; 2 (CONDITION_AFTER_BYTE) operation should be pending execution
+     * immediately after next byte is sent.
+     * &lt;/ul&gt;
+     * @return {@code true} if the voltage change was successful, {@code false}
+     * otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public boolean startPowerDelivery(int changeCondition) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1338">        throw new OneWireException(&quot;Power delivery not supported by this adapter type&quot;);</span>
+    }
+
+    /**
+     * Sets the duration for providing a program pulse on the 1-Wire Network.
+     * This method takes a time parameter that indicates the program pulse
+     * length when the method startProgramPulse().
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canDeliverPower() method to
+     * check it's availability.
+     * &lt;p&gt;
+     *
+     * @param timeFactor
+     * &lt;ul&gt;
+     * &lt;li&gt; 7 (DELIVERY_EPROM) provide program pulse for 480 microseconds
+     * &lt;li&gt; 5 (DELIVERY_INFINITE) provide power until the setPowerNormal()
+     * method is called.
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter
+     */
+    public void setProgramPulseDuration(int timeFactor) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1361">        throw new OneWireException(&quot;Program pulse delivery not supported by this adapter type&quot;);</span>
+    }
+
+    /**
+     * Sets the 1-Wire Network voltage to eprom programming level. This method
+     * takes a time parameter that indicates whether the power delivery should
+     * be done immediately, or after certain conditions have been met.
+     * &lt;p&gt;
+     * Note: to avoid getting an exception, use the canProgram() method to check
+     * it's availability.
+     * &lt;p&gt;
+     *
+     * @param changeCondition
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (CONDITION_NOW) operation should occur immediately.
+     * &lt;li&gt; 1 (CONDITION_AFTER_BIT) operation should be pending execution
+     * immediately after the next bit is sent.
+     * &lt;li&gt; 2 (CONDITION_AFTER_BYTE) operation should be pending execution
+     * immediately after next byte is sent.
+     * &lt;/ul&gt;
+     * @return {@code true} if the voltage change was successful, {@code false}
+     * otherwise.
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    public boolean startProgramPulse(int changeCondition) throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1389">        throw new OneWireException(&quot;Program pulse delivery not supported by this adapter type&quot;);</span>
+    }
+
+    /**
+     * Sets the 1-Wire Network voltage to 0 volts. This method is used rob all
+     * 1-Wire Network devices of parasite power delivery to force them into a
+     * hard reset.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    public void startBreak() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1403">        throw new OneWireException(&quot;Break delivery not supported by this adapter type&quot;);</span>
+    }
+
+    /**
+     * Sets the 1-Wire Network voltage to normal level. This method is used to
+     * disable 1-Wire conditions created by startPowerDelivery and
+     * startProgramPulse. This method will automatically be called if a
+     * communication method is called while an outstanding power command is
+     * taking place.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    public void setPowerNormal() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L1419">        return;</span>
+    }
+
+    // --------
+    // -------- 1-Wire Network speed methods
+    // --------
+
+    /**
+     * Sets the new speed of data transfer on the 1-Wire Network.
+     * &lt;p&gt;
+     *
+     * @param speed
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (SPEED_REGULAR) set to normal communciation speed
+     * &lt;li&gt; 1 (SPEED_FLEX) set to flexible communciation speed used for long
+     * lines
+     * &lt;li&gt; 2 (SPEED_OVERDRIVE) set to normal communciation speed to overdrive
+     * &lt;li&gt; 3 (SPEED_HYPERDRIVE) set to normal communciation speed to hyperdrive
+     * &lt;li&gt; &gt;3 future speeds
+     * &lt;/ul&gt;
+     * @throws OneWireIOException on a 1-Wire communication error
+     * @throws OneWireException on a setup error with the 1-Wire adapter or the
+     * adapter does not support this operation
+     */
+    public void setSpeed(int speed) throws OneWireIOException, OneWireException {
+
+<span class="nc bnc" id="L1445" title="All 2 branches missed.">        if (speed != SPEED_REGULAR)</span>
+<span class="nc" id="L1446">            throw new OneWireException(&quot;Non-regular 1-Wire speed not supported by this adapter type&quot;);</span>
+<span class="nc" id="L1447">    }</span>
+
+    /**
+     * Returns the current data transfer speed on the 1-Wire Network.
+     * &lt;p&gt;
+     *
+     * @return {@code int} representing the current 1-Wire speed
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (SPEED_REGULAR) set to normal communication speed
+     * &lt;li&gt; 1 (SPEED_FLEX) set to flexible communication speed used for long
+     * lines
+     * &lt;li&gt; 2 (SPEED_OVERDRIVE) set to normal communication speed to overdrive
+     * &lt;li&gt; 3 (SPEED_HYPERDRIVE) set to normal communication speed to hyperdrive
+     * &lt;li&gt; &gt;3 future speeds
+     * &lt;/ul&gt;
+     */
+    public int getSpeed() {
+
+<span class="nc" id="L1465">        return SPEED_REGULAR;</span>
+    }
+
+    // --------
+    // -------- Misc
+    // --------
+
+    /**
+     * Constructs a {@code OneWireContainer} object with a user supplied 1-Wire
+     * network address.
+     *
+     * @param address device address with which to create a new container
+     * @return The {@code OneWireContainer} object
+     * @see Address
+     */
+    public synchronized OneWireContainer getDeviceContainer(byte[] address) {
+
+<span class="nc" id="L1482">        ThreadContext.push(&quot;getDeviceContainer(&quot; + Address.toString(address) + &quot;)&quot;);</span>
+
+        try {
+
+            // First see if there's a container for this address already
+
+<span class="nc" id="L1488">            String stringAddress = Address.toString(address);</span>
+            {
+<span class="nc" id="L1490">                OneWireContainer existingContainer = address2container.get(stringAddress);</span>
+
+<span class="nc bnc" id="L1492" title="All 2 branches missed.">                if (existingContainer != null) {</span>
+<span class="nc" id="L1493">                    logger.debug(&quot;Returning existing container&quot;);</span>
+<span class="nc" id="L1494">                    return existingContainer;</span>
+                }
+            }
+
+<span class="nc" id="L1498">            int family_code = address[0] &amp; 0x7F;</span>
+<span class="nc bnc" id="L1499" title="All 2 branches missed.">            String family_string = ((family_code) &lt; 16) ? (&quot;0&quot; + Integer.toHexString(family_code)).toUpperCase() : (Integer</span>
+<span class="nc" id="L1500">                    .toHexString(family_code)).toUpperCase();</span>
+<span class="nc" id="L1501">            Class&lt;?&gt; ibutton_class = null;</span>
+            OneWireContainer new_ibutton;
+
+            // If any user registered button exist, check the hashtable.
+<span class="nc bnc" id="L1505" title="All 2 branches missed.">            if (!registeredOneWireContainerClasses.isEmpty()) {</span>
+<span class="nc" id="L1506">                Integer familyInt = new Integer(family_code);</span>
+
+                // Try and get a user provided container class first.
+<span class="nc" id="L1509">                ibutton_class = registeredOneWireContainerClasses.get(familyInt);</span>
+            }
+
+            // If we don't get one, do the normal lookup method.
+<span class="nc bnc" id="L1513" title="All 2 branches missed.">            if (ibutton_class == null) {</span>
+
+                // try to load the ibutton container class
+                try {
+
+<span class="nc" id="L1518">                    String className = CLASS_NAME_ONEWIRECONTAINER + family_string;</span>
+<span class="nc" id="L1519">                    logger.debug(&quot;Trying to instantiate &quot; + className);</span>
+<span class="nc" id="L1520">                    ibutton_class = Class.forName(className);</span>
+<span class="nc" id="L1521">                } catch (Exception e) {</span>
+<span class="nc" id="L1522">                    logger.warn(&quot;Failed, moving on&quot;, e);</span>
+<span class="nc" id="L1523">                    ibutton_class = null;</span>
+<span class="nc" id="L1524">                }</span>
+
+                // if did not get specific container try the general one
+<span class="nc bnc" id="L1527" title="All 2 branches missed.">                if (ibutton_class == null) {</span>
+
+                    // try to load the ibutton container class
+                    try {
+<span class="nc" id="L1531">                        logger.debug(&quot;Falling back to &quot; + CLASS_NAME_ONEWIRECONTAINER);</span>
+<span class="nc" id="L1532">                        ibutton_class = Class.forName(CLASS_NAME_ONEWIRECONTAINER);</span>
+<span class="nc" id="L1533">                    } catch (Exception ex) {</span>
+<span class="nc" id="L1534">                        logger.error(&quot;Unable to load OneWireContainer&quot;, ex);</span>
+
+                        // VT: FIXME: Maybe throw an exception, eh?
+<span class="nc" id="L1537">                        return null;</span>
+<span class="nc" id="L1538">                    }</span>
+                }
+            }
+
+            // try to load the ibutton container class
+            try {
+
+                // create the iButton container with a reference to this adapter
+<span class="nc" id="L1546">                logger.debug(&quot;Instantiating &quot; + ibutton_class.getName());</span>
+<span class="nc" id="L1547">                new_ibutton = (OneWireContainer) ibutton_class.newInstance();</span>
+
+<span class="nc" id="L1549">                new_ibutton.setupContainer(this, address);</span>
+<span class="nc" id="L1550">            } catch (Exception ex) {</span>
+<span class="nc" id="L1551">                logger.error(&quot;Unable to instantiate OneWireContainer &quot; + ibutton_class + &quot;: &quot;, ex);</span>
+
+                // VT: FIXME: Maybe throw an exception, eh?
+<span class="nc" id="L1554">                return null;</span>
+<span class="nc" id="L1555">            }</span>
+
+            // Remember this container
+<span class="nc" id="L1558">            address2container.put(stringAddress, new_ibutton);</span>
+
+            // return this new container
+<span class="nc" id="L1561">            return new_ibutton;</span>
+
+        } finally {
+<span class="nc" id="L1564">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Constructs a {@code OneWireContainer} object with a user supplied 1-Wire
+     * network address.
+     *
+     * @param address device address with which to create a new container
+     * @return The {@code OneWireContainer} object
+     * @see Address
+     */
+    public final OneWireContainer getDeviceContainer(long address) {
+
+        // 8 bytes
+<span class="nc" id="L1579">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L1584">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L1585">        return getDeviceContainer(buffer);</span>
+    }
+
+    /**
+     * Constructs a {@code OneWireContainer} object with a user supplied 1-Wire
+     * network address.
+     *
+     * @param address device address with which to create a new container
+     * @return The {@code OneWireContainer} object
+     * @see Address
+     */
+    public final OneWireContainer getDeviceContainer(String address) {
+
+        // 8 bytes
+<span class="nc" id="L1599">        byte[] buffer = {</span>
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                };
+
+<span class="nc" id="L1604">        Address.toByteArray(address, buffer);</span>
+<span class="nc" id="L1605">        return getDeviceContainer(buffer);</span>
+    }
+
+    /**
+     * Constructs a {@code OneWireContainer} object using the current 1-Wire
+     * network address. The internal state of the port adapter keeps track of
+     * the last address found and is able to create container objects from this
+     * state.
+     *
+     * @return the {@code OneWireContainer} object
+     */
+    public synchronized final OneWireContainer getDeviceContainer() {
+
+        // Mask off the upper bit.
+        // 8 bytes
+<span class="nc" id="L1620">        byte[] address = { (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, };</span>
+
+<span class="nc" id="L1622">        getAddress(address);</span>
+
+<span class="nc" id="L1624">        return getDeviceContainer(address);</span>
+    }
+
+    /**
+     * Checks to see if the family found is in the desired include group.
+     *
+     * @param address Device address.
+     * @return {@code true} if in include group
+     */
+    protected final boolean isValidFamily(byte[] address) {
+
+<span class="nc" id="L1635">        byte familyCode = address[0];</span>
+
+<span class="nc bnc" id="L1637" title="All 2 branches missed.">        if (exclude != null) {</span>
+<span class="nc bnc" id="L1638" title="All 2 branches missed.">            for (int i = 0; i &lt; exclude.length; i++) {</span>
+<span class="nc bnc" id="L1639" title="All 2 branches missed.">                if (familyCode == exclude[i]) {</span>
+<span class="nc" id="L1640">                    return false;</span>
+                }
+            }
+        }
+
+<span class="nc bnc" id="L1645" title="All 2 branches missed.">        if (include != null) {</span>
+<span class="nc bnc" id="L1646" title="All 2 branches missed.">            for (int i = 0; i &lt; include.length; i++) {</span>
+<span class="nc bnc" id="L1647" title="All 2 branches missed.">                if (familyCode == include[i]) {</span>
+<span class="nc" id="L1648">                    return true;</span>
+                }
+            }
+
+<span class="nc" id="L1652">            return false;</span>
+        }
+
+<span class="nc" id="L1655">        return true;</span>
+    }
+
+    /**
+     * Performs a 'strongAccess' with the provided 1-Wire address. 1-Wire
+     * Network has already been reset and the 'search' command sent before this
+     * is called.
+     *
+     * @param address device address to do strongAccess on.
+     * @return true if device participated and was present in the strongAccess
+     * search.
+     * @throws OneWireIOException
+     * @throws OneWireException
+     */
+    private synchronized boolean strongAccess(byte[] address) throws OneWireIOException, OneWireException {
+
+        // 24 bytes
+        // All bits must be set
+<span class="nc" id="L1673">        byte[] send_packet = {</span>
+                (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,
+                (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,
+                (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF,
+                };
+        int i;
+
+        // now set or clear appropriate bits for search
+<span class="nc bnc" id="L1681" title="All 2 branches missed.">        for (i = 0; i &lt; 64; i++) {</span>
+<span class="nc" id="L1682">            arrayWriteBit(arrayReadBit(i, address), (i + 1) * 3 - 1, send_packet);</span>
+        }
+
+        // send to 1-Wire Net
+<span class="nc" id="L1686">        dataBlock(send_packet, 0, 24);</span>
+
+        // check the results of last 8 triplets (should be no conflicts)
+<span class="nc" id="L1689">        int cnt = 56, goodbits = 0, tst, s;</span>
+
+<span class="nc bnc" id="L1691" title="All 2 branches missed.">        for (i = 168; i &lt; 192; i += 3) {</span>
+<span class="nc" id="L1692">            tst = (arrayReadBit(i, send_packet) &lt;&lt; 1) | arrayReadBit(i + 1, send_packet);</span>
+<span class="nc" id="L1693">            s = arrayReadBit(cnt++, address);</span>
+
+<span class="nc bnc" id="L1695" title="All 2 branches missed.">            if (tst == 0x03) // no device on line</span>
+            {
+<span class="nc" id="L1697">                goodbits = 0; // number of good bits set to zero</span>
+
+<span class="nc" id="L1699">                break; // quit</span>
+            }
+
+<span class="nc bnc" id="L1702" title="All 8 branches missed.">            if (((s == 0x01) &amp;&amp; (tst == 0x02)) || ((s == 0x00) &amp;&amp; (tst == 0x01))) // correct</span>
+                // bit
+<span class="nc" id="L1704">                goodbits++; // count as a good bit</span>
+        }
+
+        // check too see if there were enough good bits to be successful
+<span class="nc bnc" id="L1708" title="All 2 branches missed.">        return (goodbits &gt;= 8);</span>
+    }
+
+    /**
+     * Writes the bit state in a byte array.
+     *
+     * @param state new state of the bit 1, 0
+     * @param index bit index into byte array
+     * @param buf byte array to manipulate
+     */
+    private void arrayWriteBit(int state, int index, byte[] buf) {
+
+<span class="nc" id="L1720">        int nbyt = (index &gt;&gt;&gt; 3);</span>
+<span class="nc" id="L1721">        int nbit = index - (nbyt &lt;&lt; 3);</span>
+
+<span class="nc bnc" id="L1723" title="All 2 branches missed.">        if (state == 1) {</span>
+<span class="nc" id="L1724">            buf[nbyt] |= (0x01 &lt;&lt; nbit);</span>
+        } else {
+<span class="nc" id="L1726">            buf[nbyt] &amp;= ~(0x01 &lt;&lt; nbit);</span>
+        }
+<span class="nc" id="L1728">    }</span>
+
+    /**
+     * Reads a bit state in a byte array.
+     *
+     * @param index bit index into byte array
+     * @param buf byte array to read from
+     * @return bit state 1 or 0
+     */
+    private int arrayReadBit(int index, byte[] buf) {
+
+<span class="nc" id="L1739">        int nbyt = (index &gt;&gt;&gt; 3);</span>
+<span class="nc" id="L1740">        int nbit = index - (nbyt &lt;&lt; 3);</span>
+
+<span class="nc" id="L1742">        return ((buf[nbyt] &gt;&gt;&gt; nbit) &amp; 0x01);</span>
+    }
+
+    // --------
+    // -------- java.lang.Object methods
+    // --------
+
+    /**
+     * Returns a hashcode for this object
+     *
+     * @return a hascode for this object
+     */
+    /*
+     * public int hashCode() { return this.toString().hashCode(); }
+     */
+
+    /**
+     * Returns true if the given object is the same or equivalent to this
+     * DSPortAdapter.
+     *
+     * @param o the Object to compare this DSPortAdapter to
+     * @return true if the given object is the same or equivalent to this
+     * DSPortAdapter.
+     */
+    @Override
+    public boolean equals(Object o) {
+<span class="nc bnc" id="L1768" title="All 6 branches missed.">        return (o instanceof DSPortAdapter) &amp;&amp; (this == o || toString().equals(o.toString()));</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="nc" id="L1773">        return toString().hashCode();</span>
+    }
+
+    /**
+     * Returns a string representation of this DSPortAdapter, in the format of &quot;&lt;adapter
+     * name&gt; &lt;port name&gt;&quot;.
+     *
+     * @return a string representation of this DSPortAdapter
+     */
+    @Override
+    public String toString() {
+
+        try {
+<span class="nc" id="L1786">            return this.getAdapterName() + &quot; &quot; + this.getPortName();</span>
+<span class="nc" id="L1787">        } catch (OneWireException owe) {</span>
+<span class="nc" id="L1788">            return this.getAdapterName() + &quot; Unknown Port (&quot; + owe.getMessage() + &quot;)&quot;;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

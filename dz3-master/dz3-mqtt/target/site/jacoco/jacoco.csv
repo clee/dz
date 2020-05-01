@@ -1,0 +1,23 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+MQTT Connector,net.sf.dz3.view.mqtt.v1,UpstreamBlock,30,0,0,0,8,0,2,0,2,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,ThermostatRenderer,302,0,24,0,59,0,17,0,5,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttConnector.Callback,645,0,39,0,103,0,27,0,7,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,ThermostatFactory,30,0,2,0,7,0,4,0,3,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,ZoneSnapshot,221,0,18,0,41,0,14,0,5,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,AbstractExchanger,11,0,0,0,4,0,1,0,1,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttDeviceFactory.Device,0,57,0,0,0,15,0,6,0,6
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttConnector.UpstreamBlockExchanger,76,0,0,0,14,0,2,0,2,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,SwitchRenderer,135,0,2,0,26,0,5,0,4,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,SwitchFactory,12,0,0,0,3,0,3,0,3,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,ImmediateExchanger,35,0,0,0,15,0,3,0,3,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttDeviceFactory.Callback,41,6,0,0,10,1,3,1,3,1
+MQTT Connector,net.sf.dz3.view.mqtt.v1,SensorRenderer,95,0,2,0,21,0,5,0,4,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttConnector,352,0,18,0,71,0,24,0,15,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttContext,72,107,6,2,16,30,7,3,3,3
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttContext.JsonTag,0,100,0,0,0,12,0,2,0,2
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttDeviceFactory.Sensor,11,60,1,1,0,11,1,3,0,3
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttDeviceFactory,76,401,7,13,15,73,7,19,2,14
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttDeviceFactory.Watchdog,10,25,0,0,4,8,1,2,1,2
+MQTT Connector,net.sf.dz3.view.mqtt.v1,MqttConnector.EntityType,38,0,0,0,5,0,2,0,2,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,SensorFactory,12,0,0,0,3,0,3,0,3,0
+MQTT Connector,net.sf.dz3.view.mqtt.v1,QueueFeeder,40,0,4,0,11,0,5,0,3,0

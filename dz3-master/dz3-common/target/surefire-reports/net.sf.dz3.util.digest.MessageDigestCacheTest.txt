@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: net.sf.dz3.util.digest.MessageDigestCacheTest
+-------------------------------------------------------------------------------
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.54 sec

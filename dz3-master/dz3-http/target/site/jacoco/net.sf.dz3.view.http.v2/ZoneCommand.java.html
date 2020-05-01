@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZoneCommand.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">HTTP Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.http.v2</a> &gt; <span class="el_source">ZoneCommand.java</span></div><h1>ZoneCommand.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.http.v2;
+
+import java.io.Serializable;
+
+public class ZoneCommand implements Comparable&lt;ZoneCommand&gt;, Serializable {
+
+    private static final long serialVersionUID = -6584570502034039877L;
+    
+    public String name;
+    public double setpointTemperature;
+    public boolean enabled;
+    public boolean onHold;
+    public boolean voting;
+
+    /**
+     * Useless, but mandatory constructor.
+     */
+    @SuppressWarnings(&quot;unused&quot;)
+    private ZoneCommand() {
+        
+    }
+    
+    /**
+     * Create an instance.
+     * 
+     * @param name Zone name.
+     * @param setpointTemperature Setpoint temperature.
+     * @param enabled Whether the zone is enabled.
+     * @param onHold Whether the zone is on hold.
+     * @param voting Whether the zone is voting.
+     */
+    public ZoneCommand(String name, double setpointTemperature,
+<span class="nc" id="L33">            boolean enabled, boolean onHold, boolean voting) {</span>
+
+<span class="nc" id="L35">        this.name = name;</span>
+<span class="nc" id="L36">        this.setpointTemperature = setpointTemperature;</span>
+<span class="nc" id="L37">        this.enabled = enabled;</span>
+<span class="nc" id="L38">        this.onHold = onHold;</span>
+<span class="nc" id="L39">        this.voting = voting;</span>
+<span class="nc" id="L40">    }</span>
+
+    @Override
+    public int compareTo(ZoneCommand other) {
+
+<span class="nc" id="L45">        return toString().compareTo(other.toString());</span>
+    }
+    
+    @Override
+    public boolean equals(Object o) {
+        
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        if (o == null) {</span>
+<span class="nc" id="L52">            return false;</span>
+        }
+        
+<span class="nc" id="L55">        return toString().equals(o.toString());</span>
+    }
+    
+    @Override
+    public int hashCode() {
+<span class="nc" id="L60">        return toString().hashCode();</span>
+    }
+
+    @Override
+    public String toString() {
+
+<span class="nc" id="L66">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L68">        sb.append(name).append(&quot;: setpoint=&quot;).append(setpointTemperature);</span>
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        sb.append(enabled ? &quot;&quot; : &quot;, OFF&quot;);</span>
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        sb.append(onHold ? &quot;, on hold&quot; : &quot;&quot;);</span>
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        sb.append(voting ? &quot;&quot; : &quot;, not voting&quot;);</span>
+
+<span class="nc" id="L73">        return sb.toString();</span>
+    }
+
+    public boolean matches(ZoneSnapshot sample) {
+        
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        return name.equals(sample.name)</span>
+<span class="nc bnc" id="L79" title="All 8 branches missed.">            &amp;&amp; Double.compare(setpointTemperature, sample.setpointTemperature) == 0</span>
+            &amp;&amp; enabled == sample.enabled
+            &amp;&amp; onHold == sample.onHold
+            &amp;&amp; voting == sample.voting;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OwapiDeviceFactory2020.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 Wrapper - 2020</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.onewire</a> &gt; <span class="el_source">OwapiDeviceFactory2020.java</span></div><h1>OwapiDeviceFactory2020.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.onewire;
+
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.Future;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.dalsemi.onewire.OneWireAccessProvider;
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.DSPortAdapter.Reset;
+import com.dalsemi.onewire.adapter.DSPortAdapter.Speed;
+
+import net.sf.dz3.device.actuator.PowerOffCapable;
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.dz3.device.sensor.DeviceFactory2020;
+import net.sf.dz3.device.sensor.Switch;
+
+/**
+ * 1-Wire device factory.
+ *
+ * The [simpler] descendant of {@link OwapiDeviceFactory}, implemented 20 years later.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class OwapiDeviceFactory2020 implements DeviceFactory2020, PowerOffCapable&lt;Void&gt; {
+
+<span class="fc" id="L34">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    private final BusAdapter busAdapter;
+
+    @SuppressWarnings(&quot;FutureReturnValueIgnored&quot;)
+<span class="fc" id="L39">    public OwapiDeviceFactory2020(String port, String speed) throws OneWireException, InterruptedException {</span>
+
+<span class="fc" id="L41">        Speed s = Speed.valueFor(speed);</span>
+<span class="fc" id="L42">        Map&lt;DSPortAdapter, Set&lt;String&gt;&gt; adapterMap = getAdapters();</span>
+
+<span class="fc" id="L44">        logger.debug(&quot;adapters: {}&quot;, adapterMap);</span>
+
+<span class="fc" id="L46">        DSPortAdapter adapter = resolve(adapterMap, port);</span>
+
+<span class="fc" id="L48">        logger.info(&quot;adapter: {}&quot;, adapter.getAdapterName());</span>
+
+<span class="fc" id="L50">        select(adapter, port, adapterMap);</span>
+
+<span class="fc" id="L52">        logger.debug(&quot;reset: {}&quot;, Reset.valueOf(adapter.reset()));</span>
+<span class="fc" id="L53">        adapter.setSpeed(s.value);</span>
+
+<span class="fc" id="L55">        logger.debug(&quot;speed: {}&quot;,  s);</span>
+
+<span class="fc" id="L57">        busAdapter = startAdapter(adapter, s);</span>
+
+        // Need to wait until browse() at least starts
+
+        // VT: NOTE: Future value is not ignored; the point of this call is to make sure
+        // it's been created
+
+<span class="fc" id="L64">        busAdapter.getBrowseFuture();</span>
+<span class="fc" id="L65">    }</span>
+
+    void select(DSPortAdapter a, String port, Map&lt;DSPortAdapter, Set&lt;String&gt;&gt; adapterMap) throws OneWireException {
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (!a.selectPort(port)) {</span>
+<span class="nc" id="L69">            throw new IllegalArgumentException(&quot;can't select port '&quot; + port + &quot;', possible combinations: &quot; + adapterMap);</span>
+        }
+<span class="fc" id="L71">    }</span>
+
+    private Map&lt;DSPortAdapter, Set&lt;String&gt;&gt; getAdapters() {
+
+        // DSPortAdapter is not Comparable
+<span class="fc" id="L76">        Map&lt;DSPortAdapter, Set&lt;String&gt;&gt; result = new LinkedHashMap&lt;&gt;();</span>
+
+        for (Enumeration&lt;DSPortAdapter&gt; e = OneWireAccessProvider
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                .enumerateAllAdapters(); e.hasMoreElements();) {</span>
+
+<span class="fc" id="L81">            DSPortAdapter a = e.nextElement();</span>
+
+<span class="fc" id="L83">            Set&lt;String&gt; ports = new TreeSet&lt;&gt;();</span>
+
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            for (Enumeration&lt;String&gt; e2 = a.getPortNames(); e2.hasMoreElements();) {</span>
+<span class="fc" id="L86">                ports.add(e2.nextElement());</span>
+            }
+
+<span class="fc" id="L89">            result.put(a, ports);</span>
+<span class="fc" id="L90">        }</span>
+
+<span class="fc" id="L92">        return result;</span>
+    }
+
+    private DSPortAdapter resolve(Map&lt;DSPortAdapter, Set&lt;String&gt;&gt; adapterMap, String port) {
+
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        for (Entry&lt;DSPortAdapter, Set&lt;String&gt;&gt; ap : adapterMap.entrySet()) {</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">            if (ap.getValue().contains(port)) {</span>
+<span class="fc" id="L99">                return ap.getKey();</span>
+            }
+<span class="nc" id="L101">        }</span>
+
+<span class="nc" id="L103">        throw new IllegalArgumentException(&quot;can't find an adapter for port '&quot; + port + &quot;', possible combinations: &quot; + adapterMap);</span>
+    }
+
+    /**
+     * Create and start the adapter.
+     *
+     * We will never stop it, even on {@link #powerOff()}.
+     *
+     * We don't care about the fact that it's running in its own thread, either.
+     *
+     * @param adapter Adapter instance to work with.
+     * @param speed Adapter speed, in case we need to reset it.
+     *
+     * @return The instance of the adapter.
+     */
+    private BusAdapter startAdapter(DSPortAdapter adapter, Speed speed) {
+
+<span class="fc" id="L120">        BusAdapter ba = new BusAdapter(adapter, speed);</span>
+
+<span class="fc" id="L122">        new Thread(ba).start();</span>
+
+<span class="fc" id="L124">        return ba;</span>
+    }
+
+    @Override
+    public AnalogSensor getSensor(String address) {
+<span class="nc" id="L129">        return busAdapter.getSensor(address);</span>
+    }
+
+    @Override
+    public Switch getSwitch(String address) {
+<span class="nc" id="L134">        return busAdapter.getSwitch(address);</span>
+    }
+
+    @Override
+    public void powerOff() {
+<span class="fc" id="L139">        logger.warn(&quot;powerOff()&quot;);</span>
+        try {
+<span class="fc" id="L141">            busAdapter.powerOff();</span>
+<span class="nc" id="L142">        } catch (Throwable t) {</span>
+<span class="nc" id="L143">            logger.fatal(&quot;failed to shut down cleanly, nothing we can do here&quot;, t);</span>
+<span class="fc" id="L144">        }</span>
+<span class="fc" id="L145">    }</span>
+
+    @Override
+    public Future&lt;Void&gt; powerOffAsync() {
+<span class="nc" id="L149">        throw new UnsupportedOperationException(&quot;Not Implemented&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

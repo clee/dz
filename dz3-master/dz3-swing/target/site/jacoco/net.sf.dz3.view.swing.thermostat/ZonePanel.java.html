@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZonePanel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">User interface implemented with Swing</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.swing.thermostat</a> &gt; <span class="el_source">ZonePanel.java</span></div><h1>ZonePanel.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.swing.thermostat;
+
+import java.awt.CardLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.device.model.Thermostat;
+import net.sf.dz3.view.swing.ScreenDescriptor;
+
+/**
+ * Panel that contains all {@link ThermostatPanel} instances (and all {@code SensorPanel} instances
+ * in a {@link CardLayout}, and an indicator bar that displays abbreviated status for all zones.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+@SuppressWarnings(&quot;squid:S1700&quot;)
+public class ZonePanel extends JPanel implements KeyListener {
+
+    private static final long serialVersionUID = 6400746493551083129L;
+
+<span class="nc" id="L36">    private final transient Logger logger = LogManager.getLogger(getClass());</span>
+
+<span class="nc" id="L38">    private int currentZoneOffset = 0;</span>
+    private final transient Zone[] zones;
+
+    /**
+     * Panel to display bars for all zones.
+     */
+<span class="nc" id="L44">    private final JPanel zoneBar = new JPanel();</span>
+
+    /**
+     * Panel to display {@link ThermostatPanel} instances.
+     *
+     * VT: NOTE: squid:S1700 - the name reflects the semantics exactly.
+     */
+<span class="nc" id="L51">    private final JPanel zonePanel = new JPanel();</span>
+
+    /**
+     * Layout to control which zone is showing.
+     */
+<span class="nc" id="L56">    private final CardLayout cardLayout = new CardLayout();</span>
+
+    @SuppressWarnings(&quot;squid:S1199&quot;)
+<span class="nc" id="L59">    public ZonePanel(Map&lt;Object, JComponent&gt; componentMap) {</span>
+
+<span class="nc" id="L61">        GridBagLayout layout = new GridBagLayout();</span>
+<span class="nc" id="L62">        GridBagConstraints cs = new GridBagConstraints();</span>
+
+<span class="nc" id="L64">        this.setLayout(layout);</span>
+
+        // VT: NOTE: squid:S1199 - SonarLint is not smart enough to realize that these
+        // blocks are for readability
+
+        {
+            // Zone bar spans all the horizontal space available (as many cells as there are zones),
+            // but the height is limited
+
+<span class="nc" id="L73">            cs.fill = GridBagConstraints.HORIZONTAL;</span>
+<span class="nc" id="L74">            cs.gridx = 0;</span>
+<span class="nc" id="L75">            cs.gridy = 0;</span>
+<span class="nc" id="L76">            cs.gridwidth = GridBagConstraints.REMAINDER;</span>
+<span class="nc" id="L77">            cs.gridheight = 1;</span>
+<span class="nc" id="L78">            cs.weightx = 1;</span>
+<span class="nc" id="L79">            cs.weighty = 0;</span>
+
+<span class="nc" id="L81">            layout.setConstraints(zoneBar, cs);</span>
+<span class="nc" id="L82">            this.add(zoneBar);</span>
+        }
+
+        {
+            // Zone panel is right below the zone bar
+
+<span class="nc" id="L88">            cs.gridy++;</span>
+
+            // Constraints are different
+
+<span class="nc" id="L92">            cs.fill = GridBagConstraints.BOTH;</span>
+<span class="nc" id="L93">            cs.gridheight = GridBagConstraints.REMAINDER;</span>
+<span class="nc" id="L94">            cs.weighty = 1;</span>
+
+<span class="nc" id="L96">            layout.setConstraints(zonePanel, cs);</span>
+<span class="nc" id="L97">            this.add(zonePanel);</span>
+        }
+
+<span class="nc" id="L100">        SortedMap&lt;Thermostat, JComponent&gt; thermostatMap = new TreeMap&lt;Thermostat, JComponent&gt;();</span>
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        for (Iterator&lt;Entry&lt;Object, JComponent&gt;&gt; i = componentMap.entrySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L104">            Entry&lt;Object, JComponent&gt; entry = i.next();</span>
+<span class="nc" id="L105">            Object dataSource = entry.getKey();</span>
+<span class="nc" id="L106">            JComponent panel = entry.getValue();</span>
+
+            // VT: FIXME: Extend this to all sensors
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            if (dataSource instanceof Thermostat) {</span>
+
+<span class="nc" id="L112">                thermostatMap.put((Thermostat)dataSource, panel);</span>
+            }
+<span class="nc" id="L114">        }</span>
+
+<span class="nc" id="L116">        zones = new Zone[thermostatMap.size()];</span>
+
+<span class="nc" id="L118">        zoneBar.setLayout(new GridLayout(1, thermostatMap.size()));</span>
+<span class="nc" id="L119">        zonePanel.setLayout(cardLayout);</span>
+
+<span class="nc" id="L121">        int offset = 0;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        for (Iterator&lt;Thermostat&gt; i = thermostatMap.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L124">            Thermostat ts = i.next();</span>
+<span class="nc" id="L125">            JComponent panel = componentMap.get(ts);</span>
+<span class="nc" id="L126">            ZoneCell cell = new ZoneCell(ts);</span>
+
+<span class="nc" id="L128">            Zone zone = new Zone(cell, (ThermostatPanel) panel);</span>
+
+<span class="nc" id="L130">            zoneBar.add(cell);</span>
+<span class="nc" id="L131">            zonePanel.add(panel, &quot;&quot; + offset);</span>
+
+<span class="nc" id="L133">            zones[offset++] = zone;</span>
+<span class="nc" id="L134">        }</span>
+
+<span class="nc" id="L136">        setCurrentZone(0);</span>
+<span class="nc" id="L137">    }</span>
+
+    private static class Zone {
+
+        public final ZoneCell zoneCell;
+        public final ThermostatPanel thermostatPanel;
+
+<span class="nc" id="L144">        public Zone(ZoneCell zoneCell, ThermostatPanel thermostatPanel) {</span>
+
+<span class="nc" id="L146">            this.zoneCell = zoneCell;</span>
+<span class="nc" id="L147">            this.thermostatPanel = thermostatPanel;</span>
+<span class="nc" id="L148">        }</span>
+    }
+
+    /**
+     * Handle arrow right and left (change zone).
+     */
+    @Override
+    @SuppressWarnings(&quot;squid:S1199&quot;)
+    public synchronized void keyPressed(KeyEvent e) {
+
+        // VT: NOTE: squid:S1199 - between this rule, and avoiding extra hassle and
+        // violating consistency, guess what.
+
+<span class="nc" id="L161">        ThreadContext.push(&quot;keyPressed&quot;);</span>
+
+        try {
+
+<span class="nc" id="L165">            logger.info(e.toString());</span>
+
+<span class="nc bnc" id="L167" title="All 4 branches missed.">            switch (e.getKeyChar()) {</span>
+
+            case 'c':
+            case 'C':
+            case 'f':
+            case 'F':
+
+                // Toggle between Celsius and Fahrenheit
+
+                // This must work for all zones
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                for (int offset = 0; offset &lt; zones.length; offset++) {</span>
+
+<span class="nc" id="L179">                    zones[offset].thermostatPanel.keyPressed(e);</span>
+                }
+
+<span class="nc" id="L182">                break;</span>
+
+            case 'h':
+            case 'H':
+
+                    // Toggle hold status
+
+            case 'v':
+            case 'V':
+
+                    // Toggle voting status
+
+            case 'o':
+            case 'O':
+
+                    // Toggle off status
+
+            case 's':
+            case 'S':
+
+                // Go back to schedule
+
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9':
+
+                // Change dump priority
+
+<span class="nc" id="L217">                zones[currentZoneOffset].thermostatPanel.keyPressed(e);</span>
+<span class="nc" id="L218">                break;</span>
+
+            case KeyEvent.CHAR_UNDEFINED:
+
+<span class="nc bnc" id="L222" title="All 4 branches missed.">                switch (e.getKeyCode()) {</span>
+
+                case KeyEvent.VK_KP_LEFT:
+                case KeyEvent.VK_LEFT:
+
+                    // Cycle displayed zone to the left
+
+                    {
+<span class="nc" id="L230">                        int zoneOffset = currentZoneOffset - 1;</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">                        zoneOffset = zoneOffset &lt; 0 ? zones.length - 1 : zoneOffset;</span>
+
+<span class="nc" id="L234">                        setCurrentZone(zoneOffset);</span>
+                    }
+
+<span class="nc" id="L237">                    break;</span>
+
+                case KeyEvent.VK_KP_RIGHT:
+                case KeyEvent.VK_RIGHT:
+
+                    // Cycle displayed zone to the right
+
+                    {
+<span class="nc" id="L245">                        int zoneOffset = currentZoneOffset + 1;</span>
+
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                        zoneOffset = zoneOffset &gt;= zones.length ? 0 : zoneOffset;</span>
+
+<span class="nc" id="L249">                        setCurrentZone(zoneOffset);</span>
+                    }
+
+<span class="nc" id="L252">                    break;</span>
+
+                case KeyEvent.VK_KP_UP:
+                case KeyEvent.VK_UP:
+
+                    // Raise setpoint for currently selected zone
+
+                case KeyEvent.VK_KP_DOWN:
+                case KeyEvent.VK_DOWN:
+
+                    // Lower setpoint for currently selected zone
+
+<span class="nc" id="L264">                    zones[currentZoneOffset].thermostatPanel.keyPressed(e);</span>
+
+<span class="nc" id="L266">                    break;</span>
+
+                default:
+
+                    // Do nothing
+                }
+
+                default:
+
+                    // Do nothing
+            }
+
+        } finally {
+<span class="nc" id="L279">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L281">    }</span>
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+
+        // No special handling
+<span class="nc" id="L287">    }</span>
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+
+        // No special handling
+<span class="nc" id="L293">    }</span>
+
+    /**
+     * Change the currently displayed zone to the one with the given offset.
+     *
+     * @param zoneOffset Offset of the zone to display.
+     */
+    private void setCurrentZone(int zoneOffset) {
+
+<span class="nc" id="L302">        zones[currentZoneOffset].zoneCell.setSelected(false);</span>
+<span class="nc" id="L303">        zones[zoneOffset].zoneCell.setSelected(true);</span>
+
+<span class="nc" id="L305">        cardLayout.show(zonePanel, &quot;&quot; + zoneOffset);</span>
+
+<span class="nc" id="L307">        currentZoneOffset = zoneOffset;</span>
+<span class="nc" id="L308">    }</span>
+
+    public synchronized void setSize(ScreenDescriptor screenDescriptor) {
+
+<span class="nc bnc" id="L312" title="All 2 branches missed.">        for (int offset = 0; offset &lt; zones.length; offset++) {</span>
+
+<span class="nc" id="L314">            ThermostatPanel tp = zones[offset].thermostatPanel;</span>
+
+<span class="nc" id="L316">            tp.setFontSize(screenDescriptor);</span>
+        }
+<span class="nc" id="L318">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

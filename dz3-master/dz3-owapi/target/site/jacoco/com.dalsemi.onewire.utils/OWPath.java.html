@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OWPath.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.utils</a> &gt; <span class="el_source">OWPath.java</span></div><h1>OWPath.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.utils;
+
+import java.util.Enumeration;
+import java.util.Vector;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.container.SwitchContainer;
+
+/**
+ * 1-Wire&amp;#174 Network path.  Large 1-Wire networks can be sub-divided into branches
+ * for load, location, or organizational reasons.  Once 1-Wire devices are placed
+ * on this branches there needs to be a mechanism to reach these devices.  The
+ * OWPath class was designed to provide a convenient method to open and close
+ * 1-Wire paths to reach remote devices.
+ *
+ * &lt;H3&gt; Usage &lt;/H3&gt;
+ *
+ * &lt;DL&gt;
+ * &lt;DD&gt; &lt;H4&gt; Example&lt;/H4&gt;
+ * Open the path 'path' to the 1-Wire temperature device 'tc' and read the temperature:
+ * &lt;PRE&gt; &lt;CODE&gt;
+ *  // open a path to the temp device
+ *  path.open();
+ *
+ *  // read the temp device
+ *  byte[] state = tc.readDevice();
+ *  tc.doTemperatureConvert(state);
+ *  state = tc.readDevice();
+ *  System.out.println(&quot;Temperature of &quot; +
+ *           address + &quot; is &quot; +
+ *           tc.getTemperature(state) + &quot; C&quot;);
+ *
+ *  // close the path to the device
+ *  path.close();
+ * &lt;/CODE&gt; &lt;/PRE&gt;
+ * &lt;/DL&gt;
+ *
+ * @see com.dalsemi.onewire.utils.OWPathElement
+ * @see com.dalsemi.onewire.container.SwitchContainer
+ * @see com.dalsemi.onewire.container.OneWireContainer05
+ * @see com.dalsemi.onewire.container.OneWireContainer12
+ * @see com.dalsemi.onewire.container.OneWireContainer1F
+ *
+ * @version    0.00, 12 September 2000
+ * @author     DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public class OWPath implements Comparable&lt;OWPath&gt; {
+
+<span class="nc" id="L84">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+    //--------
+    //-------- Variables
+    //--------
+
+    /** Elements of the path in a Vector */
+    private Vector&lt;OWPathElement&gt; elements;
+
+    /** Adapter where this path is based */
+    private DSPortAdapter adapter;
+
+    //--------
+    //-------- Constructor
+    //--------
+
+    /**
+     * Create a new 1-Wire path with no elemements.  Elements
+     * can be added by using &lt;CODE&gt; copy &lt;/CODE&gt; and/or
+     * &lt;CODE&gt; add &lt;/CODE&gt;.
+     *
+     * @param  adapter where the path is based
+     *
+     * @see #copy(OWPath) copy
+     * @see #add(OneWireContainer, int) add
+     */
+<span class="nc" id="L109">    public OWPath(DSPortAdapter adapter) {</span>
+        
+<span class="nc" id="L111">        this.adapter = adapter;</span>
+<span class="nc" id="L112">        elements     = new Vector&lt;OWPathElement&gt;(2, 1);</span>
+<span class="nc" id="L113">    }</span>
+
+    /**
+     * Create a new path with a starting path.  New elements
+     * can be added with &lt;CODE&gt;add&lt;/CODE&gt;.
+     *
+     * @param  adapter where the 1-Wire path is based
+     * @param  currentPath starting value of this 1-Wire path
+     *
+     * @see #add(OneWireContainer, int) add
+     */
+<span class="nc" id="L124">    public OWPath(DSPortAdapter adapter, OWPath currentOWPath) {</span>
+        
+<span class="nc" id="L126">        this.adapter = adapter;</span>
+<span class="nc" id="L127">        elements     = new Vector&lt;OWPathElement&gt;(2, 1);</span>
+
+<span class="nc" id="L129">        copy(currentOWPath);</span>
+<span class="nc" id="L130">    }</span>
+
+    /**
+     * Copy the elements from the provided 1-Wire path into this 1-Wire path.
+     *
+     * @param  currentOWPath path to copy from
+     */
+    public void copy(OWPath currentOWPath) {
+
+<span class="nc" id="L139">        elements.removeAllElements();</span>
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if (currentOWPath != null) {</span>
+
+            // VT: FIXME: addAll() might work, need to check later whether it preserves order
+            //elements.addAll(currentOWPath.elements);
+            
+            // enumerature through elements in current path
+<span class="nc" id="L147">            for (Enumeration&lt;OWPathElement&gt; path_enum = currentOWPath</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                    .getAllOWPathElements(); path_enum.hasMoreElements();) {</span>
+
+                // cast the enum as a OWPathElements and add to vector
+<span class="nc" id="L151">                elements.addElement(path_enum.nextElement());</span>
+            }
+        }
+<span class="nc" id="L154">    }</span>
+
+    /**
+     * Add a 1-Wire path element to this 1-Wire path.
+     *
+     * @param owc 1-Wire device switch
+     * @param channel of device that represents this 1-Wire path element
+     *
+     * @see #copy(OWPath) copy
+     */
+    public void add(OneWireContainer owc, int channel) {
+<span class="nc" id="L165">        elements.addElement(new OWPathElement(owc, channel));</span>
+<span class="nc" id="L166">    }</span>
+
+    /**
+     * Get an enumeration of all of the 1-Wire path elements in
+     * this 1-Wire path.
+     *
+     * @return enumeration of all of the 1-Wire path elements
+     *
+     * @see com.dalsemi.onewire.utils.OWPathElement
+     */
+    public Enumeration&lt;OWPathElement&gt; getAllOWPathElements() {
+<span class="nc" id="L177">        return elements.elements();</span>
+    }
+
+    /**
+     * Get a string representation of this 1-Wire path.
+     *
+     * @return string 1-Wire path as string
+     */
+    public String toString () {
+
+<span class="nc" id="L187">        StringBuilder sb = new StringBuilder();</span>
+
+        // append 'drive'
+
+        try {
+
+<span class="nc" id="L193">            sb.append(adapter.getAdapterName()).append(&quot;_&quot;).append(adapter.getPortName()).append(&quot;/&quot;);</span>
+
+<span class="nc" id="L195">        } catch (OneWireException ex) {</span>
+
+            // VT: FIXME: WTF? Swallowing exception?
+            
+<span class="nc" id="L199">            logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+
+            // VT: FIXME: This also creates a problem with possibly different
+            // string representations of this object, depending on the
+            // network state. Since both equals() and hashCode() depend on
+            // this method, this introduces a problem wherever the string
+            // representation is used.
+            //
+            // Bottomline: I guess it would be a good idea to cache the
+            // string representation and change it whenever a path elements
+            // gets added and/or removed.
+
+<span class="nc" id="L211">            sb.append(adapter.getAdapterName()).append(&quot;/&quot;);</span>
+<span class="nc" id="L212">        }</span>
+
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        for (int i = 0; i &lt; elements.size(); i++) {</span>
+
+<span class="nc" id="L216">            OWPathElement element = (OWPathElement)elements.elementAt(i);</span>
+<span class="nc" id="L217">            OneWireContainer owc = element.getContainer();</span>
+
+            // append 'directory' name
+
+<span class="nc" id="L221">            sb.append(owc.getAddressAsString()).append(&quot;_&quot;).append(element.getChannel()).append(&quot;/&quot;);</span>
+        }
+
+<span class="nc" id="L224">        return sb.toString();</span>
+    }
+
+    /**
+     * Open this 1-Wire path so that a remote device can be accessed.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         no device present or a CRC read from the device is incorrect.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter.
+     */
+    public void open() throws OneWireException, OneWireIOException {
+
+        OWPathElement path_element;
+        SwitchContainer sw;
+        byte[] sw_state;
+
+        // enumerature through elements in path
+<span class="nc bnc" id="L244" title="All 2 branches missed.">        for (int i = 0; i &lt; elements.size(); i++) {</span>
+
+            // cast the enum as a OWPathElement
+<span class="nc" id="L247">            path_element = (OWPathElement) elements.elementAt(i);</span>
+
+            // get the switch
+<span class="nc" id="L250">            sw = (SwitchContainer) path_element.getContainer();</span>
+
+            // turn on the elements channel
+<span class="nc" id="L253">            sw_state = sw.readDevice();</span>
+
+<span class="nc" id="L255">            sw.setLatchState(path_element.getChannel(), true, sw.hasSmartOn(),</span>
+                    sw_state);
+<span class="nc" id="L257">            sw.writeDevice(sw_state);</span>
+        }
+
+        // check if not depth in path, do a reset so a resetless search will work
+<span class="nc bnc" id="L261" title="All 2 branches missed.">        if (elements.isEmpty()) {</span>
+<span class="nc" id="L262">            adapter.reset();</span>
+        }
+<span class="nc" id="L264">    }</span>
+
+    /**
+     * Close each element in this 1-Wire path in reverse order.
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         no device present or a CRC read from the device is incorrect.  This could be
+     *         caused by a physical interruption in the 1-Wire Network due to
+     *         shorts or a newly arriving 1-Wire device issuing a 'presence pulse'.
+     * @throws OneWireException on a communication or setup error with the 1-Wire
+     *         adapter.
+     */
+    public void close() throws OneWireException, OneWireIOException {
+        OWPathElement path_element;
+        SwitchContainer sw;
+        byte[] sw_state;
+
+        // loop through elements in path in reverse order
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        for (int i = elements.size() - 1; i &gt;= 0; i--) {</span>
+
+            // cast the element as a OWPathElement
+<span class="nc" id="L285">            path_element = (OWPathElement) elements.elementAt(i);</span>
+
+            // get the switch
+<span class="nc" id="L288">            sw = (SwitchContainer) path_element.getContainer();</span>
+
+            // turn off the elements channel
+<span class="nc" id="L291">            sw_state = sw.readDevice();</span>
+<span class="nc" id="L292">            sw.setLatchState(path_element.getChannel(), false, false, sw_state);</span>
+<span class="nc" id="L293">            sw.writeDevice(sw_state);</span>
+        }
+<span class="nc" id="L295">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int compareTo(OWPath other) {
+        
+<span class="nc bnc" id="L303" title="All 2 branches missed.">        if (other == null) {</span>
+<span class="nc" id="L304">            throw new IllegalArgumentException(&quot;other can't be null&quot;);</span>
+        }
+        
+<span class="nc" id="L307">        return toString().compareTo(other.toString());</span>
+    }
+
+    /**
+     * Compare this 1-Wire path with another.
+     *
+     * @param other 1-Wire path to compare to.
+     *
+     * @return {@code true} if the 1-Wire paths are the same.
+     */
+    public boolean equals(Object other) {
+        
+<span class="nc bnc" id="L319" title="All 2 branches missed.">        if (other == null) {</span>
+
+<span class="nc" id="L321">            return false;</span>
+        }
+
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        if (!(other instanceof OWPath)) {</span>
+
+<span class="nc" id="L326">            return false;</span>
+        }
+
+<span class="nc" id="L329">        return this.toString().equals(other.toString());</span>
+    }
+
+    public int hashCode() {
+
+<span class="nc" id="L334">        return toString().hashCode();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

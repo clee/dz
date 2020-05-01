@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SignalAdder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller</a> &gt; <span class="el_source">SignalAdder.java</span></div><h1>SignalAdder.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+import net.sf.jukebox.logger.LogAware;
+
+/**
+ * Analog signal adder.
+ * 
+ * Consumes signals from different sources. Emits aggregated sum.
+ * 
+ * @param &lt;Source&gt; Defines the type of the signal source.
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2009-2018
+ */
+public class SignalAdder extends LogAware implements DataSink&lt;Double&gt;, DataSource&lt;Double&gt; {
+
+<span class="fc" id="L28">    private final DataBroadcaster&lt;Double&gt; dataBroadcaster = new DataBroadcaster&lt;Double&gt;();</span>
+
+    /**
+     * Adder's name.
+     * 
+     * Necessary evil to allow instrumentation signature.
+     */
+    private final String sourceName;
+
+    /**
+     * Instrumentation signature.
+     */
+    private final String signature;
+
+    /**
+     * Coefficient map.
+     * 
+     * The key is the source name, the value is the coefficient the input signal for this source will be
+     * multiplied by when calculating the {@link #integral}.
+     */
+<span class="fc" id="L48">    private final Map&lt;String, Double&gt; source2p = new HashMap&lt;String, Double&gt;();</span>
+
+<span class="fc" id="L50">    private final Map&lt;String, DataSample&lt;Double&gt;&gt; source2signal = new HashMap&lt;String, DataSample&lt;Double&gt;&gt;();</span>
+
+    public SignalAdder(String sourceName) {
+
+<span class="fc" id="L54">        this(sourceName, null);</span>
+<span class="fc" id="L55">    }</span>
+
+    /**
+     * Create an instance and add it as a listener to given sources.
+     * 
+     * @param sourceName Name to use in instrumentation.
+     * @param source2p See {@link #source2p}.
+     */
+<span class="fc" id="L63">    public SignalAdder(String sourceName, Map&lt;DataSource&lt;Double&gt;, Map&lt;String, Double&gt;&gt; source2p) {</span>
+
+<span class="pc bpc" id="L65" title="2 of 4 branches missed.">        if (sourceName == null || &quot;&quot;.equals(sourceName)) {</span>
+<span class="nc" id="L66">            throw new IllegalArgumentException(&quot;sourceName can't be null or empty&quot;);</span>
+        }
+
+<span class="fc" id="L69">        this.sourceName = sourceName;</span>
+<span class="fc" id="L70">        this.signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        if (source2p != null) {</span>
+
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            for (Iterator&lt;DataSource&lt;Double&gt;&gt; i = source2p.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="nc" id="L76">                DataSource&lt;Double&gt; source = i.next();</span>
+<span class="nc" id="L77">                Map&lt;String, Double&gt; name2p = source2p.get(source);</span>
+<span class="nc" id="L78">                Iterator&lt;Entry&lt;String, Double&gt;&gt; i2 = name2p.entrySet().iterator();</span>
+<span class="nc" id="L79">                Entry&lt;String, Double&gt; entry = i2.next();</span>
+
+<span class="nc" id="L81">                this.source2p.put(entry.getKey(), entry.getValue());</span>
+
+<span class="nc" id="L83">                source.addConsumer(this);</span>
+<span class="nc" id="L84">            }</span>
+        }
+
+<span class="fc" id="L87">        logger.debug(&quot;Created '&quot; + sourceName + &quot;', sig=&quot; + signature);</span>
+<span class="fc" id="L88">    }</span>
+
+    /**
+     * Associate the source with the coefficient.
+     * 
+     * @param source Signal source.
+     * @param p Coefficient to apply to this source's signal.
+     */
+    public void put(String source, double p) {
+
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (source == null) {</span>
+<span class="nc" id="L99">            throw new IllegalArgumentException(&quot;source can't be null&quot;);</span>
+        }
+
+<span class="fc" id="L102">        source2p.put(source, p);</span>
+<span class="fc" id="L103">    }</span>
+
+    @Override
+    public void consume(DataSample&lt;Double&gt; signal) {
+
+<span class="fc" id="L108">        ThreadContext.push(&quot;consume&quot;);</span>
+
+        try {
+
+<span class="fc" id="L112">            String source = signal.sourceName;</span>
+<span class="fc" id="L113">            Double p = source2p.get(source);</span>
+
+<span class="fc" id="L115">            check(source, p);</span>
+<span class="fc" id="L116">            check(signal);</span>
+
+<span class="fc" id="L118">            source2signal.put(source, signal);</span>
+
+<span class="fc" id="L120">            double integral = 0;</span>
+
+<span class="fc bfc" id="L122" title="All 2 branches covered.">            for (Iterator&lt;Entry&lt;String, Double&gt;&gt; i = source2p.entrySet().iterator(); i.hasNext(); ) {</span>
+
+                // This is safe because of the relation between EventSource and Source
+<span class="fc" id="L125">                Entry&lt;String, Double&gt; entry = i.next();</span>
+<span class="fc" id="L126">                String key = entry.getKey();</span>
+<span class="fc" id="L127">                p = entry.getValue();</span>
+
+                // Note, this is not the container we're iterating on
+<span class="fc" id="L130">                DataSample&lt;Double&gt; value = source2signal.get(key);</span>
+
+<span class="fc bfc" id="L132" title="All 2 branches covered.">                if (value == null) {</span>
+
+                    // Don't have all signals yet, can't compare without unacceptably high bias
+<span class="fc" id="L135">                    dataBroadcaster.broadcast(new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, null, new IllegalStateException(&quot;Don't have all signals yet&quot;)));</span>
+<span class="fc" id="L136">                    return;</span>
+                }
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">                if (value.isError()) {</span>
+
+                    // Can't calculate the result properly, some signals are missing
+<span class="fc" id="L142">                    dataBroadcaster.broadcast(new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, null, new IllegalStateException(&quot;Some signals are errors&quot;)));</span>
+<span class="fc" id="L143">                    return;</span>
+                }
+
+<span class="fc" id="L146">                integral += value.sample * p; </span>
+
+
+<span class="fc" id="L149">            }</span>
+
+<span class="fc" id="L151">            dataBroadcaster.broadcast(new DataSample&lt;Double&gt;(signal.timestamp, sourceName, signature, integral, null));</span>
+
+        } finally {
+<span class="fc" id="L154">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L156">    }</span>
+
+    private void check(String source, Double p) {
+
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">        if (p == null) {</span>
+<span class="nc" id="L161">            throw new IllegalArgumentException(&quot;Don't know source '&quot; + source + &quot;'&quot;);</span>
+        }
+<span class="fc" id="L163">    }</span>
+
+    private void check(DataSample&lt;Double&gt; signal) {
+
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">        if (signal == null) {</span>
+<span class="nc" id="L168">            throw new IllegalArgumentException(&quot;signal can't be null&quot;);</span>
+        }
+<span class="fc" id="L170">    }</span>
+
+    @Override
+    public void addConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="fc" id="L175">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="fc" id="L176">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;Double&gt; consumer) {
+
+<span class="nc" id="L181">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L182">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

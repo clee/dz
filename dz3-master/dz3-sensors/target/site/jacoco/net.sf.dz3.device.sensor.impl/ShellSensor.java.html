@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ShellSensor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl</a> &gt; <span class="el_source">ShellSensor.java</span></div><h1>ShellSensor.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Get a reading returned by a shell command.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class ShellSensor extends AbstractAnalogSensor {
+
+    /**
+     * Shell command to execute.
+     */
+    private final String command;
+
+    /**
+     * Create an instance.
+     *
+     * @param address Sensor hardware address. Recommended value is the host name,
+     * followed by a colon, followed by the postfix. Rationale for this is that the sensr
+     * reading may be propagated beyond the host, and it is quite possible that the same
+     * measured entity will be present on different hosts as well.
+     *
+     * @param pollInterval How often the value needs to be delivered. Recommended value for this class is
+     * no less than 1000ms.
+     *
+     * @param command Shell command to execute. May be arbitrarily complex, must return a value that is
+     * parseable into {@code double}.
+     */
+    public ShellSensor(String address, int pollInterval, String command) {
+
+<span class="fc" id="L41">        super(address, pollInterval);</span>
+
+<span class="pc bpc" id="L43" title="2 of 4 branches missed.">        if (command == null || &quot;&quot;.equals(command)) {</span>
+
+            // Unfortunately, this is as good as it gets. Or is it?
+<span class="nc" id="L46">            throw new IllegalArgumentException(&quot;command can't be null or empty&quot;);</span>
+        }
+
+<span class="fc" id="L49">        this.command = command;</span>
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public DataSample&lt;Double&gt; getSensorSignal() throws IOException {
+
+<span class="fc" id="L55">        ThreadContext.push(&quot;getSensorTemperature#&quot; + Integer.toHexString(hashCode()));</span>
+
+<span class="fc" id="L57">        BufferedReader br = null;</span>
+
+<span class="fc" id="L59">        long timestamp = System.currentTimeMillis();</span>
+
+        try {
+
+<span class="fc" id="L63">            Process p = null;</span>
+
+            try {
+
+<span class="fc" id="L67">                logger.debug(&quot;Executing: '/bin/sh -c &quot; + command + &quot;'&quot;);</span>
+
+<span class="fc" id="L69">                p = Runtime.getRuntime().exec(new String[] {&quot;/bin/sh&quot;, &quot;-c&quot;, command});</span>
+
+<span class="fc" id="L71">                int rc = p.waitFor();</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">                if (rc != 0) {</span>
+                    // We're screwed
+<span class="fc" id="L75">                    logger.error(&quot;Command returned error code &quot; + rc + &quot;: &quot;</span>
+                            + command);
+                }
+
+<span class="fc" id="L79">                br = new BufferedReader(new InputStreamReader(p.getInputStream()));</span>
+<span class="fc" id="L80">                String output = read(br);</span>
+
+<span class="fc" id="L82">                logger.debug(&quot;Output: &quot; + output);</span>
+
+<span class="fc bfc" id="L84" title="All 2 branches covered.">                if (rc == 0) {</span>
+
+<span class="fc" id="L86">                    double sample = Double.parseDouble(output);</span>
+<span class="fc" id="L87">                    return new DataSample&lt;Double&gt;(timestamp, getAddress(), getAddress(), sample, null);</span>
+
+                } else {
+
+<span class="fc" id="L91">                    Throwable t = new IOException(&quot;rc=&quot; + rc + &quot;, output: &quot; + output);</span>
+<span class="fc" id="L92">                    return new DataSample&lt;Double&gt;(timestamp, getAddress(), getAddress(), null, t);</span>
+                }
+
+            } finally {
+
+                // Unless this is executed, repeated invocations of exec() will
+                // eventually cause the system to run out of file handles
+
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">                if (p != null) {</span>
+
+<span class="fc" id="L102">                    p.destroy();</span>
+                }
+            }
+
+<span class="nc" id="L106">        } catch (Throwable t) {</span>
+
+<span class="nc" id="L108">            return new DataSample&lt;Double&gt;(timestamp, getAddress(), getAddress(), null, t);</span>
+
+        } finally {
+
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">            if (br != null) {</span>
+                try {
+<span class="fc" id="L114">                    br.close();</span>
+<span class="nc" id="L115">                } catch (IOException e) {</span>
+<span class="nc" id="L116">                    logger.info(&quot;Can't close() the process stream, ignored:&quot;, e);</span>
+<span class="fc" id="L117">                }</span>
+            }
+
+<span class="fc" id="L120">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Parse the content of the reader into a string.
+     *
+     * @param br Reader to read from.
+     *
+     * @return Parsed string.
+     *
+     * @exception IOException if things go sour.
+     */
+    private String read(BufferedReader br) throws IOException {
+
+<span class="fc" id="L135">        ThreadContext.push(&quot;read&quot;);</span>
+
+        try {
+
+<span class="fc" id="L139">            long size = 0;</span>
+<span class="fc" id="L140">            StringBuilder sb = new StringBuilder();</span>
+
+            while (true) {
+
+<span class="fc" id="L144">                String line = br.readLine();</span>
+
+<span class="fc bfc" id="L146" title="All 2 branches covered.">                if (line == null) {</span>
+<span class="fc" id="L147">                    break;</span>
+                }
+
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">                if (size &gt; 0) {</span>
+<span class="nc" id="L151">                    sb.append(System.getProperty(&quot;line.separator&quot;));</span>
+                }
+
+<span class="fc" id="L154">                size += line.length();</span>
+<span class="fc" id="L155">                sb.append(line);</span>
+<span class="fc" id="L156">            }</span>
+
+<span class="fc" id="L158">            return sb.toString();</span>
+
+        } finally {
+<span class="fc" id="L161">            ThreadContext.pop();</span>
+        }
+    }
+
+    @Override
+    protected void startup() throws Throwable {
+
+<span class="nc" id="L168">        ThreadContext.push(&quot;startup&quot;);</span>
+
+        try {
+
+<span class="nc" id="L172">            logger.info(&quot;starting '&quot; + command + &quot;'&quot;);</span>
+
+        } finally {
+<span class="nc" id="L175">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L177">    }</span>
+
+    @Override
+    protected void shutdown() throws Throwable {
+
+<span class="nc" id="L182">        ThreadContext.push(&quot;shutdown&quot;);</span>
+
+        try {
+
+<span class="nc" id="L186">            logger.info(&quot;stopping '&quot; + command + &quot;'&quot;);</span>
+
+        } finally {
+<span class="nc" id="L189">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L191">    }</span>
+
+    @JmxAttribute(description=&quot;Shell command being executed&quot;)
+    public String getCommand() {
+
+<span class="nc" id="L196">        return command;</span>
+    }
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+
+<span class="nc" id="L202">      return new JmxDescriptor(</span>
+              &quot;dz&quot;,
+<span class="nc" id="L204">              getClass().getSimpleName(),</span>
+<span class="nc" id="L205">              Integer.toHexString(hashCode()),</span>
+              &quot;Execute a shell command, treat stdout as the reading&quot;);
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,491 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MqttDeviceFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">MQTT Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.mqtt.v1</a> &gt; <span class="el_source">MqttDeviceFactory.java</span></div><h1>MqttDeviceFactory.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.mqtt.v1;
+
+import java.io.ByteArrayInputStream;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+
+import javax.json.Json;
+import javax.json.JsonNumber;
+import javax.json.JsonObject;
+import javax.json.JsonReader;
+import javax.json.JsonString;
+
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken;
+import org.eclipse.paho.client.mqttv3.MqttCallback;
+import org.eclipse.paho.client.mqttv3.MqttException;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+
+import net.sf.dz3.device.sensor.Addressable;
+import net.sf.dz3.device.sensor.AnalogSensor;
+import net.sf.dz3.device.sensor.DeviceFactory2020;
+import net.sf.dz3.device.sensor.Switch;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+import net.sf.jukebox.datastream.signal.model.DataSource;
+import net.sf.jukebox.jmx.JmxAware;
+import net.sf.jukebox.jmx.JmxDescriptor;
+
+/**
+ * Factory for sensors and actuators supported via MQTT.
+ *
+ * The difference between this class and {@link MqttConnector} is that the
+ * latter is *exposing* a set of DZ entities to outside consumers (and providing
+ * a feedback mechanism), whereas this class is specifically intended to accept
+ * reports from outside entities, and issue commands to them.
+ *
+ * VT: NOTE: this class is a radical departure from the old, complex
+ * implementation of {@code OwapiDeviceFactory}, {@code XBeeDeviceFactory}, the
+ * gorilla, and the whole jungle behind - the 20 year old architecture is too
+ * complicated for my taste today. Let's see how much simpler it can get while
+ * keeping the same design contract.
+ *
+ * @see MqttConnector
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@homeclimatecontrol.com&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2020
+ */
+public class MqttDeviceFactory implements DeviceFactory2020, AutoCloseable, JmxAware {
+
+<span class="fc" id="L58">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    private final MqttContext mqtt;
+    private final Watchdog watchdog;
+    private final Thread watchdogThread;
+<span class="fc" id="L63">    private final CountDownLatch stopGate = new CountDownLatch(1);</span>
+
+    static final long POLL_INTERVAL = 10000L;
+    static final long STALE_AGE = POLL_INTERVAL * 5;
+
+    /**
+     * Data map.
+     *
+     * The key is the device address, the value is device itself.
+     */
+<span class="fc" id="L73">    private final Map&lt;String, Device&lt;?&gt;&gt; deviceMap = new TreeMap&lt;&gt;();</span>
+
+    /**
+     * Unauthenticated constructor with a default port.
+     *
+     * @param mqttBrokerHost Host to connect to.
+     * @param mqttRootTopicPub Root topic to publish to.
+     * @param mqttRootTopicSub Root topic to subscribe to.
+     * @param initSet Entities to publish the status of.
+     */
+    public MqttDeviceFactory(
+            String mqttBrokerHost,
+            String mqttRootTopicPub, String mqttRootTopicSub) throws MqttException {
+
+<span class="fc" id="L87">        this(mqttBrokerHost, MqttContext.DEFAULT_PORT, null, null, mqttRootTopicPub, mqttRootTopicSub);</span>
+<span class="fc" id="L88">    }</span>
+
+    /**
+     * Unauthenticated constructor with a custom port.
+     *
+     * @param mqttBrokerHost Host to connect to.
+     * @param mqttBrokerPort Port to connect to.
+     * @param mqttRootTopicPub Root topic to publish to.
+     * @param mqttRootTopicSub Root topic to subscribe to.
+     * @param initSet Entities to publish the status of.
+     */
+    public MqttDeviceFactory(
+            String mqttBrokerHost, int mqttBrokerPort,
+            String mqttRootTopicPub, String mqttRootTopicSub) throws MqttException {
+
+<span class="nc" id="L103">        this(mqttBrokerHost, mqttBrokerPort, null, null, mqttRootTopicPub, mqttRootTopicSub);</span>
+<span class="nc" id="L104">    }</span>
+
+    /**
+     * Authenticated constructor with a default port.
+     *
+     * @param mqttBrokerHost Host to connect to.
+     * @param port Port to connect to.
+     * @param mqttBrokerUsername MQTT broker username.
+     * @param mqttBrokerPassword MQTT broker password.
+     * @param mqttRootTopicPub Root topic to publish to.
+     * @param mqttRootTopicSub Root topic to subscribe to.
+     * @param initSet Entities to publish the status of.
+     */
+    public MqttDeviceFactory(
+            String mqttBrokerHost,
+            String mqttBrokerUsername, String mqttBrokerPassword,
+            String mqttRootTopicPub, String mqttRootTopicSub) throws MqttException {
+
+<span class="fc" id="L122">        this(mqttBrokerHost, MqttContext.DEFAULT_PORT, mqttBrokerUsername, mqttBrokerPassword, mqttRootTopicPub, mqttRootTopicSub);</span>
+<span class="fc" id="L123">    }</span>
+
+    /**
+     * Authenticated constructor with a custom port.
+     *
+     * @param mqttBrokerHost Host to connect to.
+     * @param mqttBrokerPort Port to connect to.
+     * @param mqttBrokerUsername MQTT broker username.
+     * @param mqttBrokerPassword MQTT broker password.
+     * @param mqttRootTopicPub Root topic to publish to.
+     * @param mqttRootTopicSub Root topic to subscribe to.
+     * @param initSet Entities to publish the status of.
+     */
+    public MqttDeviceFactory(
+            String mqttBrokerHost, int mqttBrokerPort,
+            String mqttBrokerUsername, String mqttBrokerPassword,
+<span class="fc" id="L139">            String mqttRootTopicPub, String mqttRootTopicSub) throws MqttException {</span>
+
+<span class="fc" id="L141">        this.mqtt = new MqttContext(</span>
+                mqttBrokerHost, mqttBrokerPort,
+                mqttBrokerUsername, mqttBrokerPassword,
+                mqttRootTopicPub, mqttRootTopicSub + &quot;/#&quot;,
+                new Callback());
+
+<span class="fc" id="L147">        mqtt.start();</span>
+
+        // VT: NOTE: Clumsy, but we need access to both the thread (to stop it) and the runnable (to notify())
+<span class="fc" id="L150">        watchdog = new Watchdog();</span>
+<span class="fc" id="L151">        watchdogThread = new Thread(watchdog);</span>
+<span class="fc" id="L152">        watchdogThread.start();</span>
+<span class="fc" id="L153">    }</span>
+
+    @Override
+    public AnalogSensor getSensor(String address) {
+<span class="fc" id="L157">        return new Sensor(address);</span>
+    }
+
+    @Override
+    public Switch getSwitch(String address) {
+<span class="fc" id="L162">        throw new UnsupportedOperationException(&quot;Not Implemented&quot;);</span>
+    }
+
+    @Override
+    public void close() throws Exception {
+
+        // Watchdog needs to be interrupted first, for when we have remote
+<span class="fc" id="L169">        logger.debug(&quot;stopping the watchdog...&quot;);</span>
+<span class="fc" id="L170">        watchdogThread.interrupt();</span>
+
+<span class="fc" id="L172">        stopGate.await();</span>
+<span class="fc" id="L173">        logger.debug(&quot;watchdog shut down&quot;);</span>
+
+        // Some of them may need to send shutdown signal to remote endpoints
+<span class="fc" id="L176">        closeDevices();</span>
+
+        // And now we can close the comms.
+<span class="fc" id="L179">        mqtt.close();</span>
+<span class="fc" id="L180">    }</span>
+
+    private void closeDevices() {
+        // VT: NOTE: This will come handy when remote actuators are supported
+<span class="fc" id="L184">        logger.warn(&quot;closeDevices(): nothing to do at the moment&quot;);</span>
+<span class="fc" id="L185">    }</span>
+
+    /**
+     * Power off.
+     *
+     * This method should provide an extra level of protection to remote devices
+     * that control hardware. If we're smart, the life cycle has already taken care
+     * of that, but can't rely on ourselves being smart enough.
+     */
+    public void powerOff() {
+<span class="fc" id="L195">        ThreadContext.push(&quot;powerOff&quot;);</span>
+        try {
+<span class="fc" id="L197">            logger.warn(&quot;powering off&quot;);</span>
+<span class="fc" id="L198">            close();</span>
+<span class="fc" id="L199">            logger.info(&quot;shut down.&quot;);</span>
+<span class="nc" id="L200">        } catch (Throwable t) {</span>
+<span class="nc" id="L201">            logger.fatal(&quot;failed to shut down cleanly, better check your hardware&quot;, t);</span>
+        } finally {
+<span class="fc" id="L203">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L205">    }</span>
+
+    @Override
+    public JmxDescriptor getJmxDescriptor() {
+<span class="fc" id="L209">        return new JmxDescriptor(</span>
+                &quot;dz&quot;,
+<span class="fc" id="L211">                getClass().getSimpleName(),</span>
+                mqtt.host
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">                + (mqtt.port == MqttContext.DEFAULT_PORT ? &quot;&quot; : &quot; port &quot; + mqtt.port)</span>
+                + &quot; topic/pub &quot; + mqtt.rootTopicPub
+                + &quot; topic/sub &quot; + mqtt.rootTopicSub,
+                &quot;MqttDeviceFactory v1&quot;);
+    }
+
+
+    @SuppressWarnings({ &quot;rawtypes&quot;, &quot;unchecked&quot; })
+    public void refresh() {
+<span class="nc" id="L222">        ThreadContext.push(&quot;refresh&quot;);</span>
+        try {
+
+<span class="nc" id="L225">            logger.debug(&quot;heartbeat&quot;);</span>
+
+<span class="nc" id="L227">            mqtt.reconnect();</span>
+
+<span class="nc" id="L229">            long now = System.currentTimeMillis();</span>
+
+<span class="nc bnc" id="L231" title="All 2 branches missed.">            for (Device&lt;?&gt; device : deviceMap.values()) {</span>
+
+<span class="nc" id="L233">                DataSample&lt;?&gt; sample = device.getStatus();</span>
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">                if (now - sample.timestamp &gt; STALE_AGE) {</span>
+                    // VT: NOTE: Ideally, this should be synchronized, but practically, the chances are too slim
+                    // VT: NOTE: this sample will never contain data of a variable type, hence @SuppressWarnings
+<span class="nc" id="L238">                    device.inject(new DataSample(sample.sourceName, sample.signature, null, new Error(&quot;stale&quot;)));</span>
+                }
+<span class="nc" id="L240">            }</span>
+
+        } finally {
+<span class="nc" id="L243">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L245">    }</span>
+
+<span class="fc" id="L247">    static final List&lt;String&gt; MANDATORY_JSON_FIELDS = Arrays.asList(</span>
+            MqttContext.JsonTag.ENTITY_TYPE.name,
+            MqttContext.JsonTag.NAME.name,
+            MqttContext.JsonTag.SIGNAL.name);
+<span class="fc" id="L251">    static final List&lt;String&gt; OPTIONAL_JSON_FIELDS = Arrays.asList(</span>
+            MqttContext.JsonTag.TIMESTAMP.name,
+            MqttContext.JsonTag.SIGNATURE.name,
+            MqttContext.JsonTag.DEVICE_ID.name);
+
+    void process(byte[] source) {
+<span class="fc" id="L257">        try (JsonReader reader = Json.createReader(new ByteArrayInputStream(source))) {</span>
+
+<span class="fc" id="L259">            JsonObject payload = reader.readObject();</span>
+
+<span class="fc" id="L261">            JsonString entityType = payload.getJsonString(MqttContext.JsonTag.ENTITY_TYPE.name);</span>
+<span class="fc" id="L262">            JsonString name = payload.getJsonString(MqttContext.JsonTag.NAME.name);</span>
+<span class="fc" id="L263">            JsonNumber signal = payload.getJsonNumber(MqttContext.JsonTag.SIGNAL.name);</span>
+
+<span class="fc" id="L265">            JsonNumber timestamp = payload.getJsonNumber(MqttContext.JsonTag.TIMESTAMP.name);</span>
+<span class="fc" id="L266">            JsonString signature = payload.getJsonString(MqttContext.JsonTag.SIGNATURE.name);</span>
+<span class="fc" id="L267">            JsonString deviceId = payload.getJsonString(MqttContext.JsonTag.DEVICE_ID.name);</span>
+
+            // We're not using these yet, but let's make sure they're present
+            // That'll help figuring out whether we need them in the future.
+<span class="fc" id="L271">            checkFields(</span>
+                    &quot;optional&quot;, Level.DEBUG, OPTIONAL_JSON_FIELDS,
+                    new Object[] {
+                            timestamp,
+                            signature,
+                            deviceId
+                            });
+
+<span class="fc bfc" id="L279" title="All 2 branches covered.">            if (!checkFields(</span>
+                    &quot;mandatory&quot;, Level.ERROR, MANDATORY_JSON_FIELDS,
+                    new Object[] {
+                            entityType,
+                            name,
+                            signal
+                            })) {
+                // The check has already complained
+<span class="fc" id="L287">                return;</span>
+            }
+
+<span class="fc bfc" id="L290" title="All 2 branches covered.">            switch (entityType.getString()) {</span>
+
+            case &quot;sensor&quot;:
+
+<span class="fc" id="L294">                processSensorInput(name.getString(), signal.bigDecimalValue(), timestamp, signature, deviceId);</span>
+<span class="fc" id="L295">                return;</span>
+
+            default:
+<span class="fc" id="L298">                logger.warn(&quot;can't process {} yet&quot;, entityType.getString());</span>
+            }
+<span class="pc bpc" id="L300" title="2 of 4 branches missed.">        }</span>
+<span class="fc" id="L301">    }</span>
+
+    /**
+     * Check if all the values are present, and complain if they're not.
+     *
+     * @param reference Fields that are expected to be present.
+     * @param source JSON entities parsed out of the payload.
+     * @return {@code false} if some of the values are missing.
+     */
+    boolean checkFields(String context, Level level, List&lt;String&gt; reference, Object[] source) {
+
+<span class="fc" id="L312">        List&lt;String&gt; missing = new LinkedList&lt;&gt;();</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">        for (int offset = 0; offset &lt; reference.size(); offset++) {</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">            if (source[offset] == null) {</span>
+<span class="fc" id="L315">                missing.add(reference.get(offset));</span>
+            }
+        }
+
+<span class="fc" id="L319">        ThreadContext.push(context);</span>
+<span class="fc" id="L320">        missing</span>
+<span class="fc" id="L321">            .stream()</span>
+<span class="fc" id="L322">            .forEach(field -&gt; { logger.log(level, &quot;missing: {}&quot;, field); });</span>
+<span class="fc" id="L323">        ThreadContext.pop();</span>
+
+<span class="fc" id="L325">        return missing.isEmpty();</span>
+    }
+
+    void processSensorInput(
+            String name,
+            BigDecimal signal,
+            JsonNumber timestamp,
+            JsonString signature,
+            JsonString deviceId) {
+<span class="fc" id="L334">        ThreadContext.push(&quot;processSensorInput&quot;);</span>
+        try {
+
+<span class="fc" id="L337">            Device&lt;?&gt; d = deviceMap.get(name);</span>
+
+<span class="fc bfc" id="L339" title="All 2 branches covered.">            if (d == null) {</span>
+<span class="fc" id="L340">                logger.debug(&quot;not ours: {}&quot;, name);</span>
+<span class="fc" id="L341">                return;</span>
+            }
+
+<span class="fc" id="L344">            Sensor s = (Sensor) d;</span>
+<span class="fc" id="L345">            double v = signal.doubleValue();</span>
+<span class="fc" id="L346">            s.inject(new DataSample&lt;Double&gt;(s.getAddress(), s.getAddress(), v, null));</span>
+
+        } finally {
+<span class="fc" id="L349">            ThreadContext.pop();</span>
+        }
+<span class="fc" id="L351">    }</span>
+
+<span class="fc" id="L353">    private class Callback implements MqttCallback {</span>
+
+        @Override
+        public void connectionLost(Throwable cause) {
+<span class="nc" id="L357">            throw new IllegalStateException(&quot;Not Implemented&quot;);</span>
+        }
+
+        @Override
+        public void messageArrived(String topic, MqttMessage message) throws Exception {
+<span class="nc" id="L362">            ThreadContext.push(&quot;MQTT/messageArrived&quot;);</span>
+
+            try {
+
+                // VT: NOTE: We ignore topic absolutely at this point other than for logging it
+<span class="nc" id="L367">                logger.debug(&quot;{} {}&quot;, topic, message);</span>
+
+<span class="nc" id="L369">                process(message.getPayload());</span>
+
+<span class="nc" id="L371">            } catch (Throwable t) {</span>
+
+                // VT: NOTE: According to the docs, throwing an exception here will shut down the client - can't afford that,
+                // so we'll just complain loudly
+
+<span class="nc" id="L376">                logger.error(&quot;MQTT message caused an exception: &quot; + message, t);</span>
+
+            } finally {
+<span class="nc" id="L379">                watchdog.release();</span>
+<span class="nc" id="L380">                ThreadContext.pop();</span>
+            }
+<span class="nc" id="L382">        }</span>
+
+        @Override
+        public void deliveryComplete(IMqttDeliveryToken token) {
+            // VT: NOTE: Nothing to do here
+<span class="nc" id="L387">        }</span>
+    }
+
+    @java.lang.SuppressWarnings({&quot;squid:S2142&quot;,&quot;squid:S2189&quot;})
+<span class="fc" id="L391">    private class Watchdog implements Runnable {</span>
+
+        @Override
+        public synchronized void run() {
+<span class="fc" id="L395">            ThreadContext.push(&quot;run&quot;);</span>
+            try {
+                while (true) {
+
+<span class="nc" id="L399">                    wait(POLL_INTERVAL);</span>
+<span class="nc" id="L400">                    refresh();</span>
+                }
+
+<span class="fc" id="L403">            } catch (InterruptedException e) {</span>
+
+                // VT: NOTE: squid:S2142 SonarQube is not smart enough to recognize that the exception *is* handled
+                // VT: NOTE: squid:S2189 SonarQube is not smart enough to recognize this as an exit condition
+<span class="fc" id="L407">                logger.warn(&quot;interrupted, terminating&quot;);</span>
+
+            } finally {
+<span class="fc" id="L410">                logger.debug(&quot;releasing stop gate&quot;);</span>
+<span class="fc" id="L411">                ThreadContext.clearAll();</span>
+<span class="fc" id="L412">                stopGate.countDown();</span>
+            }
+<span class="fc" id="L414">        }</span>
+
+        @java.lang.SuppressWarnings(&quot;squid:S2446&quot;)
+        public synchronized void release() {
+            // VTL NOTE: squid:S2446 There *is* one thread. The watchdog.
+<span class="nc" id="L419">            notify();</span>
+<span class="nc" id="L420">        }</span>
+    }
+
+    private abstract class Device&lt;E&gt; implements DataSource&lt;E&gt;, Addressable, JmxAware {
+
+<span class="fc" id="L425">        protected DataBroadcaster&lt;E&gt; broadcaster = new DataBroadcaster&lt;&gt;();</span>
+        private final String address;
+        private DataSample&lt;E&gt; status;
+
+<span class="fc" id="L429">        public Device(String address) {</span>
+
+<span class="fc" id="L431">            this.address = address;</span>
+
+            // VT: FIXME: We don't know the actual signature at the moment; let's see if
+            // setting to address now and replacing it with the signature received from the
+            // MQTT remote later will not break things.
+
+<span class="fc" id="L437">            this.status = new DataSample&lt;&gt;(address, address, null, new IllegalStateException(&quot;booting up, unavailable&quot;));</span>
+
+<span class="fc" id="L439">            deviceMap.put(address, this);</span>
+<span class="fc" id="L440">        }</span>
+
+        @Override
+        public final String getAddress() {
+<span class="fc" id="L444">            return address;</span>
+        }
+
+        @Override
+        public final void addConsumer(DataSink&lt;E&gt; consumer) {
+<span class="fc" id="L449">            broadcaster.addConsumer(consumer);</span>
+<span class="fc" id="L450">        }</span>
+
+        @Override
+        public void removeConsumer(DataSink&lt;E&gt; consumer) {
+<span class="fc" id="L454">            broadcaster.removeConsumer(consumer);</span>
+<span class="fc" id="L455">        }</span>
+
+        public final void inject(DataSample&lt;E&gt; sample) {
+<span class="fc" id="L458">            status = sample;</span>
+<span class="fc" id="L459">            broadcaster.broadcast(status);</span>
+<span class="fc" id="L460">        }</span>
+
+        protected final DataSample&lt;E&gt; getStatus() {
+<span class="fc" id="L463">            return status;</span>
+        }
+    }
+
+    public class Sensor extends Device&lt;Double&gt; implements AnalogSensor {
+
+<span class="fc" id="L469">        public Sensor(String address) {</span>
+<span class="fc" id="L470">            super(address);</span>
+<span class="fc" id="L471">        }</span>
+
+        @Override
+        public JmxDescriptor getJmxDescriptor() {
+<span class="fc" id="L475">            return new JmxDescriptor(</span>
+                    &quot;dz&quot;,
+<span class="fc" id="L477">                    getClass().getSimpleName(),</span>
+<span class="fc" id="L478">                    mqtt.host</span>
+<span class="pc bpc" id="L479" title="1 of 2 branches missed.">                    + (mqtt.port == MqttContext.DEFAULT_PORT ? &quot;&quot; : &quot; port &quot; + mqtt.port)</span>
+<span class="fc" id="L480">                    + &quot; topic/pub &quot; + mqtt.rootTopicPub</span>
+<span class="fc" id="L481">                    + &quot; topic/sub &quot; + mqtt.rootTopicSub,</span>
+<span class="fc" id="L482">                    &quot;sensor &quot; + getAddress());</span>
+        }
+
+        @Override
+        public DataSample&lt;Double&gt; getSignal() {
+<span class="fc" id="L487">            return getStatus();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

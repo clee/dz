@@ -1,0 +1,761 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SerialService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">SerialService.java</span></div><h1>SerialService.java</h1><pre class="source lang-java linenums">package com.dalsemi.onewire.adapter;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.Vector;
+import java.util.concurrent.locks.ReentrantLock;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import gnu.io.CommPortIdentifier;
+import gnu.io.NoSuchPortException;
+import gnu.io.SerialPort;
+import gnu.io.SerialPortEvent;
+import gnu.io.SerialPortEventListener;
+import gnu.io.UnsupportedCommOperationException;
+import com.dalsemi.onewire.OneWireAccessProvider;
+import com.dalsemi.onewire.utils.Convert;
+
+/**
+ * @author Original implementation &amp;copy; Dallas Semiconductor
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class SerialService implements SerialPortEventListener {
+
+<span class="nc" id="L33">    protected final static Logger logger = LogManager.getLogger(OneWireAccessProvider.class);</span>
+
+    /**
+     * The serial port name of this object (e.g. COM1, /dev/ttyS0).
+     */
+    private final String portName;
+
+    /**
+     * The serial port object for setting serial port parameters.
+     */
+<span class="nc" id="L43">    private SerialPort serialPort = null;</span>
+
+    /**
+     * The input stream, for reading data from the serial port.
+     */
+<span class="nc" id="L48">    private InputStream serialInputStream = null;</span>
+
+    /**
+     * The output stream, for writing data to the serial port.
+     */
+<span class="nc" id="L53">    private OutputStream serialOutputStream = null;</span>
+
+    /**
+     * The lock.
+     */
+<span class="nc" id="L58">    private final ReentrantLock theLock = new ReentrantLock();</span>
+
+    /**
+     * Temporary array, used for converting characters to bytes.
+     */
+<span class="nc" id="L63">    private byte[] tempArray = new byte[128];</span>
+
+    /**
+     * Vector of thread hash codes that have done an open but no close.
+     */
+<span class="nc" id="L68">    private final Set&lt;Thread&gt; users = new HashSet&lt;Thread&gt;();</span>
+
+    /**
+     * Flag to indicate byte banging on read.
+     * */
+    private final boolean byteBang;
+
+    /**
+     * Vector of serial port ID strings (i.e. &quot;COM1&quot;, &quot;COM2&quot;, etc).
+     */
+<span class="nc" id="L78">    private static final Vector&lt;String&gt; vPortIDs = new Vector&lt;String&gt;();</span>
+
+    /**
+     * Static list of threadIDs to the services they are using.
+     */
+<span class="nc" id="L83">    private static final Map&lt;Thread, SerialService&gt; knownServices = new HashMap&lt;Thread, SerialService&gt;();</span>
+
+    /**
+     * Static list of all unique SerialService classes.
+     */
+<span class="nc" id="L88">    private static final Map&lt;String, SerialService&gt; uniqueServices = new HashMap&lt;String, SerialService&gt;();</span>
+
+
+    /**
+     * Cleans up the resources used by the thread argument.  If another
+     * thread starts communicating with this port, and then goes away,
+     * there is no way to relinquish the port without stopping the
+     * process. This method allows other threads to clean up.
+     *
+     * @param thread thread that may have used a {@link USerialAdapter}
+     *
+     * @deprecated Apparently not used anywhere.
+     */
+    @Deprecated
+    public static void cleanUpByThread(Thread thread) {
+
+<span class="nc" id="L104">        logger.debug(&quot;SerialService.CleanUpByThread(Thread)&quot;);</span>
+
+        try {
+
+<span class="nc" id="L108">            SerialService serialService = knownServices.get(thread);</span>
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            if (serialService == null) {</span>
+<span class="nc" id="L111">                return;</span>
+            }
+
+            // VT: FIXME: Stuff below doesn't make sense together with changed lock semantics - if you started it, you gotta clean it up...
+
+            /*
+      synchronized(serialService) {
+
+        if (thread.hashCode() == serialService.currentThreadHash) {
+
+          //then we need to release the lock...
+          serialService.currentThreadHash = 0;
+        }
+      }
+             */
+
+<span class="nc" id="L127">            serialService.closePortByThreadID(thread);</span>
+
+<span class="nc" id="L129">        } catch(Exception ex) {</span>
+
+<span class="nc" id="L131">            logger.error(&quot;cleanUpByThread(&quot; + thread + &quot;) failed&quot;, ex);</span>
+<span class="nc" id="L132">        }</span>
+<span class="nc" id="L133">    }</span>
+
+    /**
+     * do not use default constructor
+     * use getSerialService(String) instead.
+     */
+    @SuppressWarnings(&quot;unused&quot;)
+<span class="nc" id="L140">    private SerialService() {</span>
+
+<span class="nc" id="L142">        throw new IllegalStateException(&quot;Use getSerialService(String) instead&quot;);</span>
+    }
+
+    /**
+     * This constructor is intended to be used by {@link #getSerialService(java.lang.String)}.
+     */
+<span class="nc" id="L148">    protected SerialService(String portName) {</span>
+
+<span class="nc" id="L150">        this.portName = portName;</span>
+
+        // check to see if need to byte-bang the reads
+<span class="nc" id="L153">        String prop = OneWireAccessProvider.getProperty(&quot;onewire.serial.bytebangread&quot;);</span>
+
+<span class="nc bnc" id="L155" title="All 4 branches missed.">        byteBang = prop != null &amp;&amp; prop.contains(&quot;true&quot;);</span>
+<span class="nc" id="L156">    }</span>
+
+    public static SerialService getSerialService(String portName) {
+        
+<span class="nc" id="L160">        ThreadContext.push(&quot;getSerialService&quot;);</span>
+        
+        try {
+
+<span class="nc" id="L164">            synchronized(uniqueServices) {</span>
+
+<span class="nc" id="L166">                logger.debug(&quot;requested: &quot; + portName);</span>
+
+<span class="nc" id="L168">                String portId = portName.toLowerCase();</span>
+<span class="nc" id="L169">                SerialService existingService = uniqueServices.get(portId);</span>
+
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                if(existingService != null) {</span>
+<span class="nc" id="L172">                    return existingService;</span>
+                }
+
+<span class="nc" id="L175">                SerialService sps = new SerialService(portName);</span>
+<span class="nc" id="L176">                uniqueServices.put(portId, sps);</span>
+
+<span class="nc" id="L178">                return sps;</span>
+            }
+
+        } finally {
+<span class="nc" id="L182">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * SerialPortEventListener method.  This just calls the notify
+     * method on this object, so that all blocking methods are kicked
+     * awake whenever a serialEvent occurs.
+     */
+    public void serialEvent(SerialPortEvent spe) {
+
+<span class="nc bnc" id="L193" title="All 11 branches missed.">        switch(spe.getEventType())</span>
+        {
+        case SerialPortEvent.BI:
+<span class="nc" id="L196">            logger.debug(&quot;SerialPortEvent: Break interrupt.&quot;);</span>
+<span class="nc" id="L197">            break;</span>
+        case SerialPortEvent.CD:
+<span class="nc" id="L199">            logger.debug(&quot;SerialPortEvent: Carrier detect.&quot;);</span>
+<span class="nc" id="L200">            break;</span>
+        case SerialPortEvent.CTS:
+<span class="nc" id="L202">            logger.debug(&quot;SerialPortEvent: Clear to send.&quot;);</span>
+<span class="nc" id="L203">            break;</span>
+        case SerialPortEvent.DATA_AVAILABLE:
+<span class="nc" id="L205">            logger.debug(&quot;SerialPortEvent: Data available at the serial port.&quot;);</span>
+<span class="nc" id="L206">            break;</span>
+        case SerialPortEvent.DSR:
+<span class="nc" id="L208">            logger.debug(&quot;SerialPortEvent: Data set ready.&quot;);</span>
+<span class="nc" id="L209">            break;</span>
+        case SerialPortEvent.FE:
+<span class="nc" id="L211">            logger.debug(&quot;SerialPortEvent: Framing error.&quot;);</span>
+<span class="nc" id="L212">            break;</span>
+        case SerialPortEvent.OE:
+<span class="nc" id="L214">            logger.debug(&quot;SerialPortEvent: Overrun error.&quot;);</span>
+<span class="nc" id="L215">            break;</span>
+        case SerialPortEvent.OUTPUT_BUFFER_EMPTY:
+<span class="nc" id="L217">            logger.debug(&quot;SerialPortEvent: Output buffer is empty.&quot;);</span>
+<span class="nc" id="L218">            break;</span>
+        case SerialPortEvent.PE:
+<span class="nc" id="L220">            logger.debug(&quot;SerialPortEvent: Parity error.&quot;);</span>
+<span class="nc" id="L221">            break;</span>
+        case SerialPortEvent.RI:
+<span class="nc" id="L223">            logger.debug(&quot;SerialPortEvent: Ring indicator.&quot;);</span>
+            break;
+        }
+        
+<span class="nc" id="L227">        logger.debug(&quot;SerialService.SerialEvent: oldValue=&quot; + spe.getOldValue());</span>
+<span class="nc" id="L228">        logger.debug(&quot;SerialService.SerialEvent: newValue=&quot; + spe.getNewValue());</span>
+<span class="nc" id="L229">    }</span>
+
+
+    public synchronized void openPort() throws IOException {
+
+<span class="nc" id="L234">        logger.debug(&quot;SerialService.openPort() called&quot;);</span>
+
+<span class="nc" id="L236">        openPort(null);</span>
+<span class="nc" id="L237">    }</span>
+
+    public synchronized void openPort(SerialPortEventListener spel) throws IOException {
+        
+<span class="nc" id="L241">        ThreadContext.push(&quot;openPort&quot;);</span>
+
+        try {
+
+            // record this thread as an owner. It's a Set, extra add() won't hurt
+<span class="nc" id="L246">            users.add(Thread.currentThread());</span>
+
+<span class="nc bnc" id="L248" title="All 2 branches missed.">            if(isPortOpen()) {</span>
+<span class="nc" id="L249">                return;</span>
+            }
+
+            CommPortIdentifier port_id;
+
+            try {
+<span class="nc" id="L255">                port_id = CommPortIdentifier.getPortIdentifier(portName);</span>
+<span class="nc" id="L256">            } catch(NoSuchPortException ex) {</span>
+<span class="nc" id="L257">                throw new IOException(portName + &quot;: no such port&quot;, ex);</span>
+<span class="nc" id="L258">            }</span>
+
+            // check if the port is currently used
+<span class="nc bnc" id="L261" title="All 2 branches missed.">            if (port_id.isCurrentlyOwned()) {</span>
+<span class="nc" id="L262">                throw new IOException(&quot;Port In Use (&quot; + portName + &quot;)&quot;);</span>
+            }
+
+            // try to acquire the port
+            try {
+
+                // get the port object
+<span class="nc" id="L269">                serialPort = (SerialPort) port_id.open(&quot;Dallas Semiconductor&quot;, 2000);</span>
+
+                //serialPort.setInputBufferSize(4096);
+                //serialPort.setOutputBufferSize(4096);
+
+<span class="nc" id="L274">                logger.debug(&quot;getInputBufferSize = &quot; + serialPort.getInputBufferSize());</span>
+<span class="nc" id="L275">                logger.debug(&quot;getOutputBufferSize = &quot; + serialPort.getOutputBufferSize());</span>
+
+<span class="nc bnc" id="L277" title="All 2 branches missed.">                serialPort.addEventListener(spel != null ? spel : this);</span>
+                
+<span class="nc" id="L279">                serialPort.notifyOnOutputEmpty(true);</span>
+<span class="nc" id="L280">                serialPort.notifyOnDataAvailable(true);</span>
+
+                // flow i/o
+<span class="nc" id="L283">                serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_NONE);</span>
+
+<span class="nc" id="L285">                serialInputStream  = serialPort.getInputStream();</span>
+<span class="nc" id="L286">                serialOutputStream = serialPort.getOutputStream();</span>
+
+                // bug workaround
+<span class="nc" id="L289">                serialOutputStream.write(0);</span>
+
+                // settings
+<span class="nc" id="L292">                serialPort.disableReceiveFraming();</span>
+<span class="nc" id="L293">                serialPort.disableReceiveThreshold();</span>
+<span class="nc" id="L294">                serialPort.enableReceiveTimeout(1);</span>
+
+                // set baud rate
+<span class="nc" id="L297">                serialPort.setSerialPortParams(9600, SerialPort.DATABITS_8,</span>
+                        SerialPort.STOPBITS_1,
+                        SerialPort.PARITY_NONE);
+
+<span class="nc" id="L301">                serialPort.setDTR(true);</span>
+<span class="nc" id="L302">                serialPort.setRTS(true);</span>
+
+<span class="nc" id="L304">                logger.debug(&quot;Port Opened (&quot; + portName + &quot;)&quot;);</span>
+
+<span class="nc" id="L306">            } catch(Exception ex) {</span>
+
+                // close the port if we have an object
+<span class="nc bnc" id="L309" title="All 2 branches missed.">                if (serialPort != null) {</span>
+<span class="nc" id="L310">                    serialPort.close();</span>
+                }
+
+<span class="nc" id="L313">                serialPort = null;</span>
+
+<span class="nc" id="L315">                throw new IOException(&quot;Could not open port (&quot; + portName + &quot;)&quot;, ex);</span>
+<span class="nc" id="L316">            }</span>
+        } finally {
+<span class="nc" id="L318">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L320">    }</span>
+
+    public synchronized void setNotifyOnDataAvailable(boolean notify) {
+<span class="nc" id="L323">        serialPort.notifyOnDataAvailable(notify);</span>
+<span class="nc" id="L324">    }</span>
+
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public static Enumeration&lt;String&gt; getSerialPortIdentifiers() {
+
+<span class="nc" id="L329">        synchronized(vPortIDs) {</span>
+
+<span class="nc bnc" id="L331" title="All 2 branches missed.">            if(vPortIDs.isEmpty()) {</span>
+
+<span class="nc bnc" id="L333" title="All 2 branches missed.">                for (Enumeration&lt;CommPortIdentifier&gt; e = CommPortIdentifier.getPortIdentifiers(); e.hasMoreElements(); ) {</span>
+
+<span class="nc" id="L335">                    CommPortIdentifier portID = e.nextElement();</span>
+
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                    if (portID.getPortType() == CommPortIdentifier.PORT_SERIAL) {</span>
+<span class="nc" id="L338">                        vPortIDs.add(portID.getName());</span>
+                    }
+<span class="nc" id="L340">                }</span>
+            }
+
+<span class="nc" id="L343">            return vPortIDs.elements();</span>
+        }
+    }
+
+    public synchronized String getPortName() {
+<span class="nc" id="L348">        return portName;</span>
+    }
+
+    public synchronized boolean isPortOpen() {
+<span class="nc bnc" id="L352" title="All 2 branches missed.">        return serialPort!=null;</span>
+    }
+
+    public synchronized boolean isDTR() {
+<span class="nc" id="L356">        return serialPort.isDTR();</span>
+    }
+
+    public synchronized void setDTR(boolean newDTR) {
+<span class="nc" id="L360">        serialPort.setDTR(newDTR);</span>
+<span class="nc" id="L361">    }</span>
+
+    public synchronized boolean isRTS() {
+<span class="nc" id="L364">        return serialPort.isRTS();</span>
+    }
+
+    public synchronized void setRTS(boolean newRTS) {
+<span class="nc" id="L368">        serialPort.setRTS(newRTS);</span>
+<span class="nc" id="L369">    }</span>
+
+    /**
+     * Send a break on this serial port.
+     *
+     * @param  duration - break duration in ms.
+     */
+    public synchronized void sendBreak(int duration){
+<span class="nc" id="L377">        serialPort.sendBreak(duration);</span>
+<span class="nc" id="L378">    }</span>
+
+    public synchronized int getBaudRate() {
+<span class="nc" id="L381">        return serialPort.getBaudRate();</span>
+    }
+
+    public synchronized void setBaudRate(int baudRate) throws IOException {
+
+<span class="nc" id="L386">        ThreadContext.push(&quot;setBaudRate(&quot; + baudRate + &quot;)&quot;);</span>
+        
+        try {
+<span class="nc bnc" id="L389" title="All 2 branches missed.">            if(!isPortOpen())</span>
+<span class="nc" id="L390">                throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+
+            try {
+                // set baud rate
+<span class="nc" id="L394">                serialPort.setSerialPortParams(baudRate,</span>
+                        SerialPort.DATABITS_8,
+                        SerialPort.STOPBITS_1,
+                        SerialPort.PARITY_NONE);
+
+<span class="nc" id="L399">                logger.debug(&quot;Set baudRate=&quot; + baudRate);</span>
+
+<span class="nc" id="L401">            } catch(UnsupportedCommOperationException ex) {</span>
+<span class="nc" id="L402">                throw new IOException(&quot;Failed to set baud rate: &quot;, ex);</span>
+<span class="nc" id="L403">            }</span>
+        } finally {
+<span class="nc" id="L405">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L407">    }</span>
+
+    /**
+     * Close this serial port.
+     */
+    public synchronized void closePort() {
+
+<span class="nc" id="L414">        logger.debug(&quot;SerialService.closePort&quot;);</span>
+
+<span class="nc" id="L416">        closePortByThreadID(Thread.currentThread());</span>
+<span class="nc" id="L417">    }</span>
+
+    public synchronized void flush() throws IOException {
+
+<span class="nc" id="L421">        logger.debug(&quot;SerialService.flush&quot;);</span>
+
+<span class="nc bnc" id="L423" title="All 2 branches missed.">        if (!isPortOpen()) {</span>
+<span class="nc" id="L424">            throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+        }
+
+<span class="nc" id="L427">        serialOutputStream.flush();</span>
+
+<span class="nc bnc" id="L429" title="All 2 branches missed.">        while(serialInputStream.available() &gt; 0) {</span>
+<span class="nc" id="L430">            serialInputStream.read();</span>
+        }
+<span class="nc" id="L432">    }</span>
+
+    /**
+     * Gets exclusive use of the 1-Wire to communicate with an iButton or
+     * 1-Wire Device.
+     *
+     * This method should be used for critical sections of code where a
+     * sequence of commands must not be interrupted by communication of
+     * threads with other iButtons, and it is permissible to sustain
+     * a delay in the special case that another thread has already been
+     * granted exclusive access and this access has not yet been
+     * relinquished.
+     */
+    public void beginExclusive() {
+
+<span class="nc" id="L447">        logger.debug(&quot;SerialService.beginExclusive()&quot;);</span>
+
+<span class="nc" id="L449">        theLock.lock();</span>
+<span class="nc" id="L450">    }</span>
+
+    /**
+     * Relinquishes exclusive control of the 1-Wire Network.
+     * This command dynamically marks the end of a critical section and
+     * should be used when exclusive control is no longer needed.
+     */
+    public synchronized void endExclusive () {
+
+<span class="nc" id="L459">        logger.debug(&quot;SerialService.endExclusive&quot;);</span>
+
+<span class="nc" id="L461">        theLock.unlock();</span>
+<span class="nc" id="L462">    }</span>
+
+    /**
+     * Allows clean up port by thread.
+     */
+    private synchronized void closePortByThreadID(Thread t) {
+        
+<span class="nc" id="L469">        ThreadContext.push(&quot;closePortByThreadID&quot;);</span>
+
+        try {
+
+<span class="nc" id="L473">            logger.debug(&quot;SerialService.closePortByThreadID(Thread), Thread=&quot; + t);</span>
+
+            // remove this thread as an owner
+<span class="nc" id="L476">            users.remove(t);</span>
+
+            // if this is the last owner then close the port
+<span class="nc bnc" id="L479" title="All 2 branches missed.">            if (users.isEmpty()) {</span>
+
+                // if don't own a port then just return
+<span class="nc bnc" id="L482" title="All 2 branches missed.">                if (!isPortOpen()) {</span>
+<span class="nc" id="L483">                    return;</span>
+                }
+
+                // close the port
+<span class="nc" id="L487">                serialPort.close();</span>
+<span class="nc" id="L488">                serialPort = null;</span>
+<span class="nc" id="L489">                serialInputStream = null;</span>
+<span class="nc" id="L490">                serialOutputStream = null;</span>
+            }
+            
+        } finally {
+<span class="nc" id="L494">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L496">    }</span>
+
+    public synchronized int available() throws IOException {
+
+<span class="nc bnc" id="L500" title="All 2 branches missed.">        if(!isPortOpen()) {</span>
+<span class="nc" id="L501">            throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+        }
+
+<span class="nc" id="L504">        return serialInputStream.available();</span>
+    }
+
+    public synchronized int read() throws IOException {
+
+<span class="nc bnc" id="L509" title="All 2 branches missed.">        if (!isPortOpen()) {</span>
+<span class="nc" id="L510">            throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+        }
+
+<span class="nc" id="L513">        return serialInputStream.read();</span>
+    }
+
+    public synchronized int read(byte[] buffer) throws IOException {
+
+<span class="nc bnc" id="L518" title="All 2 branches missed.">        if(!isPortOpen()) {</span>
+<span class="nc" id="L519">            throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+        }
+
+<span class="nc" id="L522">        return read(buffer, 0, buffer.length);</span>
+    }
+
+    public synchronized int read(byte[] buffer, int offset, int length) throws IOException {
+
+<span class="nc bnc" id="L527" title="All 2 branches missed.">        if(!isPortOpen()) {</span>
+<span class="nc" id="L528">            throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+        }
+
+<span class="nc" id="L531">        return serialInputStream.read(buffer, offset, length);</span>
+    }
+
+    public synchronized int readWithTimeout(byte[] buffer, int offset, int length) throws IOException {
+        
+<span class="nc" id="L536">        ThreadContext.push(&quot;readWithTimeout&quot;);</span>
+        
+        try {
+
+<span class="nc bnc" id="L540" title="All 2 branches missed.">            if (!isPortOpen()) {</span>
+<span class="nc" id="L541">                throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+            }
+
+            // set timeout to be very long
+<span class="nc" id="L545">            long timeout = System.currentTimeMillis() + length*20 + 800;</span>
+
+<span class="nc" id="L547">            logger.debug(&quot;SerialService.readWithTimeout(): length=&quot; + length + &quot;, timeout=&quot; + timeout);</span>
+
+
+<span class="nc bnc" id="L550" title="All 2 branches missed.">            int count = byteBang</span>
+<span class="nc" id="L551">            ? readWithTimeoutByteBang(buffer, offset, length, timeout)</span>
+<span class="nc" id="L552">                    : readWithTimeoutNoByteBang(buffer, offset, length, timeout);</span>
+
+<span class="nc" id="L554">            logger.debug(&quot;SerialService.readWithTimeout: read &quot; + count + &quot; bytes&quot;);</span>
+<span class="nc" id="L555">            logger.debug(&quot;SerialService.readWithTimeout: &quot; + Convert.toHexString(buffer, offset, count));</span>
+
+<span class="nc" id="L557">            return count;</span>
+
+        } finally {
+<span class="nc" id="L560">            ThreadContext.pop();</span>
+        }
+    }
+
+    private int readWithTimeoutByteBang(byte[] buffer, int offset, int length, long timeout) throws IOException {
+        
+<span class="nc" id="L566">        ThreadContext.push(&quot;readWithTimeoutByteBang&quot;);</span>
+        
+<span class="nc" id="L568">        int count = 0;</span>
+        try {
+
+
+            do {
+
+<span class="nc" id="L574">                int new_byte = serialInputStream.read();</span>
+
+<span class="nc bnc" id="L576" title="All 2 branches missed.">                if (new_byte != -1) {</span>
+
+<span class="nc" id="L578">                    buffer[count+offset] = (byte)new_byte;</span>
+<span class="nc" id="L579">                    count++;</span>
+
+                } else {
+
+<span class="nc bnc" id="L583" title="All 2 branches missed.">                    if (System.currentTimeMillis() &gt; timeout) {</span>
+<span class="nc" id="L584">                        logger.debug(&quot;premature return, timeout (&quot; + timeout + &quot;) exceeded&quot;);</span>
+<span class="nc" id="L585">                        return count;</span>
+                    }
+
+                    // no bytes available yet so yield
+<span class="nc" id="L589">                    Thread.yield();</span>
+
+<span class="nc" id="L591">                    logger.debug(&quot;yield ended&quot;);</span>
+                }
+
+<span class="nc bnc" id="L594" title="All 2 branches missed.">            } while (length &gt; count);</span>
+
+<span class="nc" id="L596">            return count;</span>
+
+        } finally {
+<span class="nc" id="L599">            logger.debug(&quot;returning &quot; + count);</span>
+<span class="nc" id="L600">            ThreadContext.pop();</span>
+        }
+    }
+
+    private int readWithTimeoutNoByteBang(byte[] buffer, int offset, int length, long timeout) throws IOException {
+
+<span class="nc" id="L606">        int count = 0;</span>
+
+        do {
+
+<span class="nc" id="L610">            int available = serialInputStream.available();</span>
+
+<span class="nc bnc" id="L612" title="All 2 branches missed.">            if (available &gt; 0) {</span>
+
+                // check for block bigger then buffer
+<span class="nc bnc" id="L615" title="All 2 branches missed.">                if (available + count &gt; length) {</span>
+<span class="nc" id="L616">                    available = length - count;</span>
+                }
+
+                // read the block
+<span class="nc" id="L620">                count += serialInputStream.read(buffer, count + offset, available);</span>
+
+            } else {
+
+                // check for timeout
+<span class="nc bnc" id="L625" title="All 2 branches missed.">                if (System.currentTimeMillis() &gt; timeout  ) {</span>
+<span class="nc" id="L626">                    length = 0;</span>
+                }
+
+<span class="nc" id="L629">                Thread.yield();</span>
+            }
+
+<span class="nc bnc" id="L632" title="All 2 branches missed.">        } while (length &gt; count);</span>
+
+<span class="nc" id="L634">        return count;</span>
+    }
+
+    public synchronized char[] readWithTimeout(int length) throws IOException {
+
+<span class="nc" id="L639">        byte[] buffer = new byte[length];</span>
+
+<span class="nc" id="L641">        int count = readWithTimeout(buffer, 0, length);</span>
+
+<span class="nc bnc" id="L643" title="All 2 branches missed.">        if (length != count) {</span>
+<span class="nc" id="L644">            throw new IOException(&quot;readWithTimeout, timeout waiting for return bytes (wanted &quot; + length + &quot;, got &quot; + count + &quot;)&quot;);</span>
+        }
+
+<span class="nc" id="L647">        char[] returnBuffer = new char[length];</span>
+
+<span class="nc bnc" id="L649" title="All 2 branches missed.">        for(int i = 0; i &lt; length; i++) {</span>
+<span class="nc" id="L650">            returnBuffer[i] = (char) (buffer[i] &amp; 0x00FF);</span>
+        }
+
+<span class="nc" id="L653">        return returnBuffer;</span>
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public synchronized void write(int data) throws IOException {
+        
+<span class="nc" id="L661">        ThreadContext.push(&quot;write&quot;);</span>
+
+<span class="nc bnc" id="L663" title="All 2 branches missed.">        if(!isPortOpen()) {</span>
+<span class="nc" id="L664">            throw new IOException(null, new IllegalStateException(&quot;Port Not Open&quot;));</span>
+        }
+
+<span class="nc" id="L667">        logger.debug(&quot;data: &quot; + Convert.toHexString((byte)data));</span>
+
+        try {
+
+<span class="nc" id="L671">            serialOutputStream.write(data);</span>
+<span class="nc" id="L672">            serialOutputStream.flush();</span>
+
+<span class="nc" id="L674">        } catch (IOException e) {</span>
+
+            // drain IOExceptions that are 'Interrrupted' on Linux
+            // convert the rest to IOExceptions
+
+<span class="nc bnc" id="L679" title="All 2 branches missed.">            if (!(System.getProperty(&quot;os.name&quot;).contains(&quot;Linux&quot;)</span>
+<span class="nc bnc" id="L680" title="All 2 branches missed.">                    &amp;&amp; e.toString().contains(&quot;Interrupted&quot;))) {</span>
+<span class="nc" id="L681">                throw new IOException(&quot;write(char): &quot; + e);</span>
+            }
+<span class="nc" id="L683">        }</span>
+<span class="nc" id="L684">    }</span>
+
+    public synchronized void write(byte[] data, int offset, int length) throws IOException {
+        
+<span class="nc" id="L688">        ThreadContext.push(&quot;write&quot;);</span>
+        
+        try {
+
+<span class="nc bnc" id="L692" title="All 2 branches missed.">            if (!isPortOpen()) {</span>
+<span class="nc" id="L693">                throw new IOException(&quot;Port Not Open&quot;);</span>
+            }
+
+<span class="nc" id="L696">            logger.debug(&quot;length: &quot; + length + &quot; bytes&quot;);</span>
+<span class="nc" id="L697">            logger.debug(&quot;data: &quot; + Convert.toHexString(data, offset, length));</span>
+
+            try {
+
+<span class="nc" id="L701">                serialOutputStream.write(data, offset, length);</span>
+<span class="nc" id="L702">                serialOutputStream.flush();</span>
+
+<span class="nc" id="L704">            } catch (IOException e) {</span>
+
+                // drain IOExceptions that are 'Interrrupted' on Linux
+                // convert the rest to IOExceptions
+
+<span class="nc bnc" id="L709" title="All 2 branches missed.">                if (!((System.getProperty(&quot;os.name&quot;).indexOf(&quot;Linux&quot;) != -1)</span>
+<span class="nc bnc" id="L710" title="All 2 branches missed.">                        &amp;&amp; (e.toString().indexOf(&quot;Interrupted&quot;) != -1))) {</span>
+<span class="nc" id="L711">                    throw new IOException(&quot;write(char): &quot; + e);</span>
+                }
+<span class="nc" id="L713">            }</span>
+
+        } finally {
+<span class="nc" id="L716">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L718">    }</span>
+
+    public synchronized void write(byte[] data) throws IOException {
+<span class="nc" id="L721">        write(data, 0, data.length);</span>
+<span class="nc" id="L722">    }</span>
+
+    public synchronized void write(String data) throws IOException {
+<span class="nc" id="L725">        byte[] dataBytes = data.getBytes();</span>
+<span class="nc" id="L726">        write(dataBytes, 0, dataBytes.length);</span>
+<span class="nc" id="L727">    }</span>
+
+    public synchronized void write(char data) throws IOException {
+<span class="nc" id="L730">        write((int)data);</span>
+<span class="nc" id="L731">    }</span>
+
+    public synchronized void write(char[] data) throws IOException {
+<span class="nc" id="L734">        write(data, 0, data.length);</span>
+<span class="nc" id="L735">    }</span>
+
+    public synchronized void write(char[] data, int offset, int length) throws IOException {
+        
+<span class="nc" id="L739">        ThreadContext.push(&quot;write&quot;);</span>
+        
+        try {
+
+<span class="nc bnc" id="L743" title="All 2 branches missed.">            if (length &gt; tempArray.length) {</span>
+                
+<span class="nc" id="L745">                logger.warn(&quot;Extending temp buffer to &quot; + length + &quot; bytes&quot;);</span>
+                
+<span class="nc" id="L747">                tempArray = new byte[length];</span>
+            }
+
+<span class="nc bnc" id="L750" title="All 2 branches missed.">            for (int i=0; i&lt;length; i++) {</span>
+<span class="nc" id="L751">                tempArray[i] = (byte) data[i];</span>
+            }
+
+<span class="nc" id="L754">            write(tempArray, 0, length);</span>
+        
+        } finally {
+<span class="nc" id="L757">            ThreadContext.pop();</span>
+        }
+<span class="nc" id="L759">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

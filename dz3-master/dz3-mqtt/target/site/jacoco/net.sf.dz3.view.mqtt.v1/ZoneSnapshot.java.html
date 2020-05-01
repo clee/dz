@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZoneSnapshot.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">MQTT Connector</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.view.mqtt.v1</a> &gt; <span class="el_source">ZoneSnapshot.java</span></div><h1>ZoneSnapshot.java</h1><pre class="source lang-java linenums">package net.sf.dz3.view.mqtt.v1;
+
+import java.io.Serializable;
+
+import net.sf.dz3.device.model.HvacMode;
+import net.sf.dz3.device.model.ZoneState;
+
+/**
+ * Zone snapshot.
+ * 
+ * This class is common across the DZ server application, Home Climate Control proxy, wherever it is running,
+ * and Home Climate Control Remote Android application (https://play.google.com/store/apps/details?id=com.homeclimatecontrol.dz3.view.android).
+ * Hence, a strange &quot;public&quot; implementation - it needs to support easy JSON, XML or other serialization/deserialization.
+ *
+ * NOTE: The deviation* variables support fast &quot;return to schedule&quot; function on remote devices (otherwise, it'll take 
+ * the full round trip time for them to reflect proper values, oscillating feedback loop becomes possible).
+ * 
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2013
+ */
+public class ZoneSnapshot implements Comparable&lt;ZoneSnapshot&gt;, Serializable {
+
+    private static final long serialVersionUID = 1968013529080011937L;
+
+    public long timestamp;
+    public String name;
+    public HvacMode mode;
+    public ZoneState state;
+    public double signal;
+    public double currentTemperature;
+    public double setpointTemperature;
+    public boolean enabled;
+    public boolean onHold;
+    public boolean voting;
+    public String periodName;
+    
+    /**
+     * How much does the {@link #setpointTemperature} differ from the schedule setpoint.
+     */
+    public double deviationSetpoint;
+    
+    /**
+     * {@code true} if the scheduled 'enabled' value differs from current.
+     */
+    public boolean deviationEnabled;
+    
+    /**
+     * {@code true} if the scheduled 'voting' value differs from current.
+     */
+    public boolean deviationVoting;
+    
+    public String error;
+
+    /**
+     * Useless, but mandatory constructor.
+     */
+    @SuppressWarnings(&quot;unused&quot;)
+    private ZoneSnapshot() {
+        
+    }
+    
+    /**
+     * Create an instance.
+     * 
+     * @param timestamp Time when this snapshot was created.
+     * @param name Zone name.
+     * @param mode Zone HVAC mode.
+     * @param state Zone state.
+     * @param signal Current thermostat signal.
+     * @param currentTemperature Current zone temperature.
+     * @param setpointTemperature Setpoint temperature.
+     * @param enabled Whether the zone is enabled.
+     * @param onHold Whether the zone is on hold.
+     * @param voting Whether the zone is voting.
+     * @param periodName Schedule period name currently running, or {@code null} if none.
+     * @param onSchedule Whether the zone is on schedule ({@code true}) or settings are
+     * altered ({@code false}).
+     * @param
+     * @param error Error message or {@code null} if no error condition exists.
+     */
+    public ZoneSnapshot(long timestamp, String name, HvacMode mode, ZoneState state,
+            double signal, double currentTemperature,
+            double setpointTemperature, boolean enabled, boolean onHold, boolean voting,
+            String periodName,
+            double deviationSetpoint,
+            boolean deviationEnabled,
+            boolean deviationVoting,
+<span class="nc" id="L87">            String error) {</span>
+
+<span class="nc" id="L89">        this.timestamp = timestamp;</span>
+<span class="nc" id="L90">        this.name = name;</span>
+<span class="nc" id="L91">        this.mode = mode;</span>
+<span class="nc" id="L92">        this.state = state;</span>
+<span class="nc" id="L93">        this.signal = signal;</span>
+<span class="nc" id="L94">        this.currentTemperature = currentTemperature;</span>
+<span class="nc" id="L95">        this.setpointTemperature = setpointTemperature;</span>
+<span class="nc" id="L96">        this.enabled = enabled;</span>
+<span class="nc" id="L97">        this.onHold = onHold;</span>
+<span class="nc" id="L98">        this.voting = voting;</span>
+<span class="nc" id="L99">        this.periodName = periodName;</span>
+<span class="nc" id="L100">        this.deviationSetpoint = deviationSetpoint;</span>
+<span class="nc" id="L101">        this.deviationEnabled = deviationEnabled;</span>
+<span class="nc" id="L102">        this.deviationVoting = deviationVoting;</span>
+<span class="nc" id="L103">        this.error = error;</span>
+<span class="nc" id="L104">    }</span>
+
+    @Override
+    public int compareTo(ZoneSnapshot o) {
+
+//    	org.apache.log4j.Logger.getLogger(getClass()).error(&quot;ZoneSnapshot#toString&quot;, new IllegalStateException(&quot;Trace&quot;));
+    	
+<span class="nc" id="L111">    	String us = Long.toString(timestamp) + &quot;.&quot; + this;</span>
+<span class="nc" id="L112">    	String them = Long.toString(o.timestamp) + &quot;.&quot; + o;</span>
+    	
+<span class="nc" id="L114">        return us.compareTo(them);</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (o == null) {</span>
+<span class="nc" id="L121">            return false;</span>
+        }
+        
+<span class="nc" id="L124">        return toString().equals(o.toString());</span>
+    }
+    
+    @Override
+    public int hashCode() {
+<span class="nc" id="L129">        return toString().hashCode();</span>
+    }
+
+    @Override
+    public String toString() {
+
+<span class="nc" id="L135">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L137">        sb.append(name).append(&quot;: &quot;).append(mode);</span>
+<span class="nc" id="L138">        sb.append(&quot;, &quot;).append(state);</span>
+<span class="nc" id="L139">        sb.append(&quot;, signal=&quot;).append(signal);</span>
+<span class="nc" id="L140">        sb.append(&quot;, current=&quot;).append(currentTemperature);</span>
+<span class="nc" id="L141">        sb.append(&quot;, setpoint=&quot;).append(setpointTemperature);</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        sb.append(enabled ? &quot;&quot; : &quot;, OFF&quot;);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">        sb.append(onHold ? &quot;, on hold&quot; : &quot;&quot;);</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        sb.append(voting ? &quot;&quot; : &quot;, not voting&quot;);</span>
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        if (periodName != null) {</span>
+<span class="nc" id="L147">            sb.append(&quot;, period=&quot;).append(periodName);</span>
+        }
+
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        sb.append(Double.compare(deviationSetpoint, 0d) != 0 ? &quot;, setpoint differs from schedule by &quot; + deviationSetpoint : &quot;&quot;);</span>
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        sb.append(deviationEnabled ? &quot;, 'enabled' differs from schedule&quot; : &quot;&quot;);</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">        sb.append(deviationVoting ? &quot;, 'voting' differs from schedule&quot; : &quot;&quot;);</span>
+
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (error != null) {</span>
+<span class="nc" id="L156">            sb.append(&quot;, error=&quot;).append(error);</span>
+        }
+
+<span class="nc" id="L159">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,590 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OneWireContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.container</a> &gt; <span class="el_source">OneWireContainer.java</span></div><h1>OneWireContainer.java</h1><pre class="source lang-java linenums">
+/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.container;
+
+import java.util.Enumeration;
+import java.util.Vector;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.dalsemi.onewire.OneWireException;
+import com.dalsemi.onewire.adapter.DSPortAdapter;
+import com.dalsemi.onewire.adapter.OneWireIOException;
+// imports
+import com.dalsemi.onewire.utils.Address;
+
+
+/**
+ * A &lt;code&gt;OneWireContainer&lt;/code&gt; encapsulates the &lt;code&gt;DSPortAdapter&lt;/code&gt;,
+ * the 1-Wire&amp;#174 network address, and methods to manipulate a specific 1-Wire device. A
+ * 1-Wire device may be in the form of a stainless steel armored can, called an iButton&amp;#174,
+ * or in standard IC plastic packaging.
+ *
+ * &lt;p&gt;General 1-Wire device container class with basic communication functions.
+ * This class should only be used if a device specific class is not available
+ * or known.  Most &lt;code&gt;OneWireContainer&lt;/code&gt; classes will extend this basic class.
+ *
+ * &lt;P&gt; 1-Wire devices with memory can be accessed through the objects that
+ * are returned from the {@link #getMemoryBanks() getMemoryBanks} method. See the
+ * usage example below. &lt;/P&gt;
+ *
+ * &lt;H3&gt; Usage &lt;/H3&gt;
+ *
+ * &lt;DL&gt;
+ * &lt;DD&gt; &lt;H4&gt; Example 1&lt;/H4&gt;
+ * Enumerate memory banks retrieved from the OneWireContainer
+ * instance 'owd' and cast to the highest interface.  See the
+ * interface descriptions
+ * {@link com.dalsemi.onewire.container.MemoryBank MemoryBank},
+ * {@link com.dalsemi.onewire.container.PagedMemoryBank PagedMemoryBank}, and
+ * {@link com.dalsemi.onewire.container.PagedMemoryBank OTPMemoryBank}
+ * for specific examples.
+ * &lt;PRE&gt; &lt;CODE&gt;
+ *  MemoryBank      mb;
+ *  PagedMemoryBank pg_mb;
+ *  OTPMemoryBank   otp_mb;
+ *
+ *  for(Enumeration bank_enum = owd.getMemoryBanks();
+ *                      bank_enum.hasMoreElements(); )
+ *  {
+ *     // get the next memory bank, cast to MemoryBank
+ *     mb = (MemoryBank)bank_enum.nextElement();
+ *
+ *     // check if has paged services
+ *     if (mb instanceof PagedMemoryBank)
+ *         pg_mb = (PagedMemoryBank)mb;
+ *
+ *     // check if has One-Time-Programable services
+ *     if (mb instanceof OTPMemoryBank)
+ *         otp_mb = (OTPMemoryBank)mb;
+ *  }
+ * &lt;/CODE&gt; &lt;/PRE&gt;
+ * &lt;/DL&gt;
+ *
+ * @see com.dalsemi.onewire.container.MemoryBank
+ * @see com.dalsemi.onewire.container.PagedMemoryBank
+ * @see com.dalsemi.onewire.container.OTPMemoryBank
+ *
+ *  @version    0.00, 28 Aug 2000
+ *  @author     DS
+ * @author Stability enhancements &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+public class OneWireContainer {
+
+<span class="nc" id="L101">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    //--------
+    //-------- Variables
+    //--------
+
+    /**
+     * Reference to the adapter that is needed to communicate with this
+     * iButton or 1-Wire device.
+     */
+    protected DSPortAdapter adapter;
+
+    /**
+     * 1-Wire Network Address of this iButton or 1-Wire
+     * device.
+     * Family code is byte at offset 0.
+     * @see com.dalsemi.onewire.utils.Address
+     */
+<span class="nc" id="L119">    protected final byte[] address = new byte[8];</span>
+
+    /**
+     * Communication speed requested.
+     * &lt;ul&gt;
+     * &lt;li&gt;     0 (SPEED_REGULAR)
+     * &lt;li&gt;     1 (SPEED_FLEX)
+     * &lt;li&gt;     2 (SPEED_OVERDRIVE)
+     * &lt;li&gt;     3 (SPEED_HYPERDRIVE)
+     * &lt;li&gt;    &gt;3 future speeds
+     * &lt;/ul&gt;
+     *
+     * @see DSPortAdapter#setSpeed
+     */
+    protected int speed;
+
+    /**
+     * Flag to indicate that falling back to a slower speed then requested
+     * is OK.
+     */
+    protected boolean speedFallBackOK;
+
+    //--------
+    //-------- Constructors
+    //--------
+
+    /**
+     * Create an empty container.  Must call &lt;code&gt;setupContainer&lt;/code&gt; before
+     * using this new container.&lt;p&gt;
+     *
+     * This is one of the methods to construct a container.  The others are
+     * through creating a OneWireContainer with parameters.
+     *
+     * @see #OneWireContainer(DSPortAdapter,byte[])
+     * @see #OneWireContainer(DSPortAdapter,long)
+     * @see #OneWireContainer(DSPortAdapter,String)
+     * @see #setupContainer(DSPortAdapter,byte[])
+     * @see #setupContainer(DSPortAdapter,long)
+     * @see #setupContainer(DSPortAdapter,String)
+     */
+<span class="nc" id="L159">    public OneWireContainer () {</span>
+<span class="nc" id="L160">    }</span>
+
+    /**
+     * Create a container with a provided adapter object
+     * and the address of the iButton or 1-Wire device.&lt;p&gt;
+     *
+     * This is one of the methods to construct a container.  The other is
+     * through creating a OneWireContainer with NO parameters.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this iButton.
+     * @param  newAddress        address of this 1-Wire device
+     * @see #OneWireContainer()
+     * @see com.dalsemi.onewire.utils.Address
+     */
+<span class="nc" id="L175">    public OneWireContainer (DSPortAdapter sourceAdapter, byte[] newAddress) {</span>
+<span class="nc" id="L176">        this.setupContainer(sourceAdapter, newAddress);</span>
+<span class="nc" id="L177">    }</span>
+
+    /**
+     * Create a container with a provided adapter object
+     * and the address of the iButton or 1-Wire device.&lt;p&gt;
+     *
+     * This is one of the methods to construct a container.  The other is
+     * through creating a OneWireContainer with NO parameters.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this iButton.
+     * @param  newAddress        address of this 1-Wire device
+     * @see #OneWireContainer()
+     * @see com.dalsemi.onewire.utils.Address
+     */
+<span class="nc" id="L192">    public OneWireContainer(DSPortAdapter sourceAdapter, long newAddress) {</span>
+<span class="nc" id="L193">        this.setupContainer(sourceAdapter, newAddress);</span>
+<span class="nc" id="L194">    }</span>
+
+    /**
+     * Create a container with a provided adapter object
+     * and the address of the iButton or 1-Wire device.&lt;p&gt;
+     *
+     * This is one of the methods to construct a container.  The other is
+     * through creating a OneWireContainer with NO parameters.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     * this iButton.
+     * @param  newAddress        address of this 1-Wire device
+     * @see #OneWireContainer()
+     * @see com.dalsemi.onewire.utils.Address
+     */
+<span class="nc" id="L209">    public OneWireContainer(DSPortAdapter sourceAdapter, String newAddress) {</span>
+<span class="nc" id="L210">        this.setupContainer(sourceAdapter, newAddress);</span>
+<span class="nc" id="L211">    }</span>
+
+    //--------
+    //-------- Setup and adapter methods
+    //--------
+
+    /**
+     * Provides this container with the adapter object used to access this device and
+     * the address of the iButton or 1-Wire device.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this iButton
+     * @param  newAddress        address of this 1-Wire device
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public synchronized void setupContainer(DSPortAdapter sourceAdapter, byte[] newAddress) {
+
+        // get a reference to the source adapter (will need this to communicate)
+<span class="nc" id="L230">        adapter = sourceAdapter;</span>
+
+        // set the Address
+
+<span class="nc" id="L234">        System.arraycopy(newAddress, 0, address, 0, 8);</span>
+
+        // set desired speed to be SPEED_REGULAR by default with no fallback
+<span class="nc" id="L237">        speed           = adapter.SPEED_REGULAR;</span>
+<span class="nc" id="L238">        speedFallBackOK = false;</span>
+<span class="nc" id="L239">    }</span>
+
+    /**
+     * Provides this container with the adapter object used to access this device and
+     * the address of the iButton or 1-Wire device.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this iButton
+     * @param  newAddress        address of this 1-Wire device
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public synchronized void setupContainer(DSPortAdapter sourceAdapter, long newAddress) {
+
+        // get a reference to the source adapter (will need this to communicate)
+<span class="nc" id="L254">        adapter = sourceAdapter;</span>
+
+        // set the Address
+<span class="nc" id="L257">        Address.toByteArray(newAddress, address);</span>
+
+        // set desired speed to be SPEED_REGULAR by default with no fallback
+<span class="nc" id="L260">        speed           = adapter.SPEED_REGULAR;</span>
+<span class="nc" id="L261">        speedFallBackOK = false;</span>
+<span class="nc" id="L262">    }</span>
+
+    /**
+     * Provides this container with the adapter object used to access this device and
+     * the address of the iButton or 1-Wire device.
+     *
+     * @param  sourceAdapter     adapter object required to communicate with
+     *                           this iButton
+     * @param  newAddress        address of this 1-Wire device
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public synchronized void setupContainer(DSPortAdapter sourceAdapter, String newAddress) {
+
+        // get a reference to the source adapter (will need this to communicate)
+<span class="nc" id="L277">        adapter = sourceAdapter;</span>
+
+        // set the Address
+<span class="nc" id="L280">        Address.toByteArray(newAddress, address);</span>
+
+        // set desired speed to be SPEED_REGULAR by default with no fallback
+<span class="nc" id="L283">        speed           = adapter.SPEED_REGULAR;</span>
+<span class="nc" id="L284">        speedFallBackOK = false;</span>
+<span class="nc" id="L285">    }</span>
+
+    /**
+     * Retrieves the port adapter object used to create this container.
+     *
+     * @return port adapter instance
+     */
+    public DSPortAdapter getAdapter() {
+<span class="nc" id="L293">        return adapter;</span>
+    }
+
+    //--------
+    //-------- Device information methods
+    //--------
+
+    /**
+     * Retrieves the Dallas Semiconductor part number of the 1-Wire device
+     * as a &lt;code&gt;String&lt;/code&gt;.  For example 'Crypto iButton' or 'DS1992'.
+     *
+     * @return 1-Wire device name
+     */
+    public synchronized String getName() {
+
+<span class="nc" id="L308">        return &quot;Device type: &quot;</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">        + (((address [0] &amp; 0x0FF) &lt; 16)</span>
+<span class="nc" id="L310">                ? (&quot;0&quot; + Integer.toHexString(address [0] &amp; 0x0FF))</span>
+<span class="nc" id="L311">                        : Integer.toHexString(address [0] &amp; 0x0FF));</span>
+    }
+
+    /**
+     * Retrieves the alternate Dallas Semiconductor part numbers or names.
+     * A 'family' of 1-Wire Network devices may have more than one part number
+     * depending on packaging.  There can also be nicknames such as
+     * 'Crypto iButton'.
+     *
+     * @return 1-Wire device alternate names
+     */
+    public String getAlternateNames() {
+<span class="nc" id="L323">        return &quot;&quot;;</span>
+    }
+
+    /**
+     * Retrieves a short description of the function of the 1-Wire device type.
+     *
+     * @return device functional description
+     */
+    public String getDescription() {
+<span class="nc" id="L332">        return &quot;No description available.&quot;;</span>
+    }
+
+    /**
+     * Sets the maximum speed for this container.  Note this may be slower then the
+     * devices maximum speed.  This method can be used by an application
+     * to restrict the communication rate due 1-Wire line conditions. &lt;p&gt;
+     *
+     * @param newSpeed
+     * &lt;ul&gt;
+     * &lt;li&gt;     0 (SPEED_REGULAR) set to normal communciation speed
+     * &lt;li&gt;     1 (SPEED_FLEX) set to flexible communciation speed used
+     *            for long lines
+     * &lt;li&gt;     2 (SPEED_OVERDRIVE) set to normal communciation speed to
+     *            overdrive
+     * &lt;li&gt;     3 (SPEED_HYPERDRIVE) set to normal communciation speed to
+     *            hyperdrive
+     * &lt;li&gt;    &gt;3 future speeds
+     * &lt;/ul&gt;
+     *
+     * @param fallBack boolean indicating it is OK to fall back to a slower
+     *                 speed if true
+     *
+     */
+    public void setSpeed(int newSpeed, boolean fallBack) {
+<span class="nc" id="L357">        speed           = newSpeed;</span>
+<span class="nc" id="L358">        speedFallBackOK = fallBack;</span>
+<span class="nc" id="L359">    }</span>
+
+    /**
+     * Returns the maximum speed this iButton or 1-Wire device can
+     * communicate at.
+     * Override this method if derived iButton type can go faster then
+     * SPEED_REGULAR(0).
+     *
+     * @return maximum speed
+     * @see DSPortAdapter#setSpeed
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public int getMaxSpeed() {
+<span class="nc" id="L372">        return adapter.SPEED_REGULAR;</span>
+    }
+
+    /**
+     * Gets the 1-Wire Network address of this device as an array of bytes.
+     *
+     * @return 1-Wire address
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    public byte[] getAddress() {
+<span class="nc" id="L382">        return address;</span>
+    }
+
+    /**
+     * Gets this device's 1-Wire Network address as a String.
+     *
+     * @return 1-Wire address
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    public String getAddressAsString() {
+<span class="nc" id="L392">        return Address.toString(address);</span>
+    }
+
+    /**
+     * Gets this device's 1-Wire Network address as a long.
+     *
+     * @return 1-Wire address
+     * @see com.dalsemi.onewire.utils.Address
+     */
+    public long getAddressAsLong() {
+<span class="nc" id="L402">        return Address.toLong(address);</span>
+    }
+
+    /**
+     * Returns an &lt;code&gt;Enumeration&lt;/code&gt; of &lt;code&gt;MemoryBank&lt;/code&gt;.  Default is no memory banks.
+     *
+     * @return enumeration of memory banks to read and write memory
+     *   on this iButton or 1-Wire device
+     * @see MemoryBank
+     */
+    public Enumeration&lt;MemoryBank&gt; getMemoryBanks() {
+<span class="nc" id="L413">        return new Vector&lt;MemoryBank&gt;(0).elements();</span>
+    }
+
+    //--------
+    //-------- I/O Methods
+    //--------
+
+    /**
+     * Verifies that the iButton or 1-Wire device is present on
+     * the 1-Wire Network.
+     *
+     * @return  &lt;code&gt;true&lt;/code&gt; if device present on the 1-Wire Network
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         a read back verification fails.
+     * @throws OneWireException if adapter is not open
+     */
+    public synchronized boolean isPresent() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L432">        return adapter.isPresent(address);</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device is present
+     * on the 1-Wire Network and in an alarm state.  This does not
+     * apply to all device types.
+     *
+     * @return  &lt;code&gt;true&lt;/code&gt; if device present and in alarm condition
+     *
+     * @throws OneWireIOException on a 1-Wire communication error such as
+     *         a read back verification fails.
+     * @throws OneWireException if adapter is not open
+     */
+    public synchronized boolean isAlarming() throws OneWireIOException, OneWireException {
+<span class="nc" id="L447">        return adapter.isAlarming(address);</span>
+    }
+
+    /**
+     * Go to the specified speed for this container.  This method uses the
+     * containers selected speed (method setSpeed(speed, fallback)) and
+     * will optionally fall back to a slower speed if communciation failed.
+     * Only call this method once to get the device into the desired speed
+     * as long as the device is still responding.
+     *
+     * @throws OneWireIOException WHEN selected speed fails and fallback
+     *                                 is false
+     * @throws OneWireException WHEN hypterdrive is selected speed
+     * @see #setSpeed(int,boolean)
+     */
+    @SuppressWarnings(&quot;static-access&quot;)
+    public void doSpeed() throws OneWireIOException, OneWireException {
+
+<span class="nc" id="L465">        boolean is_present = false;</span>
+
+        try {
+            // check if already at speed and device present
+<span class="nc bnc" id="L469" title="All 4 branches missed.">            if ((speed == adapter.getSpeed()) &amp;&amp; adapter.isPresent(address))</span>
+<span class="nc" id="L470">                return;</span>
+<span class="nc" id="L471">        } catch (OneWireIOException ex) {</span>
+            // VOID
+<span class="nc" id="L473">            logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L474">        }</span>
+
+        // speed Overdrive
+<span class="nc bnc" id="L477" title="All 2 branches missed.">        if (speed == adapter.SPEED_OVERDRIVE) {</span>
+
+            try {
+                // get this device and adapter to overdrive
+<span class="nc" id="L481">                adapter.setSpeed(adapter.SPEED_REGULAR);</span>
+<span class="nc" id="L482">                adapter.reset();</span>
+<span class="nc" id="L483">                adapter.putByte(( byte ) 0x69);</span>
+<span class="nc" id="L484">                adapter.setSpeed(adapter.SPEED_OVERDRIVE);</span>
+
+<span class="nc" id="L486">            } catch (OneWireIOException ex) {</span>
+                // VOID
+<span class="nc" id="L488">                logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L489">            }</span>
+
+            // get copy of address
+<span class="nc" id="L492">            synchronized (this) {</span>
+
+                // 8 bytes
+<span class="nc" id="L495">                byte[] addressCopy = {</span>
+                        (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                        (byte) 0x00, (byte) 0x00, (byte) 0x00,(byte) 0x00,
+                        };
+
+<span class="nc" id="L500">                System.arraycopy(address, 0, addressCopy, 0, 8);</span>
+<span class="nc" id="L501">                adapter.dataBlock(addressCopy, 0, 8);</span>
+<span class="nc" id="L502">            }</span>
+
+            try {
+<span class="nc" id="L505">                is_present = adapter.isPresent(address);</span>
+<span class="nc" id="L506">            } catch (OneWireIOException ex) {</span>
+                // VOID
+<span class="nc" id="L508">                logger.fatal(&quot;DalSemi ignored this exception&quot;, ex);</span>
+<span class="nc" id="L509">            }</span>
+
+            // check if new speed is OK
+<span class="nc bnc" id="L512" title="All 2 branches missed.">            if (!is_present) {</span>
+
+                // check if allow fallback
+<span class="nc bnc" id="L515" title="All 2 branches missed.">                if (speedFallBackOK) {</span>
+<span class="nc" id="L516">                    adapter.setSpeed(adapter.SPEED_REGULAR);</span>
+                } else {
+<span class="nc" id="L518">                    throw new OneWireIOException(address, &quot;Failed to get device to selected speed (overdrive)&quot;);</span>
+                }
+            }
+        }
+        // speed regular or flex
+<span class="nc bnc" id="L523" title="All 4 branches missed.">        else if ((speed == adapter.SPEED_REGULAR)</span>
+                || (speed == adapter.SPEED_FLEX)) {
+<span class="nc" id="L525">            adapter.setSpeed(speed);</span>
+        // speed hyperdrive, don't know how to do this
+        } else {
+<span class="nc" id="L528">            throw new OneWireException(address, &quot;Speed selected (hyperdrive) is not supported by this method&quot;);</span>
+        }
+<span class="nc" id="L530">    }</span>
+
+    //--------
+    //-------- Object Methods
+    //--------
+
+    /**
+     * Returns a hash code value for the object. This method is
+     * supported for the benefit of hashtables such as those provided by
+     * &lt;code&gt;java.util.Hashtable&lt;/code&gt;.
+     *
+     * @return  a hash code value for this object.
+     * @see     java.util.Hashtable
+     */
+    @Override
+    public int hashCode() {
+
+<span class="nc bnc" id="L547" title="All 2 branches missed.">        if(this.address==null) {</span>
+<span class="nc" id="L548">            return 0;</span>
+        } else {
+<span class="nc" id="L550">            return (new Long(Address.toLong(this.address))).hashCode();</span>
+        }
+    }
+
+    /**
+     * Indicates whether some other object is &quot;equal to&quot; this one.
+     * @param   obj   the reference object with which to compare.
+     * @return  &lt;code&gt;true&lt;/code&gt; if this object is the same as the obj
+     *          argument; &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    @Override
+    public boolean equals(Object o) {
+
+<span class="nc bnc" id="L563" title="All 2 branches missed.">        if(o==this) {</span>
+<span class="nc" id="L564">            return true;</span>
+        }
+
+<span class="nc bnc" id="L567" title="All 2 branches missed.">        if(o instanceof OneWireContainer) {</span>
+
+<span class="nc" id="L569">            OneWireContainer owc = (OneWireContainer)o;</span>
+            // don't claim that all subclasses of a specific container are
+            // equivalent to the parent container
+<span class="nc bnc" id="L572" title="All 2 branches missed.">            if(owc.getClass()==this.getClass()) {</span>
+<span class="nc bnc" id="L573" title="All 2 branches missed.">                return owc.getAddressAsLong()==this.getAddressAsLong();</span>
+            }
+        }
+
+<span class="nc" id="L577">        return false;</span>
+    }
+
+    /**
+     * Returns a string representation of the object.
+     *
+     * @return  a string representation of the object.
+     */
+    @Override
+    public String toString() {
+<span class="nc" id="L587">        return Address.toString(this.address) + &quot; &quot; + this.getName();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,950 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DumbAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">OWAPI 1.00 refactored for DIY Zoning</a> &gt; <a href="index.source.html" class="el_package">com.dalsemi.onewire.adapter</a> &gt; <span class="el_source">DumbAdapter.java</span></div><h1>DumbAdapter.java</h1><pre class="source lang-java linenums">/*---------------------------------------------------------------------------
+ * Copyright (C) 1999,2000 Dallas Semiconductor Corporation, All Rights Reserved.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the &quot;Software&quot;),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF ANY KIND, EXPRESS
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY,  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL DALLAS SEMICONDUCTOR BE LIABLE FOR ANY CLAIM, DAMAGES
+ * OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of Dallas Semiconductor
+ * shall not be used except as stated in the Dallas Semiconductor
+ * Branding Policy.
+ *---------------------------------------------------------------------------
+ */
+
+package com.dalsemi.onewire.adapter;
+
+// imports
+import java.util.Enumeration;
+import java.util.Hashtable;
+import java.util.Vector;
+
+import com.dalsemi.onewire.container.OneWireContainer;
+import com.dalsemi.onewire.utils.Address;
+
+/**
+ * &lt;p&gt;
+ * This {@code DSPortAdapter} class was designed to be used for the iB-IDE's
+ * emulator. The {@code DumbAdapter} allows programmers to add and remove
+ * {@code OneWireContainer} objects that will be found in its search. The Java
+ * iButton emulator works by creating a class that subclasses all of
+ * {@code OneWireContainer16}'s relevant methods and redirecting them to the
+ * emulation code. That object is then added to this class's list of
+ * {@code OneWireContainer}s.
+ * &lt;/p&gt;
+ * &lt;p&gt;
+ * Note that methods such as {@code selectPort} and {@code beginExclusive} by
+ * default do nothing. This class is mainly meant for debugging using an
+ * emulated iButton. It will do a poor job of debugging any multi-threading,
+ * port-sharing issues.
+ *
+ * @see com.dalsemi.onewire.adapter.DSPortAdapter
+ * @see com.dalsemi.onewire.container.OneWireContainer
+ * @version 0.00, 16 Mar 2001
+ * @author K
+ */
+<span class="nc" id="L59">public class DumbAdapter extends DSPortAdapter {</span>
+
+    /**
+     * Port name to use.
+     */
+    private static final String DEFAULT_PORT_NAME = &quot;NULL0&quot;;
+
+    /**
+     * VT: FIXME: I don't know what it is.
+     */
+<span class="nc" id="L69">    int containers_index = 0;</span>
+
+    /**
+     * 1-Wire containers contained in this adapter.
+     */
+<span class="nc" id="L74">    private Vector&lt;OneWireContainer&gt; containers = new Vector&lt;OneWireContainer&gt;();</span>
+
+    /**
+     * Adds a {@code OneWireContainer} to the list of containers that this
+     * adapter object will find.
+     *
+     * @param c represents a 1-Wire device that this adapter will report from a
+     * search.
+     */
+    public void addContainer(OneWireContainer c) {
+
+<span class="nc" id="L85">        synchronized (containers) {</span>
+<span class="nc" id="L86">            containers.addElement(c);</span>
+<span class="nc" id="L87">        }</span>
+<span class="nc" id="L88">    }</span>
+
+    /**
+     * Removes a {@code OneWireContainer} from the list of containers that this
+     * adapter object will find.
+     *
+     * @param c represents a 1-Wire device that this adapter should no longer
+     * report as found by a search
+     */
+    public void removeContainer(OneWireContainer c) {
+
+<span class="nc" id="L99">        synchronized (containers) {</span>
+<span class="nc" id="L100">            containers.removeElement(c);</span>
+<span class="nc" id="L101">        }</span>
+<span class="nc" id="L102">    }</span>
+
+    /**
+     * Hashtable to contain the user replaced OneWireContainers.
+     */
+<span class="nc" id="L107">    private Hashtable&lt;Integer, Class&gt; registeredOneWireContainerClasses = new Hashtable&lt;Integer, Class&gt;(5);</span>
+
+    /**
+     * Byte array of families to include in search.
+     */
+    private byte[] include;
+
+    /**
+     * Byte array of families to exclude from search.
+     */
+    private byte[] exclude;
+
+    /**
+     * Retrieves the name of the port adapter as a string. The 'Adapter' is a
+     * device that connects to a 'port' that allows one to communicate with an
+     * iButton or other 1-Wire device. As example of this is 'DS9097U'.
+     *
+     * @return {@code String} representation of the port adapter.
+     */
+    @Override
+    public String getAdapterName() {
+
+<span class="nc" id="L129">        return &quot;DumbAdapter&quot;;</span>
+    }
+
+    /**
+     * Retrieves a description of the port required by this port adapter. An
+     * example of a 'Port' would 'serial communication port'.
+     *
+     * @return {@code String} description of the port type required.
+     */
+    @Override
+    public String getPortTypeDescription() {
+
+<span class="nc" id="L141">        return &quot;Virtual Emulated Port&quot;;</span>
+    }
+
+    /**
+     * Retrieves a version string for this class.
+     *
+     * @return version string
+     */
+    @Override
+    public String getClassVersion() {
+
+<span class="nc" id="L152">        return &quot;0.00&quot;;</span>
+    }
+
+    // --------
+    // -------- Port Selection
+    // --------
+
+    /**
+     * Retrieves a list of the platform appropriate port names for this adapter.
+     * A port must be selected with the method 'selectPort' before any other
+     * communication methods can be used. Using a communcation method before
+     * 'selectPort' will result in a {@code OneWireException} exception.
+     *
+     * @return {@code Enumeration} of type {@code String} that contains the port
+     * names
+     */
+    @Override
+    public Enumeration&lt;String&gt; getPortNames() {
+
+<span class="nc" id="L171">        Vector&lt;String&gt; portNames = new Vector&lt;String&gt;();</span>
+<span class="nc" id="L172">        portNames.addElement(DEFAULT_PORT_NAME);</span>
+<span class="nc" id="L173">        return portNames.elements();</span>
+    }
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param family Family to ignore.
+     * @param OneWireContainerClass Class to ignore.
+     */
+    @Override
+    public void registerOneWireContainerClass(int family, Class OneWireContainerClass) {
+
+<span class="nc" id="L185">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param portName name of the target port, retrieved from getPortNames()
+     * @return always returns {@code true}
+     */
+    @Override
+    public boolean selectPort(String portName) {
+
+        // be lazy, allow anything
+<span class="nc" id="L197">        return true;</span>
+    }
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     */
+    @Override
+    public void freePort() {
+
+        // airball
+<span class="nc" id="L207">    }</span>
+
+    /**
+     * Retrieves the name of the selected port as a {@code String}.
+     *
+     * @return always returns the {@link #DEFAULT_PORT_NAME default port name}.
+     */
+    @Override
+    public String getPortName() {
+
+<span class="nc" id="L217">        return DEFAULT_PORT_NAME;</span>
+    }
+
+    // --------
+    // -------- Adapter detection
+    // --------
+
+    /**
+     * Detects adapter presence on the selected port. In {@code DumbAdapter},
+     * the adapter is always detected.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean adapterDetected() {
+
+<span class="nc" id="L233">        return true;</span>
+    }
+
+    // --------
+    // -------- Adapter features
+    // --------
+
+    /*
+     * The following interogative methods are provided so that client code can
+     * react selectively to underlying states without generating an exception.
+     */
+
+    /**
+     * Applications might check this method and not attempt operation unless
+     * this method returns {@code true}. To make sure that a wide variety of
+     * applications can use this class, this method always returns {@code true}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean canOverdrive() {
+
+        // don't want someone to bail because of this
+<span class="nc" id="L256">        return true;</span>
+    }
+
+    /**
+     * Applications might check this method and not attempt operation unless
+     * this method returns {@code true}. To make sure that a wide variety of
+     * applications can use this class, this method always returns {@code true}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean canHyperdrive() {
+
+        // don't want someone to bail because of this, although it doesn't exist
+        // yet
+<span class="nc" id="L271">        return true;</span>
+    }
+
+    /**
+     * Applications might check this method and not attempt operation unless
+     * this method returns {@code true}. To make sure that a wide variety of
+     * applications can use this class, this method always returns {@code true}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean canFlex() {
+
+        // don't want someone to bail because of this
+<span class="nc" id="L285">        return true;</span>
+    }
+
+    /**
+     * Applications might check this method and not attempt operation unless
+     * this method returns {@code true}. To make sure that a wide variety of
+     * applications can use this class, this method always returns {@code true}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean canProgram() {
+
+        // don't want someone to bail because of this
+<span class="nc" id="L299">        return true;</span>
+    }
+
+    /**
+     * Applications might check this method and not attempt operation unless
+     * this method returns {@code true}. To make sure that a wide variety of
+     * applications can use this class, this method always returns {@code true}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean canDeliverPower() {
+
+        // don't want someone to bail because of this
+<span class="nc" id="L313">        return true;</span>
+    }
+
+    /**
+     * Applications might check this method and not attempt operation unless
+     * this method returns {@code true}. To make sure that a wide variety of
+     * applications can use this class, this method always returns {@code true}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean canDeliverSmartPower() {
+
+        // don't want someone to bail because of this
+<span class="nc" id="L327">        return true;</span>
+    }
+
+    /**
+     * Applications might check this method and not attempt operation unless
+     * this method returns {@code true}. To make sure that a wide variety of
+     * applications can use this class, this method always returns {@code true}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean canBreak() {
+
+        // don't want someone to bail because of this
+<span class="nc" id="L341">        return true;</span>
+    }
+
+    // --------
+    // -------- Finding iButtons and 1-Wire devices
+    // --------
+
+    /**
+     * Returns an enumeration of {@code OneWireContainer} objects corresponding
+     * to all of the iButtons or 1-Wire devices found on the 1-Wire Network. In
+     * the case of the {@code DumbAdapter}, this method returns a simple copy
+     * of the internal {@code java.util.Vector} that stores all the 1-Wire
+     * devices this class finds in a search.
+     *
+     * @return {@code Enumeration} of {@code OneWireContainer} objects found on
+     * the 1-Wire Network.
+     */
+    @Override
+    public Enumeration&lt;OneWireContainer&gt; getAllDeviceContainers() {
+
+<span class="nc" id="L361">        Vector&lt;OneWireContainer&gt; copy_vector = new Vector&lt;OneWireContainer&gt;();</span>
+<span class="nc" id="L362">        synchronized (containers) {</span>
+<span class="nc bnc" id="L363" title="All 2 branches missed.">            for (int i = 0; i &lt; containers.size(); i++) {</span>
+<span class="nc" id="L364">                copy_vector.addElement(containers.elementAt(i));</span>
+            }
+<span class="nc" id="L366">        }</span>
+<span class="nc" id="L367">        return copy_vector.elements();</span>
+    }
+
+    /**
+     * Returns a {@code OneWireContainer} object corresponding to the first
+     * iButton or 1-Wire device found on the 1-Wire Network. If no devices are
+     * found, then a {@code null} reference will be returned. In most cases, all
+     * further communication with the device is done through the
+     * {@code OneWireContainer}.
+     *
+     * @return The first {@code OneWireContainer} object found on the 1-Wire
+     * Network, or {@code null} if no devices found.
+     */
+    @Override
+    public OneWireContainer getFirstDeviceContainer() {
+
+<span class="nc" id="L383">        synchronized (containers) {</span>
+
+<span class="nc bnc" id="L385" title="All 2 branches missed.">            if (containers.size() &gt; 0) {</span>
+<span class="nc" id="L386">                containers_index = 1;</span>
+<span class="nc" id="L387">                return containers.elementAt(0);</span>
+            }
+
+<span class="nc" id="L390">            return null;</span>
+        }
+    }
+
+    /**
+     * Returns a {@code OneWireContainer} object corresponding to the next
+     * iButton or 1-Wire device found. The previous 1-Wire device found is used
+     * as a starting point in the search. If no devices are found, then a
+     * {@code null} reference will be returned. In most cases, all further
+     * communication with the device is done through the
+     * {@code OneWireContainer}.
+     *
+     * @return The next {@code OneWireContainer} object found on the 1-Wire
+     * Network, or {@code null} if no iButtons found.
+     */
+    @Override
+    public OneWireContainer getNextDeviceContainer() {
+
+<span class="nc" id="L408">        synchronized (containers) {</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">            if (containers.size() &gt; containers_index) {</span>
+<span class="nc" id="L410">                containers_index++;</span>
+<span class="nc" id="L411">                return containers.elementAt(containers_index - 1);</span>
+            }
+
+<span class="nc" id="L414">            return null;</span>
+        }
+    }
+
+    /**
+     * Returns {@code true} if the first iButton or 1-Wire device is found on
+     * the 1-Wire Network. If no devices are found, then {@code false} will be
+     * returned.
+     *
+     * @return {@code true} if an iButton or 1-Wire device is found.
+     */
+    @Override
+    public boolean findFirstDevice() {
+
+<span class="nc" id="L428">        synchronized (containers) {</span>
+<span class="nc bnc" id="L429" title="All 2 branches missed.">            if (containers.size() &gt; 0) {</span>
+<span class="nc" id="L430">                containers_index = 1;</span>
+<span class="nc" id="L431">                return true;</span>
+            }
+
+<span class="nc" id="L434">            return false;</span>
+        }
+    }
+
+    /**
+     * Returns {@code true} if the next iButton or 1-Wire device is found. The
+     * previous 1-Wire device found is used as a starting point in the search.
+     * If no more devices are found then {@code false} will be returned.
+     *
+     * @return {@code true} if an iButton or 1-Wire device is found.
+     */
+    @Override
+    public boolean findNextDevice() {
+
+<span class="nc" id="L448">        synchronized (containers) {</span>
+<span class="nc bnc" id="L449" title="All 2 branches missed.">            if (containers.size() &gt; containers_index) {</span>
+<span class="nc" id="L450">                containers_index++;</span>
+<span class="nc" id="L451">                return true;</span>
+            }
+
+<span class="nc" id="L454">            return false;</span>
+        }
+    }
+
+    /**
+     * Copies the 'current' 1-Wire device address being used by the adapter into
+     * the array. This address is the last iButton or 1-Wire device found in a
+     * search (findNextDevice()...). This method copies into a user generated
+     * array to allow the reuse of the buffer. When searching many iButtons on
+     * the one wire network, this will reduce the memory burn rate.
+     *
+     * @param address An array to be filled with the current iButton address.
+     * @see Address
+     */
+    @Override
+    public void getAddress(byte[] address) {
+
+<span class="nc" id="L471">        OneWireContainer temp = containers.elementAt(containers_index - 1);</span>
+<span class="nc bnc" id="L472" title="All 2 branches missed.">        if (temp != null) {</span>
+<span class="nc" id="L473">            System.arraycopy(temp.getAddress(), 0, address, 0, 8);</span>
+        }
+<span class="nc" id="L475">    }</span>
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isPresent(byte[] address) {
+
+<span class="nc" id="L483">        long lAddress = Address.toLong(address);</span>
+
+<span class="nc" id="L485">        synchronized (containers) {</span>
+<span class="nc bnc" id="L486" title="All 2 branches missed.">            for (int i = 0; i &lt; containers.size(); i++) {</span>
+<span class="nc" id="L487">                OneWireContainer temp = containers.elementAt(i);</span>
+<span class="nc" id="L488">                long addr = temp.getAddressAsLong();</span>
+<span class="nc bnc" id="L489" title="All 2 branches missed.">                if (addr == lAddress)</span>
+<span class="nc" id="L490">                    return true;</span>
+            }
+<span class="nc" id="L492">        }</span>
+
+<span class="nc" id="L494">        return false;</span>
+    }
+
+    /**
+     * Verifies that the iButton or 1-Wire device specified is present on the
+     * 1-Wire Network and in an alarm state. This method is currently not
+     * implemented in {@code DumbAdapter}.
+     *
+     * @param address device address to verify is present and alarming
+     * @return {@code false}
+     * @see Address
+     */
+    @Override
+    public boolean isAlarming(byte[] address) {
+
+<span class="nc" id="L509">        return false;</span>
+    }
+
+    /**
+     * Selects the specified iButton or 1-Wire device by broadcasting its
+     * address. With a {@code DumbAdapter}, this method simply returns true.
+     * Warning, this does not verify that the device is currently present on the
+     * 1-Wire Network (See isPresent).
+     *
+     * @param address address of iButton or 1-Wire device to select
+     * @return {@code true} if device address was sent, {@code false} otherwise.
+     * @see #isPresent(byte[])
+     * @see Address
+     */
+    @Override
+    public boolean select(byte[] address) {
+
+<span class="nc" id="L526">        return isPresent(address);</span>
+    }
+
+    // --------
+    // -------- Finding iButton/1-Wire device options
+    // --------
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @see #setNoResetSearch
+     */
+    @Override
+    public void setSearchOnlyAlarmingDevices() {
+
+<span class="nc" id="L541">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     */
+    @Override
+    public void setNoResetSearch() {
+
+<span class="nc" id="L549">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @see #setNoResetSearch
+     */
+    @Override
+    public void setSearchAllDevices() {
+
+<span class="nc" id="L559">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @see #targetFamily(int)
+     * @see #targetFamily(byte[])
+     * @see #excludeFamily(int)
+     * @see #excludeFamily(byte[])
+     */
+    @Override
+    public void targetAllFamilies() {
+
+<span class="nc" id="L572">        include = null;</span>
+<span class="nc" id="L573">        exclude = null;</span>
+<span class="nc" id="L574">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param family the code of the family type to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    @Override
+    public void targetFamily(int family) {
+
+<span class="nc bnc" id="L586" title="All 4 branches missed.">        if ((include == null) || (include.length != 1))</span>
+<span class="nc" id="L587">            include = new byte[1];</span>
+
+<span class="nc" id="L589">        include[0] = (byte) family;</span>
+<span class="nc" id="L590">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param family array of the family types to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    @Override
+    public void targetFamily(byte family[]) {
+
+<span class="nc bnc" id="L602" title="All 4 branches missed.">        if ((include == null) || (include.length != family.length))</span>
+<span class="nc" id="L603">            include = new byte[family.length];</span>
+
+<span class="nc" id="L605">        System.arraycopy(family, 0, include, 0, family.length);</span>
+<span class="nc" id="L606">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param family the code of the family type NOT to target in searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    @Override
+    public void excludeFamily(int family) {
+
+<span class="nc bnc" id="L618" title="All 4 branches missed.">        if ((exclude == null) || (exclude.length != 1))</span>
+<span class="nc" id="L619">            exclude = new byte[1];</span>
+
+<span class="nc" id="L621">        exclude[0] = (byte) family;</span>
+<span class="nc" id="L622">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param family array of family cods NOT to target for searches
+     * @see Address
+     * @see #targetAllFamilies
+     */
+    @Override
+    public void excludeFamily(byte family[]) {
+
+<span class="nc bnc" id="L634" title="All 4 branches missed.">        if ((exclude == null) || (exclude.length != family.length))</span>
+<span class="nc" id="L635">            exclude = new byte[family.length];</span>
+
+<span class="nc" id="L637">        System.arraycopy(family, 0, exclude, 0, family.length);</span>
+<span class="nc" id="L638">    }</span>
+
+    // --------
+    // -------- 1-Wire Network Semaphore methods
+    // --------
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     */
+    @Override
+    public void beginExclusive() {
+
+        // DEBUG!!! RIGHT NOW THIS IS NOT IMPLEMENTED!!!
+<span class="nc" id="L652">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     */
+    @Override
+    public void endExclusive() {
+
+        // DEBUG!!! RIGHT NOW THIS IS NOT IMPLEMENTED!!!
+<span class="nc" id="L661">    }</span>
+
+    // --------
+    // -------- Primitive 1-Wire Network data methods
+    // --------
+
+    /**
+     * Sends a bit to the 1-Wire Network. This method does nothing in
+     * {@code DumbAdapter}.
+     *
+     * @param bitValue the bit value to send to the 1-Wire Network.
+     */
+    @Override
+    public void putBit(boolean bitValue) {
+
+        // this will not be implemented
+<span class="nc" id="L677">    }</span>
+
+    /**
+     * Gets a bit from the 1-Wire Network. This method does nothing in
+     * {@code DumbAdapter}.
+     *
+     * @return {@code true}
+     */
+    @Override
+    public boolean getBit() {
+
+        // this will not be implemented
+<span class="nc" id="L689">        return true;</span>
+    }
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param byteValue the byte value to send to the 1-Wire Network.
+     */
+    @Override
+    public void putByte(int byteValue) {
+
+        // this will not be implemented
+<span class="nc" id="L701">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @return the value 0x0ff
+     */
+    @Override
+    public int getByte() {
+
+        // this will not be implemented
+<span class="nc" id="L712">        return 0x0ff;</span>
+    }
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param len length of data bytes to receive
+     * @return a new byte array of length {@code len}
+     */
+    @Override
+    public byte[] getBlock(int len) {
+
+        // this will not be implemented
+<span class="nc" id="L725">        return new byte[len];</span>
+    }
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param arr array in which to write the received bytes
+     * @param len length of data bytes to receive
+     */
+    @Override
+    public void getBlock(byte[] arr, int len) {
+
+        // this will not be implemented
+<span class="nc" id="L738">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param arr array in which to write the received bytes
+     * @param off offset into the array to start
+     * @param len length of data bytes to receive
+     */
+    @Override
+    public void getBlock(byte[] arr, int off, int len) {
+
+        // this will not be implemented
+<span class="nc" id="L751">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param dataBlock array of data to transfer to and from the 1-Wire
+     * Network.
+     * @param off offset into the array of data to start
+     * @param len length of data to send / receive starting at 'off'
+     */
+    @Override
+    public void dataBlock(byte dataBlock[], int off, int len) {
+
+        // this will not be implemented
+<span class="nc" id="L765">    }</span>
+
+    /**
+     * Sends a Reset to the 1-Wire Network.
+     *
+     * @return the result of the reset. Potential results are:
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (RESET_NOPRESENCE) no devices present on the 1-Wire Network.
+     * &lt;li&gt; 1 (RESET_PRESENCE) normal presence pulse detected on the 1-Wire
+     * Network indicating there is a device present.
+     * &lt;li&gt; 2 (RESET_ALARM) alarming presence pulse detected on the 1-Wire
+     * Network indicating there is a device present and it is in the alarm
+     * condition. This is only provided by the DS1994/DS2404 devices.
+     * &lt;li&gt; 3 (RESET_SHORT) inticates 1-Wire appears shorted. This can be
+     * transient conditions in a 1-Wire Network. Not all adapter types can
+     * detect this condition.
+     * &lt;/ul&gt;
+     * Note that in {@code DumbAdapter}, the only possible results are 0 and 1.
+     */
+    @Override
+    public int reset() {
+
+        // this will not be implemented
+<span class="nc bnc" id="L788" title="All 2 branches missed.">        if (containers.size() &gt; 0)</span>
+<span class="nc" id="L789">            return 1;</span>
+<span class="nc" id="L790">        return 0;</span>
+    }
+
+    // --------
+    // -------- 1-Wire Network power methods
+    // --------
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param timeFactor
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (DELIVERY_HALF_SECOND) provide power for 1/2 second.
+     * &lt;li&gt; 1 (DELIVERY_ONE_SECOND) provide power for 1 second.
+     * &lt;li&gt; 2 (DELIVERY_TWO_SECONDS) provide power for 2 seconds.
+     * &lt;li&gt; 3 (DELIVERY_FOUR_SECONDS) provide power for 4 seconds.
+     * &lt;li&gt; 4 (DELIVERY_SMART_DONE) provide power until the the device is no
+     * longer drawing significant power.
+     * &lt;li&gt; 5 (DELIVERY_INFINITE) provide power until the setPowerNormal()
+     * method is called.
+     * &lt;/ul&gt;
+     */
+    @Override
+    public void setPowerDuration(int timeFactor) {
+
+<span class="nc" id="L815">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param changeCondition
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (CONDITION_NOW) operation should occur immediately.
+     * &lt;li&gt; 1 (CONDITION_AFTER_BIT) operation should be pending execution
+     * immediately after the next bit is sent.
+     * &lt;li&gt; 2 (CONDITION_AFTER_BYTE) operation should be pending execution
+     * immediately after next byte is sent.
+     * &lt;/ul&gt;
+     * @return {@code true}
+     */
+    @Override
+    public boolean startPowerDelivery(int changeCondition) {
+
+<span class="nc" id="L833">        return true;</span>
+    }
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param timeFactor
+     * &lt;ul&gt;
+     * &lt;li&gt; 7 (DELIVERY_EPROM) provide program pulse for 480 microseconds
+     * &lt;li&gt; 5 (DELIVERY_INFINITE) provide power until the setPowerNormal()
+     * method is called.
+     * &lt;/ul&gt;
+     */
+    @Override
+    public void setProgramPulseDuration(int timeFactor) {
+
+<span class="nc" id="L849">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param changeCondition
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (CONDITION_NOW) operation should occur immediately.
+     * &lt;li&gt; 1 (CONDITION_AFTER_BIT) operation should be pending execution
+     * immediately after the next bit is sent.
+     * &lt;li&gt; 2 (CONDITION_AFTER_BYTE) operation should be pending execution
+     * immediately after next byte is sent.
+     * &lt;/ul&gt;
+     * @return {@code true}
+     */
+    @Override
+    public boolean startProgramPulse(int changeCondition) {
+
+<span class="nc" id="L867">        return true;</span>
+    }
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     */
+    @Override
+    public void startBreak() {
+
+<span class="nc" id="L876">    }</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     */
+    @Override
+    public void setPowerNormal() {
+
+<span class="nc" id="L884">        return;</span>
+    }
+
+    // --------
+    // -------- 1-Wire Network speed methods
+    // --------
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @param speed
+     * &lt;ul&gt;
+     * &lt;li&gt; 0 (SPEED_REGULAR) set to normal communciation speed
+     * &lt;li&gt; 1 (SPEED_FLEX) set to flexible communciation speed used for long
+     * lines
+     * &lt;li&gt; 2 (SPEED_OVERDRIVE) set to normal communciation speed to overdrive
+     * &lt;li&gt; 3 (SPEED_HYPERDRIVE) set to normal communciation speed to hyperdrive
+     * &lt;li&gt; &gt;3 future speeds
+     * &lt;/ul&gt;
+     */
+    @Override
+    public void setSpeed(int speed) {
+
+<span class="nc" id="L907">        sp = speed;</span>
+<span class="nc" id="L908">    }</span>
+
+    /**
+     * Adapter speed.
+     */
+<span class="nc" id="L913">    private int sp = 0;</span>
+
+    /**
+     * This method does nothing in {@code DumbAdapter}.
+     *
+     * @return &lt;the last value passed to the {@code setSpeed(int)} method, or 0
+     */
+    @Override
+    public int getSpeed() {
+
+<span class="nc" id="L923">        return sp;</span>
+    }
+
+    /**
+     * Gets the container from this adapter whose address matches the address of
+     * a container in the {@code DumbAdapter}'s internal
+     * {@code java.util.Vector}.
+     *
+     * @param address device address with which to find a container
+     * @return The {@code OneWireContainer} object, or {@code null} if no match
+     * could be found.
+     * @see Address
+     */
+    @Override
+    public OneWireContainer getDeviceContainer(byte[] address) {
+
+<span class="nc" id="L939">        long addr = Address.toLong(address);</span>
+<span class="nc" id="L940">        synchronized (containers) {</span>
+<span class="nc bnc" id="L941" title="All 2 branches missed.">            for (int i = 0; i &lt; containers.size(); i++) {</span>
+<span class="nc bnc" id="L942" title="All 2 branches missed.">                if (containers.elementAt(i).getAddressAsLong() == addr)</span>
+<span class="nc" id="L943">                    return containers.elementAt(i);</span>
+            }
+<span class="nc" id="L945">        }</span>
+
+<span class="nc" id="L947">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

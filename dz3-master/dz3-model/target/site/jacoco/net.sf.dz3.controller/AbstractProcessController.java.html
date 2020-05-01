@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractProcessController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Model Abstractions and Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.controller</a> &gt; <span class="el_source">AbstractProcessController.java</span></div><h1>AbstractProcessController.java</h1><pre class="source lang-java linenums">package net.sf.dz3.controller;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+
+import net.sf.dz3.util.digest.MessageDigestCache;
+import net.sf.jukebox.datastream.logger.impl.DataBroadcaster;
+import net.sf.jukebox.datastream.signal.model.DataSample;
+import net.sf.jukebox.datastream.signal.model.DataSink;
+
+/**
+ * An abstract process controller.
+ *
+ * Implements the functionality common for different kinds of process controllers.
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public abstract class AbstractProcessController implements ProcessController {
+
+<span class="fc" id="L21">    protected final Logger logger = LogManager.getLogger(getClass());</span>
+
+    /**
+     * Process controller signal broadcaster.
+     */
+<span class="fc" id="L26">    private final DataBroadcaster&lt;ProcessControllerStatus&gt; dataBroadcaster = new DataBroadcaster&lt;ProcessControllerStatus&gt;();</span>
+
+    /**
+     * The process setpoint.
+     */
+    private double setpoint;
+
+    /**
+     * The current process variable value.
+     */
+    private DataSample&lt;Double&gt; pv;
+
+    /**
+     * Last known signal. This is used to support the listener notification.
+     */
+<span class="fc" id="L41">    private DataSample&lt;Double&gt; lastKnownSignal = null;</span>
+
+    /**
+     * Create an instance.
+     *
+     * @param setpoint Initial setpoint.
+     */
+<span class="fc" id="L48">    public AbstractProcessController(double setpoint) {</span>
+
+<span class="fc" id="L50">	this.setpoint = setpoint;</span>
+<span class="fc" id="L51">    }</span>
+
+    /**
+     * Get last known signal value.
+     *
+     * @return Last known signal value, or &lt;code&gt;null&lt;/code&gt; if it is not yet
+     * available.
+     */
+    protected final DataSample&lt;Double&gt; getLastKnownSignal() {
+
+<span class="fc" id="L61">        return lastKnownSignal;</span>
+    }
+
+    @Override
+    public final void setSetpoint(final double setpoint) {
+
+<span class="nc" id="L67">        this.setpoint = setpoint;</span>
+
+<span class="nc" id="L69">        setpointChanged();</span>
+<span class="nc" id="L70">        statusChanged();</span>
+
+<span class="nc" id="L72">        wrapCompute();</span>
+<span class="nc" id="L73">    }</span>
+
+    /**
+     * Perform any actions necessary for the controller to handle the setpoint change
+     * (other than actually changing the setpoint).
+     */
+    abstract protected void setpointChanged();
+
+    @Override
+    public final double getSetpoint() {
+
+<span class="fc" id="L84">        return setpoint;</span>
+    }
+
+    /**
+     * Get the process variable.
+     *
+     * @return The process variable.
+     */
+    @Override
+    public final DataSample&lt;Double&gt; getProcessVariable() {
+
+<span class="fc" id="L95">        return pv;</span>
+    }
+
+    @Override
+    public final synchronized double getError() {
+
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">	if (pv == null) {</span>
+
+	    // No sample, no error
+<span class="nc" id="L104">	    return 0;</span>
+	}
+
+<span class="fc" id="L107">        return pv.sample - setpoint;</span>
+    }
+
+    @Override
+    public final synchronized DataSample&lt;Double&gt; compute(DataSample&lt;Double&gt; pv) {
+
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">	if (pv == null) {</span>
+<span class="nc" id="L114">	    throw new IllegalArgumentException(&quot;pv can't be null&quot;);</span>
+	}
+
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">	if (pv.isError()) {</span>
+<span class="nc" id="L118">	    throw new IllegalArgumentException(&quot;pv can't be an error&quot;);</span>
+	}
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">	if (lastKnownSignal != null) {</span>
+<span class="fc" id="L122">	    long then = lastKnownSignal.timestamp;</span>
+<span class="fc" id="L123">	    long now = pv.timestamp;</span>
+<span class="fc" id="L124">	    long diff = now - then;</span>
+
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">	    if (diff &lt;= 0) {</span>
+<span class="nc" id="L127">		throw new IllegalArgumentException(&quot;Can't go back in time: last sample was @&quot;</span>
+			+ then + &quot;, this is @&quot; + now + &quot;, &quot; + diff + &quot;ms difference&quot;);
+	    }
+	}
+
+<span class="fc" id="L132">        this.pv = pv;</span>
+
+<span class="fc" id="L134">        return wrapCompute();</span>
+    }
+
+    @Override
+    public void consume(DataSample&lt;Double&gt; sample) {
+
+<span class="nc" id="L140">        compute(sample);</span>
+<span class="nc" id="L141">    }</span>
+
+    /**
+     * Wrap the {@link #compute(long, double) compute()} method to support the
+     * listeners without incurring complexity on the subclasses.
+     *
+     * @return Result of {@link #compute()}.
+     */
+    private DataSample&lt;Double&gt; wrapCompute() {
+
+<span class="fc" id="L151">	ThreadContext.push(&quot;wrapCompute&quot;);</span>
+
+        try {
+
+<span class="fc" id="L155">            lastKnownSignal = compute();</span>
+
+            // This will not throw anything
+<span class="fc" id="L158">            statusChanged();</span>
+
+<span class="fc" id="L160">            return lastKnownSignal;</span>
+
+        } finally {
+<span class="fc" id="L163">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Compute the controller output based on the known state.
+     *
+     * @return controller output.
+     */
+    protected abstract DataSample&lt;Double&gt; compute();
+
+    @Override
+    public void addConsumer(DataSink&lt;ProcessControllerStatus&gt; consumer) {
+<span class="fc" id="L176">        dataBroadcaster.addConsumer(consumer);</span>
+<span class="fc" id="L177">    }</span>
+
+    @Override
+    public void removeConsumer(DataSink&lt;ProcessControllerStatus&gt; consumer) {
+<span class="nc" id="L181">        dataBroadcaster.removeConsumer(consumer);</span>
+<span class="nc" id="L182">    }</span>
+
+    /**
+     * Send a notification to {@link #listenerSet listeners} about the status
+     * change.
+     */
+    protected synchronized final void statusChanged() {
+
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        if (lastKnownSignal == null) {</span>
+
+            // It is happening at instantiation
+<span class="fc" id="L193">            return;</span>
+        }
+
+<span class="fc" id="L196">        ProcessControllerStatus status = getStatus();</span>
+
+	// VT: NOTE: This will not be an error signal even if the original signal is,
+        // the purpose is not control but instrumentation
+
+<span class="fc" id="L201">        String sourceName = lastKnownSignal.sourceName + &quot;.&quot; + getShortName();</span>
+<span class="fc" id="L202">        String signature = MessageDigestCache.getMD5(sourceName).substring(0, 19);</span>
+
+<span class="fc" id="L204">        DataSample&lt;ProcessControllerStatus&gt; sample = new DataSample&lt;ProcessControllerStatus&gt;(lastKnownSignal.timestamp,</span>
+                sourceName, signature, status, null);
+
+<span class="fc" id="L207">        dataBroadcaster.broadcast(sample);</span>
+<span class="fc" id="L208">    }</span>
+
+    /**
+     * @return A short name to add to the instrumentation data sample source name, to distinguish it from
+     * the actual source signal.
+     *
+     */
+    abstract protected String getShortName();
+
+    /**
+     * Get the extended process controller status. This implementation is
+     * provided for lazy programmers and returns only the information that is
+     * available for all the subclasses - the last known output signal, if it is
+     * available, or string &quot;NaN&quot;, if not.
+     *
+     * @return Status object.
+     */
+    @Override
+    public ProcessControllerStatus getStatus() {
+
+<span class="fc" id="L228">        return new ProcessControllerStatus(</span>
+<span class="fc" id="L229">        	getSetpoint(),</span>
+<span class="fc" id="L230">        	getError(),</span>
+        	lastKnownSignal);
+    }
+
+    @Override
+    public String toString() {
+
+<span class="nc" id="L237">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L239">        sb.append(getShortName()).append(&quot;(&quot;).append(getStatus()).append(&quot;)&quot;);</span>
+
+<span class="nc" id="L241">        return sb.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

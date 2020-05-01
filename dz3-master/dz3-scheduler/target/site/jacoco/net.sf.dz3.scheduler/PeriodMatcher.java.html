@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PeriodMatcher.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Scheduler</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.scheduler</a> &gt; <span class="el_source">PeriodMatcher.java</span></div><h1>PeriodMatcher.java</h1><pre class="source lang-java linenums">package net.sf.dz3.scheduler;
+
+import java.util.Iterator;
+import java.util.Map.Entry;
+import java.util.SortedMap;
+import java.util.Stack;
+import java.util.TreeMap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
+import org.joda.time.DateTime;
+
+import net.sf.dz3.device.model.ZoneStatus;
+
+/**
+ * Utility class to determine the {@link Period} corresponding to time given.
+ * 
+ * Exists as a separate entity to enable unit testing.
+ *  
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt; Vadim Tkachenko&lt;/a&gt; 2001-2018
+ */
+<span class="fc" id="L23">public class PeriodMatcher {</span>
+
+<span class="fc" id="L25">    private final Logger logger = LogManager.getLogger(getClass());</span>
+    
+    /**
+     * Match a period against time given.
+     * 
+     * @param zoneSchedule Zone schedule.
+     * @param time Time to match against.
+     * 
+     * @return Current period, or {@code null} if none was found.
+     */
+    public Period match(SortedMap&lt;Period, ZoneStatus&gt; zoneSchedule, DateTime time) {
+        
+<span class="fc" id="L37">        ThreadContext.push(&quot;match&quot;);</span>
+        
+        try {
+        
+<span class="fc" id="L41">            Stack&lt;Period&gt; stack = new Stack&lt;Period&gt;();</span>
+            
+<span class="fc" id="L43">            logger.debug(&quot;Matching &quot; + time);</span>
+
+<span class="fc" id="L45">            SortedMap&lt;Period, ZoneStatus&gt; today = getToday(zoneSchedule, time);</span>
+
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            for (Iterator&lt;Period&gt; i = today.keySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc" id="L49">                Period p = i.next();</span>
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">                if (p.includes(time)) {</span>
+
+<span class="fc" id="L53">                    logger.trace(p);</span>
+<span class="fc" id="L54">                    stack.push(p);</span>
+                }
+<span class="fc" id="L56">            }</span>
+
+<span class="fc" id="L58">            return stack.pop();</span>
+            
+        } finally {
+<span class="fc" id="L61">            ThreadContext.pop();</span>
+        }
+    }
+
+    /**
+     * Filter out only those periods that correspond to the given date's day of week.
+     * 
+     * @param zoneSchedule Period to zone status map.
+     * @param date Date to match the day of week of.
+     * 
+     * @return Map containing only periods for the given day of week.
+     */
+    private SortedMap&lt;Period, ZoneStatus&gt; getToday(SortedMap&lt;Period, ZoneStatus&gt; zoneSchedule, DateTime date) {
+        
+<span class="fc" id="L75">        ThreadContext.push(&quot;getToday&quot;);</span>
+        
+        try {
+        
+<span class="fc" id="L79">            SortedMap&lt;Period, ZoneStatus&gt; result = new TreeMap&lt;Period, ZoneStatus&gt;();</span>
+
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            for (Iterator&lt;Entry&lt;Period, ZoneStatus&gt;&gt; i = zoneSchedule.entrySet().iterator(); i.hasNext(); ) {</span>
+
+<span class="fc" id="L83">                Entry&lt;Period, ZoneStatus&gt; entry = i.next();</span>
+<span class="fc" id="L84">                Period p = entry.getKey();</span>
+
+<span class="fc bfc" id="L86" title="All 2 branches covered.">                if (p.includesDay(date)) {</span>
+
+<span class="fc" id="L88">                    logger.trace(p);</span>
+<span class="fc" id="L89">                    result.put(p, entry.getValue());</span>
+                }
+<span class="fc" id="L91">            }</span>
+
+<span class="fc" id="L93">            logger.debug(result.size() + &quot; periods found&quot;);</span>
+            
+<span class="fc" id="L95">            return result;</span>
+        
+        } finally {
+<span class="fc" id="L98">            ThreadContext.pop();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

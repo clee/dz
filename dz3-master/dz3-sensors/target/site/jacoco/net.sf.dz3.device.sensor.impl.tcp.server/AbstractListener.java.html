@@ -1,0 +1,912 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractListener.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">Sensor Abstractions and TCP Implementation</a> &gt; <a href="index.source.html" class="el_package">net.sf.dz3.device.sensor.impl.tcp.server</a> &gt; <span class="el_source">AbstractListener.java</span></div><h1>AbstractListener.java</h1><pre class="source lang-java linenums">package net.sf.dz3.device.sensor.impl.tcp.server;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.Semaphore;
+
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLServerSocket;
+
+import net.sf.dz3.device.sensor.impl.tcp.TcpConnectionSignature;
+import net.sf.dz3.util.SSLContextFactory;
+import net.sf.jukebox.jmx.JmxAttribute;
+import net.sf.jukebox.sem.SemaphoreGroup;
+import net.sf.jukebox.service.ActiveService;
+import net.sf.jukebox.service.PassiveService;
+import net.sf.jukebox.util.network.HostHelper;
+
+/**
+ * The TCP connection listener.
+ * &lt;p/&gt;
+ * Provides:
+ * &lt;ul&gt;
+ * &lt;li&gt; Configuration;
+ * &lt;li&gt; Connection setup, including SSL;
+ * &lt;li&gt; Client handling logic;
+ * &lt;li&gt; Service announcements.
+ * &lt;/ul&gt;
+ *
+ * @author Copyright &amp;copy; &lt;a href=&quot;mailto:vt@freehold.crocodile.org&quot;&gt;Vadim Tkachenko&lt;/a&gt; 2001-2009
+ */
+public abstract class AbstractListener extends PassiveService {
+
+    /**
+     * Set of addresses to listen on. Empty set means that we're listening on
+     * all local addresses.
+     */
+<span class="fc" id="L47">    private Set&lt;String&gt; addressSet = new TreeSet&lt;String&gt;();</span>
+
+    /**
+     * The port to broadcast on.
+     */
+    private int broadcastPort;
+
+    TcpConnectionSignature signature;
+
+    /**
+     * The listener services.
+     */
+<span class="fc" id="L59">    private Set&lt;Listener&gt; listenerSet = new TreeSet&lt;Listener&gt;();</span>
+
+    /**
+     * Set of active clients.
+     */
+<span class="fc" id="L64">    private Set&lt;ConnectionHandler&gt; clientSet = new HashSet&lt;ConnectionHandler&gt;();</span>
+
+    /**
+     * Exclusive lock to avoid race conditions between {@link #cleanup
+     * cleanup()} and new connections.
+     */
+<span class="fc" id="L70">    private Semaphore cleanupLock = new Semaphore(1);</span>
+
+    /*
+     * The multicast server.
+     *
+     * VT: FIXME: WIll reinstate it later, after things are solidified with direct connections.
+     */
+    //private MulticastServer multicastServer;
+
+    public AbstractListener(Set&lt;String&gt; addressSet, int port, int broadcastPort) {
+<span class="fc" id="L80">        this(addressSet, port, broadcastPort, false, null);</span>
+<span class="fc" id="L81">    }</span>
+
+<span class="fc" id="L83">    public AbstractListener(Set&lt;String&gt; addressSet, int port, int broadcastPort, boolean secure, String password) {</span>
+
+<span class="fc" id="L85">        this.addressSet.addAll(addressSet);</span>
+
+<span class="fc" id="L87">        this.signature = new TcpConnectionSignature(port, secure, password);</span>
+<span class="fc" id="L88">        this.broadcastPort = broadcastPort;</span>
+<span class="fc" id="L89">    }</span>
+
+    @JmxAttribute(description=&quot;Listening port&quot;)
+    public int getListenPort() {
+<span class="nc" id="L93">        return signature.port;</span>
+    }
+
+    @JmxAttribute(description=&quot;Broadcasting port&quot;)
+    public int getBroadcastPort() {
+<span class="nc" id="L98">        return broadcastPort;</span>
+    }
+
+    /**
+     * @return Iterator on connection handlers.
+     */
+    public final Iterator&lt;ConnectionHandler&gt; iterator() {
+<span class="nc" id="L105">        return clientSet.iterator();</span>
+    }
+
+    @Override
+    protected final void startup() throws Throwable {
+
+        // Perform the startup actions for the subclasses first - it doesn't
+        // make any sense to open the connection listener if the subclass
+        // business logic determines that something's not right and we can't
+        // start
+
+<span class="nc" id="L116">        startup2();</span>
+
+        // Let's see if we have any addresses configured. If we don't, it
+        // means that we'll listen on all local ports.
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        if (addressSet.isEmpty()) {</span>
+
+<span class="nc" id="L123">            logger.info(&quot;Listening on all local addresses&quot;);</span>
+
+<span class="nc" id="L125">            Listener l = new Listener(null, signature.port);</span>
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">            if (l.start().waitFor()) {</span>
+<span class="nc" id="L128">                synchronized (listenerSet) {</span>
+<span class="nc" id="L129">                    listenerSet.add(l);</span>
+<span class="nc" id="L130">                }</span>
+            } else {
+<span class="nc" id="L132">                logger.warn(&quot;Failed to start listener on *&quot;);</span>
+
+            }
+
+<span class="nc" id="L136">        } else {</span>
+
+            // Let's collect the list of existing network interfaces, their
+            // addresses and see if we're properly configured. If there's a
+            // mismatch, the bad address will be removed from addressSet. If it
+            // turns out that the addressSet is empty after verification is
+            // done, we refuse to start.
+
+<span class="nc" id="L144">            Set&lt;InetAddress&gt; validAddresses = HostHelper.getLocalAddresses();</span>
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">            for (Iterator&lt;String&gt; i = addressSet.iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L148">                String address = i.next();</span>
+<span class="nc" id="L149">                InetAddress configuredAddress = InetAddress.getByName(address);</span>
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                if (!validAddresses.contains(configuredAddress)) {</span>
+
+<span class="nc" id="L153">                    logger.warn(&quot;Address specified in the configuration is not locally present: &quot; + address);</span>
+<span class="nc" id="L154">                    i.remove();</span>
+<span class="nc" id="L155">                    continue;</span>
+                }
+
+<span class="nc" id="L158">                Listener l = new Listener(InetAddress.getByName(address), signature.port);</span>
+
+                // VT: FIXME: It is possible to parallel the startups in order
+                // to get all the listeners up faster, but this will complicate
+                // the logic, so let's do it when it becomes *absolutely*
+                // necessary.
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                if (l.start().waitFor()) {</span>
+<span class="nc" id="L166">                    synchronized (listenerSet) {</span>
+<span class="nc" id="L167">                        listenerSet.add(l);</span>
+<span class="nc" id="L168">                    }</span>
+                } else {
+<span class="nc" id="L170">                    logger.warn(&quot;Failed to start listener on '&quot; + address + &quot;'&quot;);</span>
+                }
+<span class="nc" id="L172">            }</span>
+        }
+
+<span class="nc bnc" id="L175" title="All 2 branches missed.">        if (listenerSet.isEmpty()) {</span>
+<span class="nc" id="L176">            throw new IllegalStateException(&quot;No listeners could be started&quot;);</span>
+        }
+
+        /*
+
+    // VT: FIXME: Make sure we include the server signature (bug
+    // #914695). I'd guess that it should be passed down to us in the
+    // constructor.
+
+    multicastServer = new SimpleBroadcastServer(new HashSet&lt;String&gt;(addressSet), broadcastPort);
+
+    multicastServer.announce(getAnnounce());
+    multicastServer.start();
+         */
+<span class="nc" id="L190">    }</span>
+
+    /**
+     * Do a service specific startup.
+     *
+     * @throws Throwable if anything goes wrong.
+     */
+    protected abstract void startup2() throws Throwable;
+
+    /**
+     * Provide a service signature. This signature must uniquely identify the
+     * module for the purpose of broadcast announcement.
+     *
+     * @return The service signature.
+     */
+    @JmxAttribute(description=&quot;Service signature&quot;)
+    public abstract String getServiceSignature();
+
+    /**
+     * Provide a reasonable default for the {@link #listenPort port} to listen to.
+     *
+     * @return Default port to listen on.
+     */
+    @JmxAttribute(description=&quot;Default listening port&quot;)
+    public abstract int getDefaultListenPort();
+
+    /**
+     * Provide a reasonable default for the {@link #listenPort port} to broadcast on.
+     *
+     * @return Default port to broadcast on.
+     */
+    @JmxAttribute(description=&quot;Default broadcasting port&quot;)
+    public abstract int getDefaultBroadcastPort();
+
+    /**
+     * Syntax sugar to change an announce message.
+     *
+     * @param message Message to announce.
+     */
+    protected final void announce(String message) {
+
+        /*
+    if (multicastServer != null &amp;&amp; multicastServer.isReady()) {
+
+      multicastServer.announce(message);
+    }
+         */
+<span class="nc" id="L237">    }</span>
+
+    /**
+     * Get the message to announce to our clients.
+     *
+     * @return The announce message.
+     */
+    protected synchronized String getAnnounce() {
+
+        // The only things that make sense to include into *our*
+        // announcement are:
+
+        // - The server signature (FIXME);
+        // - the port to connect to;
+        // - whether the connection is expected to be secure.
+
+        // If the client is able to receive the broadcast, then they will
+        // get the broadcast source and use it as the other endpoint, and
+        // this is sufficient. If they don't get the broadcast, they can't
+        // see us anyway and therefore don't care about all the ports we're
+        // listening at.
+
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        return &quot;/&quot; + signature.port + &quot;/&quot; + (signature.secure ? &quot;secure&quot; : &quot;insecure&quot;);</span>
+    }
+
+    @Override
+    protected void shutdown() throws Throwable {
+
+<span class="nc" id="L265">        logger.info(&quot;Shutting down&quot;);</span>
+
+        //multicastServer.stop();
+
+<span class="nc" id="L269">        SemaphoreGroup stop = new SemaphoreGroup();</span>
+
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        for (Iterator&lt;Listener&gt; i = new net.sf.jukebox.util.CollectionSynchronizer&lt;Listener&gt;().copy(listenerSet).iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L273">            Listener l = i.next();</span>
+
+<span class="nc" id="L275">            stop.add(l.stop());</span>
+<span class="nc" id="L276">            i.remove();</span>
+<span class="nc" id="L277">        }</span>
+
+<span class="nc" id="L279">        logger.info(&quot;Shut down listeners&quot;);</span>
+
+        // VT: clientSet is modified only by ConnectionHandler
+
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        for (Iterator&lt;ConnectionHandler&gt; i = new net.sf.jukebox.util.CollectionSynchronizer&lt;ConnectionHandler&gt;().copy(clientSet).iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L285">            ConnectionHandler ch = i.next();</span>
+
+<span class="nc" id="L287">            ch.send(&quot;E Shutting down&quot;);</span>
+<span class="nc" id="L288">            stop.add(ch.stop());</span>
+<span class="nc" id="L289">        }</span>
+
+<span class="nc" id="L291">        stop.waitForAll();</span>
+
+<span class="nc" id="L293">        logger.info(&quot;All clients shut down&quot;);</span>
+
+        // Clean up the mess after the clients are gone
+
+<span class="nc" id="L297">        cleanup();</span>
+
+        // Now let's shut down the subclasses
+
+<span class="nc" id="L301">        shutdown2();</span>
+<span class="nc" id="L302">    }</span>
+
+    /**
+     * Shut down the subclass.
+     *
+     * @throws Throwable if anything goes wrong.
+     */
+    protected abstract void shutdown2() throws Throwable;
+
+    /**
+     * Create a connection handler.
+     *
+     * @param socket Socket to use.
+     * @param br     Reader to use.
+     * @param pw     Writer to use.
+     *
+     * @return The connection handler.
+     */
+    protected abstract ConnectionHandler createHandler(Socket socket, BufferedReader br, PrintWriter pw);
+
+    /**
+     * Find out whether more than one connection is allowed.
+     *
+     * @return false if multiple connections are allowed.
+     */
+    protected abstract boolean isUnique();
+
+    /**
+     * Clean up after the last active connection is gone. This method must be
+     * idempotent.
+     *
+     * @throws Throwable if anything goes wrong.
+     */
+    protected abstract void cleanup() throws Throwable;
+
+    /**
+     * Connection listener.
+     */
+    protected final class Listener extends ActiveService implements Comparable&lt;Listener&gt;, ListenerMBean {
+
+        /**
+         * Address to listen on.
+         */
+        final InetAddress addr;
+
+        /**
+         * Port to listen on.
+         */
+        final int port;
+
+        /**
+         * Server socket to listen with.
+         */
+        ServerSocket ss;
+
+        /**
+         * Create an instance.
+         *
+         * @param addr Local address to listen on.
+         * @param port Local port to listen on.
+         */
+<span class="nc" id="L363">        Listener(InetAddress addr, int port) {</span>
+
+<span class="nc" id="L365">            this.addr = addr;</span>
+<span class="nc" id="L366">            this.port = port;</span>
+<span class="nc" id="L367">        }</span>
+
+        @Override
+        @JmxAttribute(description=&quot;Host pattern to listen to&quot;)
+        public String getHost() {
+<span class="nc bnc" id="L372" title="All 2 branches missed.">            return (addr == null ? &quot;*&quot; : addr.toString()) + &quot;:&quot; + port;</span>
+        }
+
+        @Override
+        @JmxAttribute(description=&quot;true if secure connection is requested by configuration&quot;)
+        public boolean isSecureRequested() {
+<span class="nc" id="L378">            return signature.secure;</span>
+        }
+
+        @Override
+        @JmxAttribute(description=&quot;true if connected in secure mode&quot;)
+        public boolean isSecure() {
+<span class="nc" id="L384">            return ss instanceof SSLServerSocket;</span>
+        }
+
+        @Override
+        protected void startup() throws Throwable {
+
+            try {
+
+<span class="nc bnc" id="L392" title="All 2 branches missed.">                if (signature.secure) {</span>
+
+<span class="nc" id="L394">                    logger.info(&quot;Secure connection requested&quot;);</span>
+
+                    // VT: FIXME: It may make sense to be more flexible in
+                    // creating the SSL context, to prevent
+                    // NullPointerExceptions from being thrown up
+
+                    try {
+
+<span class="nc" id="L402">                        ss = SSLContextFactory.createContext(signature.password).getServerSocketFactory().createServerSocket(port, 256, addr);</span>
+
+<span class="nc" id="L404">                    } catch (SSLException sslex) {</span>
+
+<span class="nc" id="L406">                        logger.warn(&quot;Can't establish a secure listener on &quot; + addr + &quot;:&quot;</span>
+                                + port, sslex);
+<span class="nc" id="L408">                        logger.warn(&quot;Reverting to insecure connection&quot;);</span>
+<span class="nc" id="L409">                    }</span>
+                }
+
+<span class="nc bnc" id="L412" title="All 2 branches missed.">                if (ss == null) {</span>
+
+<span class="nc" id="L414">                    ss = new ServerSocket(port, 256, addr);</span>
+
+                }
+
+<span class="nc" id="L418">                logger.info(&quot;Listening on &quot; + addr + &quot;:&quot; + port);</span>
+
+<span class="nc" id="L420">            } catch (Throwable t) {</span>
+
+<span class="nc" id="L422">                throw new IllegalStateException(&quot;Can't listen on &quot; + addr + &quot;:&quot; + port, t);</span>
+<span class="nc" id="L423">            }</span>
+<span class="nc" id="L424">        }</span>
+
+        /**
+         * Keep accepting the TCP clients.
+         *
+         * @throws Throwable if anything goes wrong.
+         */
+        @Override
+        protected final void execute() throws Throwable {
+
+<span class="nc bnc" id="L434" title="All 2 branches missed.">            while (isEnabled()) {</span>
+
+<span class="nc" id="L436">                Socket s = ss.accept();</span>
+
+<span class="nc" id="L438">                logger.info(&quot;Client arrived from &quot; + s.getInetAddress() + &quot;:&quot; + s.getPort());</span>
+
+                // Redundant, but still: need to check if we're enabled -
+                // it's been quite a while since we've checked for that, and
+                // we may be shutting down right now.
+
+<span class="nc bnc" id="L444" title="All 2 branches missed.">                if (!isEnabled()) {</span>
+
+                    // They'll see this as a dropped connection, but it
+                    // doesn't really make sense to be nice and verbose
+                    // about it right now...
+
+<span class="nc" id="L450">                    logger.warn(&quot;Shutting down - dropped &quot; + s.getInetAddress() + &quot;:&quot;</span>
+<span class="nc" id="L451">                            + s.getPort());</span>
+
+<span class="nc" id="L453">                    s.close();</span>
+<span class="nc" id="L454">                    return;</span>
+                }
+
+                // Bug #978029: let's acquire a lock before allowing the new
+                // connection to start
+
+                try {
+
+<span class="nc" id="L462">                    cleanupLock.acquire();</span>
+
+<span class="nc" id="L464">                    BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream()));</span>
+<span class="nc" id="L465">                    PrintWriter pw = new PrintWriter(s.getOutputStream());</span>
+
+<span class="nc" id="L467">                    ConnectionHandler ch = createHandler(s, br, pw);</span>
+
+                    // VT: It is possible to have a race between the connection
+                    // that has just been created and old connection, unless the
+                    // old one is dropped before the new one is activated.
+
+<span class="nc bnc" id="L473" title="All 4 branches missed.">                    if (isUnique() &amp;&amp; !clientSet.isEmpty()) {</span>
+
+<span class="nc" id="L475">                        logger.info(&quot;Unique - dropping existing connection&quot;);</span>
+
+                        // Since the new connection has not yet been added to
+                        // the client set, an attempt to stop() the last handler
+                        // will result in a cleanup() attempt. In order to avoid
+                        // that, let's temporarily add the new connection
+                        // handler to the set. Remember that
+                        // ConnectionHandler.startup() will do it later.
+
+                        try {
+
+<span class="nc" id="L486">                            synchronized (clientSet) {</span>
+
+<span class="nc" id="L488">                                clientSet.add(ch);</span>
+<span class="nc" id="L489">                            }</span>
+
+<span class="nc" id="L491">                            drop(ch, s);</span>
+
+                        } finally {
+
+<span class="nc" id="L495">                            synchronized (clientSet) {</span>
+
+<span class="nc" id="L497">                                clientSet.remove(ch);</span>
+<span class="nc" id="L498">                            }</span>
+                        }
+                    }
+
+                    // VT: FIXME: It may make perfect sense to split this off
+                    // into a separate thread to prevent a denial of service
+                    // caused by slowly starting clients
+
+                    // Failure to start the client handler usually means that
+                    // the client haven't complied to some of our protocol
+                    // handshake requirements. In this case, we won't accept the
+                    // client.
+
+<span class="nc bnc" id="L511" title="All 2 branches missed.">                    if (!ch.start().waitFor()) {</span>
+
+<span class="nc" id="L513">                        logger.info(&quot;Client coming from &quot; + s.getInetAddress() + &quot;:&quot;</span>
+<span class="nc" id="L514">                                + s.getPort() + &quot; failed to complete handshake - dropped&quot;);</span>
+
+                        // Since it may have been the last remaining connection
+                        // (others may have been dropped without a cleanup,
+                        // above), let's see if we have to clean things up.
+
+<span class="nc bnc" id="L520" title="All 2 branches missed.">                        if (clientSet.isEmpty()) {</span>
+
+                            // Yes, we do. Since the lock is already acquired,
+                            // we don't have to do it again.
+
+<span class="nc" id="L525">                            logger.info(&quot;Oops, performing cleanup()&quot;);</span>
+
+<span class="nc" id="L527">                            cleanup();</span>
+                        }
+
+<span class="nc" id="L530">                        return;</span>
+
+                    }
+
+<span class="nc" id="L534">                    logger.info(&quot;&quot; + s.getInetAddress() + &quot;:&quot; + s.getPort() + &quot;: started&quot;);</span>
+
+                } finally {
+
+<span class="nc" id="L538">                    cleanupLock.release();</span>
+                }
+<span class="nc" id="L540">            }</span>
+<span class="nc" id="L541">        }</span>
+
+        /**
+         * Disconnect existing connection[s] and notify them about the newcomer.
+         *
+         * @param ch    Connection handler *not* to stop.
+         * @param other Socket created for the other connection - for logging
+         *              purposes.
+         *
+         * @throws InterruptedException if the wait is interrupted.
+         */
+        private void drop(ConnectionHandler ch, Socket other) throws InterruptedException {
+
+            // Have to shut down all others (actually, there's just
+            // zero or one)
+
+<span class="nc" id="L557">            SemaphoreGroup stopped = new SemaphoreGroup();</span>
+
+<span class="nc" id="L559">            synchronized (clientSet) {</span>
+
+<span class="nc bnc" id="L561" title="All 2 branches missed.">                for (Iterator&lt;ConnectionHandler&gt; i = clientSet.iterator(); i.hasNext();) {</span>
+
+<span class="nc" id="L563">                    ConnectionHandler oldHandler = i.next();</span>
+
+<span class="nc bnc" id="L565" title="All 2 branches missed.">                    if (oldHandler == ch) {</span>
+
+                        // That's the one not to stop
+
+<span class="nc" id="L569">                        continue;</span>
+                    }
+
+<span class="nc" id="L572">                    oldHandler.send(&quot;E Disconnected: another client came from &quot; + other.getInetAddress() + &quot;:&quot;</span>
+<span class="nc" id="L573">                            + other.getPort());</span>
+<span class="nc" id="L574">                    stopped.add(oldHandler.stop());</span>
+<span class="nc" id="L575">                }</span>
+<span class="nc" id="L576">            }</span>
+
+            // This is required to avoid a race condition between the new
+            // connection startup and old connection shutdown.
+
+<span class="nc" id="L581">            stopped.waitForAll();</span>
+
+<span class="nc" id="L583">            logger.info(&quot;Dropped existing connections&quot;);</span>
+<span class="nc" id="L584">        }</span>
+
+        @Override
+        protected void shutdown() throws Throwable {
+
+<span class="nc" id="L589">        }</span>
+
+        @Override
+        public int compareTo(Listener other) {
+
+<span class="nc bnc" id="L594" title="All 2 branches missed.">            if (other == null) {</span>
+<span class="nc" id="L595">                throw new IllegalArgumentException(&quot;other can't be null&quot;);</span>
+            }
+
+<span class="nc" id="L598">            return (addr + &quot;:&quot; + port).compareTo(other.addr + &quot;:&quot; + other.port);</span>
+        }
+    }
+
+    /**
+     * The connection handler.
+     */
+    abstract protected class ConnectionHandler extends PassiveService {
+
+        /**
+         * Socket to connect through.
+         */
+        protected Socket socket;
+
+        /**
+         * Reader to use.
+         */
+        protected BufferedReader br;
+
+        /**
+         * Writer to use.
+         */
+        protected PrintWriter pw;
+
+        /**
+         * Parser thread to use.
+         */
+        protected Thread parser;
+
+        /**
+         * Create an instance.
+         *
+         * @param socket Socket to use.
+         * @param br     Reader to use.
+         * @param pw     Writer to use.
+         */
+<span class="nc" id="L634">        public ConnectionHandler(Socket socket, BufferedReader br, PrintWriter pw) {</span>
+
+<span class="nc" id="L636">            this.socket = socket;</span>
+<span class="nc" id="L637">            this.br = br;</span>
+<span class="nc" id="L638">            this.pw = pw;</span>
+<span class="nc" id="L639">        }</span>
+
+        /**
+         * Tell the listener what devices we have.
+         */
+        public abstract void iHave();
+
+        /**
+         * Send a message to the client.
+         *
+         * @param message Message to send.
+         */
+        public synchronized void send(String message) {
+
+<span class="nc bnc" id="L653" title="All 2 branches missed.">            if (!isEnabled()) {</span>
+
+<span class="nc" id="L655">                throw new IllegalStateException(&quot;Not enabled now, stopped?&quot;);</span>
+            }
+
+<span class="nc" id="L658">            pw.println(message);</span>
+<span class="nc" id="L659">            pw.flush();</span>
+<span class="nc" id="L660">        }</span>
+
+        @Override
+        protected void startup() throws Throwable {
+
+            // Dump all the known data on the client
+
+<span class="nc" id="L667">            sayHello();</span>
+
+            // Start the command parser thread
+
+<span class="nc" id="L671">            parser = new Thread(createParser());</span>
+
+<span class="nc bnc" id="L673" title="All 2 branches missed.">            if (parser != null) {</span>
+<span class="nc" id="L674">                parser.start();</span>
+            }
+
+<span class="nc" id="L677">            synchronized (clientSet) {</span>
+
+<span class="nc" id="L679">                clientSet.add(this);</span>
+<span class="nc" id="L680">            }</span>
+
+<span class="nc" id="L682">            logger.info(&quot;Active connections: &quot; + clientSet.size());</span>
+<span class="nc" id="L683">        }</span>
+
+        /**
+         * Execute the protocol handshake.
+         */
+        protected abstract void sayHello();
+
+        /**
+         * Create a command parser.
+         *
+         * @return Command parser.
+         */
+        protected abstract CommandParser createParser();
+
+        @Override
+        protected void shutdown() throws Throwable {
+
+<span class="nc" id="L700">            logger.info(&quot;Active connections: &quot; + clientSet.size());</span>
+<span class="nc" id="L701">            logger.info(&quot;Shutting down...&quot;);</span>
+
+            try {
+
+                // Shut down the command parser thread, unless it is down
+                // already
+
+<span class="nc bnc" id="L708" title="All 2 branches missed.">                if (parser != null) {</span>
+<span class="nc" id="L709">                    parser.interrupt();</span>
+                }
+
+                // Remove ourselves from the client list
+
+<span class="nc" id="L714">                synchronized (clientSet) {</span>
+
+<span class="nc" id="L716">                    clientSet.remove(this);</span>
+<span class="nc" id="L717">                }</span>
+
+<span class="nc" id="L719">                socket.close();</span>
+
+                // VT: FIXME: Do I need this (below)?
+
+<span class="nc" id="L723">                br.close();</span>
+<span class="nc" id="L724">                pw.close();</span>
+
+<span class="nc" id="L726">                logger.info(&quot;Shut down&quot;);</span>
+
+<span class="nc" id="L728">            } catch (Throwable t) {</span>
+
+<span class="nc" id="L730">                logger.warn(&quot;Unexpected exception:&quot;, t);</span>
+<span class="nc" id="L731">            }</span>
+
+<span class="nc" id="L733">            logger.info(&quot;Active connections: &quot; + clientSet.size());</span>
+
+<span class="nc bnc" id="L735" title="All 2 branches missed.">            if (clientSet.isEmpty()) {</span>
+
+<span class="nc" id="L737">                logger.info(&quot;Last active connection is gone, cleaning up&quot;);</span>
+
+                {
+                    // VT: If cleanup is taking long enough (and we can
+                    // safely assume it is), a race condition between
+                    // shutting down connection and the connection that has
+                    // just arrived is inevitable, especially in case of a
+                    // control connection (bug #978029). To prevent this
+                    // from happening, we must disallow initializing new
+                    // connections while the cleanup is still in progress.
+                    //
+                    // This will slow down the handshake, which may or may
+                    // not be a good thing - let's wait and see.
+
+                    try {
+
+<span class="nc" id="L753">                        cleanupLock.acquire();</span>
+
+<span class="nc" id="L755">                        cleanup();</span>
+
+                    } finally {
+
+<span class="nc" id="L759">                        cleanupLock.release();</span>
+                    }
+                }
+            }
+<span class="nc" id="L763">        }</span>
+
+        /**
+         * Command parser.
+         */
+<span class="nc" id="L768">        protected abstract class CommandParser implements Runnable {</span>
+
+            /**
+             * Keep reading the data from {@link ConnectionHandler#br the reader} and
+             * {@link #parse(String) parsing} it.
+             */
+            @Override
+            public void run() {
+
+                while (true) {
+
+<span class="nc" id="L779">                    String line = null;</span>
+
+                    try {
+
+<span class="nc" id="L783">                        line = br.readLine();</span>
+
+<span class="nc bnc" id="L785" title="All 2 branches missed.">                        if (!isEnabled()) {</span>
+
+<span class="nc" id="L787">                            logger.info(&quot;Interrupted, input ignored: '&quot; + line + &quot;'&quot;);</span>
+<span class="nc" id="L788">                            return;</span>
+                        }
+
+<span class="nc bnc" id="L791" title="All 2 branches missed.">                        if (line == null) {</span>
+
+<span class="nc" id="L793">                            logger.info(&quot;Lost the client&quot;);</span>
+
+<span class="nc" id="L795">                            stop();</span>
+<span class="nc" id="L796">                            return;</span>
+                        }
+
+                        // Let's try to make sure that nobody tries to
+                        // interfere with us.
+
+                        // VT: FIXME: Just make sure we don't create a deadlock
+                        // here
+
+<span class="nc" id="L805">                        synchronized (this) {</span>
+
+<span class="nc" id="L807">                            parse(line);</span>
+<span class="nc" id="L808">                        }</span>
+
+<span class="nc" id="L810">                    } catch (InterruptedException ignored) {</span>
+
+                        // We've probably been stopped
+
+<span class="nc" id="L814">                        logger.info(&quot;Interrupted&quot;);</span>
+
+<span class="nc bnc" id="L816" title="All 2 branches missed.">                        if (isEnabled()) {</span>
+
+<span class="nc" id="L818">                            stop();</span>
+                        }
+
+<span class="nc" id="L821">                        return;</span>
+
+<span class="nc" id="L823">                    } catch (SocketException sex) {</span>
+
+                        // Either a network error occured, or we've been stopped
+
+<span class="nc" id="L827">                        logger.info(&quot;Socket error: &quot; + sex.getMessage());</span>
+
+<span class="nc bnc" id="L829" title="All 2 branches missed.">                        if (isEnabled()) {</span>
+
+<span class="nc" id="L831">                            stop();</span>
+                        }
+
+<span class="nc" id="L834">                        return;</span>
+
+<span class="nc" id="L836">                    } catch (SSLException sslex) {</span>
+
+                        // I don't want to deal with SSL errors...
+
+<span class="nc" id="L840">                        logger.info(&quot;SSL problem: &quot; + sslex.getMessage());</span>
+
+<span class="nc bnc" id="L842" title="All 2 branches missed.">                        if (isEnabled()) {</span>
+
+<span class="nc" id="L844">                            stop();</span>
+                        }
+
+<span class="nc" id="L847">                        return;</span>
+
+<span class="nc" id="L849">                    } catch (Throwable t) {</span>
+
+<span class="nc bnc" id="L851" title="All 4 branches missed.">                        if (t instanceof IOException &amp;&amp; &quot;Stream closed&quot;.equals(t.getMessage())) {</span>
+
+                            // This is normal, the client is gone
+
+<span class="nc" id="L855">                            return;</span>
+                        }
+
+<span class="nc" id="L858">                        logger.warn(&quot;Huh? Command received: '&quot; + line + &quot;'&quot;, t);</span>
+
+                        // The exception message is usually empty
+
+<span class="nc bnc" id="L862" title="All 2 branches missed.">                        send(&quot;E &quot; + ((t.getMessage() == null) ? &quot;Bad command&quot; : t.getMessage()) + &quot;: &quot; + line);</span>
+<span class="nc" id="L863">                    }</span>
+<span class="nc" id="L864">                }</span>
+            }
+
+            /**
+             * Parse the received command.
+             *
+             * @param command Command to parse.
+             *
+             * @throws Throwable if anything goes wrong.
+             */
+            public final void parse(String command) throws Throwable {
+
+                // VT: NOTE: Make sure the control flow is right. It is
+                // if-elseif-...else, in other words, if there's a match, we
+                // process the command and return
+
+<span class="nc bnc" id="L880" title="All 2 branches missed.">                if (&quot;q&quot;.equalsIgnoreCase(command)) {</span>
+
+<span class="nc" id="L882">                    logger.info(&quot;Client disconnected&quot;);</span>
+<span class="nc" id="L883">                    stop();</span>
+
+<span class="nc bnc" id="L885" title="All 2 branches missed.">                } else if (&quot;&quot;.equalsIgnoreCase(command)) {</span>
+
+                    // Nothing, really, they're just checking if we're alive
+
+                    // VT: FIXME: Make sure the heartbeat bug is fixed
+
+<span class="nc bnc" id="L891" title="All 2 branches missed.">                } else if (&quot;heartbeat&quot;.equals(command)) {</span>
+
+<span class="nc" id="L893">                    send(&quot;OK&quot;);</span>
+<span class="nc" id="L894">                    return;</span>
+                } else {
+
+<span class="nc" id="L897">                    parse2(command);</span>
+                }
+<span class="nc" id="L899">            }</span>
+
+            /**
+             * Parse the command further.
+             *
+             * @param command Command to parse.
+             *
+             * @throws Throwable if anything goes wrong.
+             */
+            protected abstract void parse2(String command) throws Throwable;
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>
