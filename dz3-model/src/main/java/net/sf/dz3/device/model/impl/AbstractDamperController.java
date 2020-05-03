@@ -146,8 +146,8 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
             }
 
             ts2signal.put(source, signal);
-            logger.info("Demand: " + source.getName() + "=" + signal.demand.sample);
-            logger.info("ts2signal.size()=" + ts2signal.size());
+            logger.info("Demand: {}={}", source.getName(), signal.demand.sample);
+            logger.info("ts2signal.size()={}", ts2signal.size());
 
             return sync();
 
@@ -169,7 +169,7 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
                 throw new IllegalArgumentException("signal can't be null");
             }
 
-            logger.info("UnitSignal: " + signal.sample);
+            logger.info("UnitSignal: {}", signal.sample);
 
             if (this.hvacSignal == null) {
 
@@ -372,7 +372,9 @@ public abstract class AbstractDamperController extends LogAware implements Dampe
         @Override
         public void consume(DataSample<ThermostatSignal> signal) {
 
-            assert(signal != null);
+            if (signal == null) {
+                throw new IllegalArgumentException("signal can't be null");
+            }
 
             Thermostat source = name2ts.get(signal.sourceName);
 
