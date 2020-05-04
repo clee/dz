@@ -40,12 +40,12 @@ public abstract class AbstractSwitch implements Switch {
     }
 
     @Override
-    public final synchronized boolean getState() throws IOException {
+    public synchronized boolean getState() throws IOException {
         return state;
     }
 
     @Override
-    public final synchronized void setState(boolean state) throws IOException {
+    public synchronized void setState(boolean state) throws IOException {
 
         ThreadContext.push("setState");
 
