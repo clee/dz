@@ -47,17 +47,17 @@ public abstract class AbstractDamperController implements DamperController, JmxA
     /**
      * Association from a thermostat to a damper.
      */
-    protected final Map<Thermostat, Damper> ts2damper = new HashMap<>();
+    private final Map<Thermostat, Damper> ts2damper = new HashMap<>();
 
     /**
      * Association from a thermostat to its last known signal.
      */
-    protected final Map<Thermostat, ThermostatSignal> ts2signal = new TreeMap<>();
+    private final Map<Thermostat, ThermostatSignal> ts2signal = new TreeMap<>();
 
     /**
      * Last known unit signal.
      */
-    protected DataSample<UnitSignal> hvacSignal = null;
+    private DataSample<UnitSignal> hvacSignal = null;
 
     /**
      * Instrumentation map.
@@ -352,8 +352,8 @@ public abstract class AbstractDamperController implements DamperController, JmxA
 
         if (this.hvacSignal != null && this.hvacSignal.sample.running) {
 
-            return shuffle(compute(), true);
-            
+            return shuffle(compute(ts2damper, ts2signal), true);
+
         } else {
             
             return park(true);
@@ -385,8 +385,13 @@ public abstract class AbstractDamperController implements DamperController, JmxA
 
     /**
      * Compute damper positions based on known data.
+     *
+     * This method is package private to facilitate testing.
+     *
+     * @param ts2damper Thermostat to damper mapping.
+     * @param ts2signal Thermostat to signal mapping.
      */
-    protected abstract Map<Damper, Double> compute();
+    abstract Map<Damper, Double> compute(Map<Thermostat, Damper> ts2damper, Map<Thermostat, ThermostatSignal> ts2signal);
 
     private class ThermostatListener implements DataSink<ThermostatSignal> {
 
