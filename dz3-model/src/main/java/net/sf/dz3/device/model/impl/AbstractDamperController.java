@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -43,7 +44,7 @@ public abstract class AbstractDamperController implements DamperController, JmxA
      *
      * This pool requires exactly one thread.
      */
-    ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor;
 
     /**
      * Association from a thermostat to a damper.
@@ -87,13 +88,6 @@ public abstract class AbstractDamperController implements DamperController, JmxA
     private boolean enabled = true;
 
     /**
-     * Create an instance with nothing attached.
-     */
-    public AbstractDamperController() {
-
-    }
-
-    /**
      * Create an instance and make it listen to the unit and thermostats.
      *
      * @param unit Unit to listen to.
@@ -109,6 +103,12 @@ public abstract class AbstractDamperController implements DamperController, JmxA
             throw new IllegalArgumentException("ts2damper can't be null");
         }
 
+        executor = Executors.newSingleThreadExecutor(
+                new BasicThreadFactory.Builder()
+                    .wrappedFactory(Executors.defaultThreadFactory())
+                    .namingPattern(getClass().getSimpleName() + "(" + unit.getName() + ")@%d")
+                    .build());
+
         unit.addConsumer(this);
 
         for (Iterator<Thermostat> i = ts2damper.keySet().iterator(); i.hasNext(); ) {
@@ -122,6 +122,7 @@ public abstract class AbstractDamperController implements DamperController, JmxA
 
             name2ts.put(ts.getName(), ts);
         }
+
     }
 
     @Override
