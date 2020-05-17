@@ -30,7 +30,7 @@ public abstract class AbstractDamper implements Damper {
      * This pool requires exactly one thread, to honor the happened-before relation
      * between the series of commands sent to this damper.
      */
-    protected ExecutorService executor = Executors.newSingleThreadExecutor();
+    protected final ExecutorService executor;
 
     /**
      * Damper name.
@@ -77,6 +77,12 @@ public abstract class AbstractDamper implements Damper {
 
         this.name = name;
         signature = MessageDigestCache.getMD5(name).substring(0, 19);
+
+        executor = Executors.newSingleThreadExecutor(
+                new BasicThreadFactory.Builder()
+                    .wrappedFactory(Executors.defaultThreadFactory())
+                    .namingPattern(getClass().getSimpleName() + "(" + name + ")@%d")
+                    .build());
     }
 
     @Override
