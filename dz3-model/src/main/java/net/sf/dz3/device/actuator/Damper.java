@@ -186,7 +186,11 @@ public interface Damper extends DataSink<Double>, DataSource<Double>, JmxAware {
                 result.complete(hashCode(), null);
 
                 int count = targetPosition.size();
-                ExecutorService executor = Executors.newFixedThreadPool(count);
+                ExecutorService executor = Executors.newFixedThreadPool(count,
+                        new BasicThreadFactory.Builder()
+                        .wrappedFactory(Executors.defaultThreadFactory())
+                        .namingPattern("DamperMove@%d")
+                        .build());
                 CompletionService<TransitionStatus> cs = new ExecutorCompletionService<>(executor);
 
                 for (Iterator<Entry<Damper, Double>> i = targetPosition.entrySet().iterator(); i.hasNext(); ) {
